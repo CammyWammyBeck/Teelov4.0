@@ -7,7 +7,7 @@
     <!-- Header -->
     <header class="mb-6 text-center">
         <div class="flex items-center justify-center gap-2 text-sm font-medium mb-3">
-            <span class="bg-teelo-lime text-teelo-dark px-3 py-0.5 rounded-full text-xs font-bold tracking-wide">Development</span>
+            <span class="bg-teelo-lime text-teelo-dark px-3 py-0.5 rounded-full text-xs font-bold tracking-wide">{{ post.category if post.category else 'Blog' }}</span>
         </div>
         <h1 class="text-3xl font-extrabold text-teelo-dark mb-3 tracking-tight leading-tight">
             {{ post.title }}
@@ -20,7 +20,7 @@
                 <span>{{ post.author }}</span>
             </div>
             <span>•</span>
-            <time datetime="{{ post.date }}">{{ post.date }}</time>
+            <time datetime="{{ post.date }}">{{ post.date.strftime('%d %b %Y') if post.date.strftime is defined else post.date }}</time>
         </div>
     </header>
 

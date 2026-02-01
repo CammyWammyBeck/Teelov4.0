@@ -12,7 +12,7 @@
         <article class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300 group">
             <div class="p-8">
                 <div class="flex items-center gap-3 text-sm text-gray-400 mb-4">
-                    <time datetime="{{ post.date }}">{{ post.date }}</time>
+                    <time datetime="{{ post.date }}">{{ post.date.strftime('%d %b %Y') if post.date.strftime is defined else post.date }}</time>
                     <span>•</span>
                     <span>{{ post.author }}</span>
                 </div>

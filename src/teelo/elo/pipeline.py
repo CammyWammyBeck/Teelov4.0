@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from teelo.elo.boost import calculate_k_boost
 from teelo.elo.calculator import calculate_fast
-from teelo.elo.constants import DEFAULT_ELO, LEVEL_TO_CODE, MARGIN_DEFAULTS, DECAY_DEFAULTS, BOOST_DEFAULTS
+from teelo.elo.constants import DEFAULT_ELO, LEVEL_TO_CODE, MARGIN_DEFAULTS, DECAY_DEFAULTS, BOOST_DEFAULTS, get_level_code
 from teelo.elo.decay import apply_inactivity_decay
 from teelo.elo.margin import calculate_margin_multiplier
 
@@ -76,6 +76,21 @@ class EloParams:
     S_A: float = 1670.0
     S_M: float = 1809.0
     S_G: float = 1428.0
+
+    # Women's K-factors (WF, WC, WA, WM, WG)
+    # Separate from men's because all women's matches are best-of-3
+    K_WF: float = 183.0
+    K_WC: float = 137.0
+    K_WA: float = 108.0
+    K_WM: float = 107.0
+    K_WG: float = 116.0
+
+    # Women's S-factors
+    S_WF: float = 1241.0
+    S_WC: float = 1441.0
+    S_WA: float = 1670.0
+    S_WM: float = 1809.0
+    S_WG: float = 1428.0
 
     # Margin-of-victory parameters
     margin_base: float = MARGIN_DEFAULTS["margin_base"]
@@ -438,6 +453,7 @@ def load_matches_for_elo(session: Session) -> list[dict]:
             Match.score_structured,
             Match.temporal_order,
             Tournament.level,
+            Tournament.tour,
         )
         .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
         .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
@@ -451,8 +467,9 @@ def load_matches_for_elo(session: Session) -> list[dict]:
 
     matches = []
     for row in rows:
-        # Map tournament level to level code (F, C, A, M, G)
-        level_code = LEVEL_TO_CODE.get(row.level, "A")
+        # Map tournament level + tour to level code
+        # Women's tours get "W" prefix (e.g., "WG" instead of "G")
+        level_code = get_level_code(row.level, row.tour)
 
         # Use match_date if available, otherwise extract from temporal_order
         match_date = row.match_date

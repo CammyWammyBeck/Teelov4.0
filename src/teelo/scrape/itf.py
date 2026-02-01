@@ -279,7 +279,12 @@ class ITFScraper(BaseScraper):
         tourney_id = parts[-1]
 
         # Get tournament name from link text
-        name = link.get_text(strip=True)
+        # ITF links often have .short and .long child spans — prefer .short
+        short_el = link.select_one(".short")
+        if short_el:
+            name = short_el.get_text(strip=True)
+        else:
+            name = link.get_text(strip=True)
         if not name:
             name = tourney_id
 

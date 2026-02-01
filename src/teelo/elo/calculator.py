@@ -115,6 +115,7 @@ class EloCalculator:
         elo_b: Decimal,
         winner: str,
         tournament_level: str,
+        tour: Optional[str] = None,
         surface: Optional[str] = None,  # Reserved for future surface-specific ELO
     ) -> EloUpdate:
         """
@@ -159,8 +160,8 @@ class EloCalculator:
         elo_a = Decimal(str(elo_a))
         elo_b = Decimal(str(elo_b))
 
-        # Get constants for this tournament level
-        k, s = self._get_constants(tournament_level)
+        # Get constants for this tournament level (gender-aware)
+        k, s = self._get_constants(tournament_level, tour)
         k = Decimal(str(k))
         s = Decimal(str(s))
 
@@ -312,17 +313,18 @@ class EloCalculator:
 
         return needed_elo.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    def _get_constants(self, level: str) -> tuple[int, int]:
+    def _get_constants(self, level: str, tour: Optional[str] = None) -> tuple[int, int]:
         """
         Get K and S factors for a tournament level.
 
         Args:
             level: Tournament level name
+            tour: Tour name (e.g., "ATP", "WTA") for gender-specific constants
 
         Returns:
             Tuple of (K, S) values
         """
-        return get_constants_for_level(level)
+        return get_constants_for_level(level, tour)
 
 
 def calculate_fast(

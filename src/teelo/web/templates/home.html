@@ -2,7 +2,20 @@
 
 {% block content %}
 <div class="space-y-8">
-    <!-- Header / Stats Overview (Placeholder) -->
+    <!-- Hero Section -->
+    <div class="text-center py-12 md:py-20">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-teelo-dark tracking-tight mb-4">
+            Tennis ratings<br>powered by <span class="bg-teelo-lime px-2 rounded-lg">data</span>
+        </h1>
+        <p class="text-lg text-gray-500 max-w-xl mx-auto mb-8">
+            ELO ratings, match predictions, and analytics across ATP, WTA, and ITF tours.
+        </p>
+        <a href="/blog" class="inline-flex items-center gap-2 px-6 py-3 bg-teelo-dark text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors shadow-md">
+            Read the blog <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </a>
+    </div>
+
+    <!-- Stat Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center gap-4 group hover:shadow-lg transition-all duration-300 cursor-pointer">
             <div class="bg-gray-50 p-3 rounded-xl group-hover:bg-teelo-lime group-hover:text-teelo-dark transition-colors duration-300">
@@ -33,144 +46,121 @@
         </div>
     </div>
 
-    <!-- Main Content: Recent Matches -->
+    <!-- Recent Matches -->
     <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-        <div class="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-                <h2 class="text-xl font-bold text-teelo-dark">Recent Matches</h2>
-                <p class="text-sm text-gray-500 mt-1">Latest results from ATP, WTA, and ITF tours.</p>
-            </div>
-            <div class="flex gap-2">
-                 <button class="px-4 py-2 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors">Filter</button>
-                 <button class="px-4 py-2 bg-teelo-lime text-teelo-dark rounded-lg text-sm font-bold shadow-sm hover:brightness-105 transition-all border border-black/5">
-                    View All
-                 </button>
-            </div>
+        <div class="p-6 border-b border-gray-100">
+            <h2 class="text-xl font-bold text-teelo-dark">Recent Matches</h2>
+            <p class="text-sm text-gray-500 mt-1">Latest results from ATP, WTA, and ITF tours.</p>
         </div>
-        
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse table-fixed">
+
+        {# --- Dummy match data --- #}
+        {% set dummy_matches = [
+            {"tour": "ATP", "tour_bg": "bg-[#002865]", "name": "Australian Open", "round": "Final", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "Grand Slam", "player_a": "J. Sinner", "player_b": "A. Zverev", "score": "6-3 7-6 6-3", "winner": "A", "date": "26 Jan"},
+            {"tour": "ATP", "tour_bg": "bg-[#002865]", "name": "Australian Open", "round": "Semifinal", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "Grand Slam", "player_a": "J. Sinner", "player_b": "B. Shelton", "score": "7-6 6-2 6-2", "winner": "A", "date": "24 Jan"},
+            {"tour": "ATP", "tour_bg": "bg-[#002865]", "name": "Australian Open", "round": "Semifinal", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "Grand Slam", "player_a": "N. Djokovic", "player_b": "A. Zverev", "score": "6-7 2-6 ret.", "winner": "B", "date": "24 Jan"},
+            {"tour": "ATP", "tour_bg": "bg-[#002865]", "name": "Australian Open", "round": "Quarterfinal", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "Grand Slam", "player_a": "C. Alcaraz", "player_b": "N. Djokovic", "score": "4-6 6-4 6-3 6-4", "winner": "B", "date": "22 Jan"},
+            {"tour": "WTA", "tour_bg": "bg-[#E30066]", "name": "Australian Open", "round": "Final", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "Grand Slam", "player_a": "M. Keys", "player_b": "A. Sabalenka", "score": "6-3 2-6 7-5", "winner": "A", "date": "25 Jan"},
+            {"tour": "WTA", "tour_bg": "bg-[#E30066]", "name": "Australian Open", "round": "Semifinal", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "Grand Slam", "player_a": "A. Sabalenka", "player_b": "P. Badosa", "score": "6-4 6-2", "winner": "A", "date": "23 Jan"},
+            {"tour": "ATP", "tour_bg": "bg-[#002865]", "name": "Montpellier", "round": "Final", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "ATP 250", "player_a": "G. Monfils", "player_b": "A. Fils", "score": "6-4 7-5", "winner": "A", "date": "02 Feb"},
+            {"tour": "ATP", "tour_bg": "bg-[#002865]", "name": "Montpellier", "round": "Semifinal", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "ATP 250", "player_a": "A. Fils", "player_b": "U. Humbert", "score": "7-6 6-4", "winner": "A", "date": "01 Feb"},
+            {"tour": "ATP", "tour_bg": "bg-[#002865]", "name": "Dallas", "round": "Quarterfinal", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "ATP 250", "player_a": "T. Paul", "player_b": "M. Giron", "score": "6-3 6-4", "winner": "A", "date": "31 Jan"},
+            {"tour": "ITF", "tour_bg": "bg-gray-600", "name": "M25 Shrewsbury", "round": "R32", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "ITF Men", "player_a": "J. Mayew", "player_b": "T. Sherif", "score": "6-2 6-1", "winner": "A", "date": "30 Jan"},
+            {"tour": "ATP", "tour_bg": "bg-[#002865]", "name": "Rotterdam", "round": "R16", "surface": "Hard", "surface_cls": "text-[#3B82F6]", "level": "ATP 500", "player_a": "D. Medvedev", "player_b": "S. Tsitsipas", "score": "6-4 3-6 7-6", "winner": "A", "date": "29 Jan"},
+            {"tour": "WTA", "tour_bg": "bg-[#E30066]", "name": "Linz", "round": "Quarterfinal", "surface": "Clay", "surface_cls": "text-[#EA580C]", "level": "WTA 250", "player_a": "E. Svitolina", "player_b": "L. Samsonova", "score": "7-5 6-3", "winner": "A", "date": "28 Jan"},
+        ] %}
+
+        <!-- Desktop table (hidden on mobile) -->
+        <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="bg-gray-50/50 text-gray-400 text-[10px] uppercase tracking-widest font-bold border-b border-gray-100">
-                        <th class="px-4 py-2 w-56">Tournament / Round</th>
-                        <th class="px-4 py-2 w-24">Surface</th>
-                        <th class="px-4 py-2 w-28">Level</th>
-                        <th class="px-4 py-2 text-right">Player A</th>
-                        <th class="px-4 py-2 text-center w-32">Score</th>
-                        <th class="px-4 py-2">Player B</th>
-                        <th class="px-4 py-2 text-right w-24">Date</th>
+                    <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
+                        <th class="px-5 py-3">Tournament</th>
+                        <th class="px-5 py-3 text-right">Player A</th>
+                        <th class="px-5 py-3 text-center">Score</th>
+                        <th class="px-5 py-3">Player B</th>
+                        <th class="px-5 py-3 text-right">Date</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-50">
-                    {% for match in matches %}
-                    <tr class="hover:bg-gray-50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime">
-                        <!-- Tourney & Round -->
-                        <td class="px-4 py-2">
-                            <div class="flex flex-col leading-tight">
-                                <div class="flex items-center gap-1.5 mb-0.5">
-                                    {% if match.tournament_edition and match.tournament_edition.tournament %}
-                                        {% if match.tournament_edition.tournament.tour == 'ATP' %}
-                                            <span class="bg-[#002865] text-white text-[9px] px-1 rounded font-bold tracking-tight">ATP</span>
-                                        {% elif match.tournament_edition.tournament.tour == 'WTA' %}
-                                            <span class="bg-[#E30066] text-white text-[9px] px-1 rounded font-bold tracking-tight">WTA</span>
-                                        {% elif match.tournament_edition.tournament.tour == 'ITF' %}
-                                            <span class="bg-gray-600 text-white text-[9px] px-1 rounded font-bold tracking-tight">ITF</span>
-                                        {% else %}
-                                            <span class="bg-gray-400 text-white text-[9px] px-1 rounded font-bold tracking-tight">{{ match.tournament_edition.tournament.tour }}</span>
-                                        {% endif %}
-                                        
-                                        <span class="text-[11px] font-bold text-teelo-dark/80 truncate" title="{{ match.tournament_edition.tournament.name }}">
-                                            {% if match.tournament_edition.tournament.name == 'ATP Tour' and match.tournament_edition.tournament.city %}
-                                                {{ match.tournament_edition.tournament.city }}
-                                            {% else %}
-                                                {{ match.tournament_edition.tournament.name }}
-                                            {% endif %}
-                                        </span>
-                                    {% else %}
-                                        <span class="text-[11px] font-bold text-teelo-dark/80">-</span>
-                                    {% endif %}
+                <tbody class="divide-y divide-gray-100/70">
+                    {% for m in dummy_matches %}
+                    <tr class="hover:bg-gray-50/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime">
+                        <!-- Tournament info -->
+                        <td class="px-5 py-3">
+                            <div class="flex items-center gap-2">
+                                <span class="{{ m.tour_bg }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ m.tour }}</span>
+                                <div class="min-w-0">
+                                    <span class="text-sm font-semibold text-teelo-dark truncate block" title="{{ m.name }}">{{ m.name }}</span>
+                                    <span class="text-xs text-gray-400">{{ m.round }} · {{ m.level }} · <span class="{{ m.surface_cls }}">{{ m.surface }}</span></span>
                                 </div>
-                                <span class="text-[10px] text-gray-400 uppercase font-medium pl-[30px]">
-                                    {{ match.round|default('R1', true) }}
-                                </span>
                             </div>
                         </td>
 
-                        <!-- Surface -->
-                        <td class="px-4 py-2">
-                            {% set surface = match.tournament_edition.surface if match.tournament_edition and match.tournament_edition.surface else (match.tournament_edition.tournament.surface if match.tournament_edition and match.tournament_edition.tournament else 'Unknown') %}
-                            {% if surface == 'Hard' %}
-                                <span class="text-[10px] font-semibold text-[#3B82F6] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">Hard</span>
-                            {% elif surface == 'Clay' %}
-                                <span class="text-[10px] font-semibold text-[#EA580C] bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">Clay</span>
-                            {% elif surface == 'Grass' %}
-                                <span class="text-[10px] font-semibold text-[#15803D] bg-green-50 px-1.5 py-0.5 rounded border border-green-100">Grass</span>
-                            {% else %}
-                                <span class="text-[10px] font-medium text-gray-500">{{ surface }}</span>
-                            {% endif %}
-                        </td>
-
-                        <!-- Level -->
-                        <td class="px-4 py-2">
-                             <span class="text-[10px] font-medium text-gray-500 truncate block max-w-full" title="{{ match.tournament_edition.tournament.level if match.tournament_edition and match.tournament_edition.tournament else '' }}">
-                                {{ match.tournament_edition.tournament.level if match.tournament_edition and match.tournament_edition.tournament else '-' }}
-                            </span>
-                        </td>
-
                         <!-- Player A -->
-                        <td class="px-4 py-2 text-right">
-                             <div class="flex items-center justify-end gap-2">
-                                <span class="text-xs font-medium {% if match.winner_id == match.player_a_id %}text-black font-extrabold{% else %}text-gray-600{% endif %}">
-                                    {{ match.player_a.canonical_name }}
-                                </span>
-                                {% if match.winner_id == match.player_a_id %}
-                                    <div class="w-1.5 h-1.5 rounded-full bg-teelo-lime shadow-[0_0_5px_rgba(204,255,0,0.8)] flex-shrink-0 border border-black/10"></div>
-                                {% else %}
-                                    <div class="w-1.5 h-1.5 rounded-full bg-transparent flex-shrink-0"></div>
+                        <td class="px-5 py-3 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <span class="text-sm {% if m.winner == 'A' %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_a }}</span>
+                                {% if m.winner == 'A' %}
+                                <i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>
                                 {% endif %}
                             </div>
                         </td>
 
                         <!-- Score -->
-                        <td class="px-4 py-2 text-center">
-                            <span class="inline-block px-2 py-0.5 bg-white rounded border border-gray-100 text-[11px] font-mono text-teelo-dark font-semibold shadow-sm whitespace-nowrap group-hover:border-teelo-lime/50">
-                                {{ match.score }}
-                            </span>
+                        <td class="px-5 py-3 text-center">
+                            <span class="inline-block px-2.5 py-1 bg-gray-50 rounded-md text-xs font-mono text-teelo-dark font-semibold whitespace-nowrap group-hover:bg-teelo-lime/10 transition-colors">{{ m.score }}</span>
                         </td>
 
                         <!-- Player B -->
-                        <td class="px-4 py-2">
+                        <td class="px-5 py-3">
                             <div class="flex items-center gap-2">
-                                {% if match.winner_id == match.player_b_id %}
-                                    <div class="w-1.5 h-1.5 rounded-full bg-teelo-lime shadow-[0_0_5px_rgba(204,255,0,0.8)] flex-shrink-0 border border-black/10"></div>
-                                {% else %}
-                                    <div class="w-1.5 h-1.5 rounded-full bg-transparent flex-shrink-0"></div>
+                                {% if m.winner == 'B' %}
+                                <i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>
                                 {% endif %}
-                                <span class="text-xs font-medium {% if match.winner_id == match.player_b_id %}text-black font-extrabold{% else %}text-gray-600{% endif %}">
-                                    {{ match.player_b.canonical_name }}
-                                </span>
+                                <span class="text-sm {% if m.winner == 'B' %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_b }}</span>
                             </div>
                         </td>
 
                         <!-- Date -->
-                        <td class="px-4 py-2 text-right">
-                            <span class="text-[11px] text-gray-400 font-medium whitespace-nowrap">
-                                {{ match.match_date }}
-                            </span>
+                        <td class="px-5 py-3 text-right">
+                            <span class="text-xs text-gray-400 whitespace-nowrap">{{ m.date }}</span>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        
-        {% if not matches %}
-        <div class="flex flex-col items-center justify-center py-12 text-gray-400">
-            <i data-lucide="inbox" class="w-12 h-12 mb-4 opacity-50"></i>
-            <p>No recent matches found.</p>
+
+        <!-- Mobile card layout (hidden on desktop) -->
+        <div class="md:hidden divide-y divide-gray-100">
+            {% for m in dummy_matches %}
+            <div class="px-4 py-3 hover:bg-gray-50/50 transition-colors">
+                <!-- Tournament row -->
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="{{ m.tour_bg }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ m.tour }}</span>
+                        <span class="text-sm font-semibold text-teelo-dark truncate">{{ m.name }}</span>
+                    </div>
+                    <span class="text-xs text-gray-400 flex-shrink-0 ml-2">{{ m.date }}</span>
+                </div>
+                <div class="text-xs text-gray-400 mb-2.5 pl-[42px]">{{ m.round }} · {{ m.level }} · <span class="{{ m.surface_cls }}">{{ m.surface }}</span></div>
+                <!-- Players & score -->
+                <div class="flex items-center gap-3 pl-[42px]">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1.5 {% if m.winner == 'A' %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %} text-sm">
+                            {% if m.winner == 'A' %}<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>{% endif %}
+                            <span class="truncate">{{ m.player_a }}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 {% if m.winner == 'B' %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %} text-sm mt-0.5">
+                            {% if m.winner == 'B' %}<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>{% endif %}
+                            <span class="truncate">{{ m.player_b }}</span>
+                        </div>
+                    </div>
+                    <span class="px-2.5 py-1 bg-gray-50 rounded-md text-xs font-mono text-teelo-dark font-semibold whitespace-nowrap flex-shrink-0">{{ m.score }}</span>
+                </div>
+            </div>
+            {% endfor %}
         </div>
-        {% endif %}
-        
+
         <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/30">
             <a href="#" class="text-sm text-teelo-dark font-bold hover:underline decoration-teelo-lime decoration-2 flex items-center gap-1">
                 View all match history <i data-lucide="arrow-right" class="w-4 h-4 text-teelo-lime"></i>

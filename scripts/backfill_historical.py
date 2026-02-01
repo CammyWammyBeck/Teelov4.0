@@ -53,13 +53,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from sqlalchemy import func
 
 from teelo.db import get_session, Player, Match, Tournament, TournamentEdition
-from teelo.db.models import ScrapeQueue
+from teelo.db.models import ScrapeQueue, estimate_match_date_from_round
 from teelo.scrape.queue import ScrapeQueueManager
 from teelo.scrape.atp import ATPScraper
 from teelo.scrape.itf import ITFScraper
 from teelo.scrape.wta import WTAScraper
 from teelo.scrape.parsers.score import parse_score, ScoreParseError
 from teelo.players.identity import PlayerIdentityService
+from teelo.utils.geo import city_to_country, country_to_ioc
 
 
 # Tour types available for backfill
@@ -601,6 +602,16 @@ async def update_tournament_metadata(
     if scraped_match.tournament_country_ioc and not tournament.country_ioc:
         tournament.country_ioc = scraped_match.tournament_country_ioc
 
+    # Fill in country/IOC from city via geo lookup if still missing
+    if tournament.city and not tournament.country:
+        country = city_to_country(tournament.city)
+        if country:
+            tournament.country = country
+    if tournament.city and tournament.country and not tournament.country_ioc:
+        ioc = country_to_ioc(tournament.country)
+        if ioc:
+            tournament.country_ioc = ioc
+
     # Update Surface
     # Only update if current is generic/default and new is specific
     if scraped_match.tournament_surface:
@@ -697,13 +708,23 @@ async def process_scraped_match(
     except ScoreParseError:
         pass
 
-    # Parse date
+    # Parse date — if scraper didn't provide one, estimate from tournament dates + round
     match_date = None
+    match_date_estimated = False
     if scraped_match.match_date:
         try:
             match_date = datetime.strptime(scraped_match.match_date, "%Y-%m-%d").date()
         except ValueError:
             pass
+
+    if match_date is None and edition.start_date and edition.end_date:
+        match_date = estimate_match_date_from_round(
+            round_code=scraped_match.round or "R128",
+            tournament_start=edition.start_date,
+            tournament_end=edition.end_date,
+        )
+        if match_date is not None:
+            match_date_estimated = True
 
     if existing and overwrite:
         # Update the existing match with fresh scraped data
@@ -717,6 +738,7 @@ async def process_scraped_match(
         existing.score = scraped_match.score_raw
         existing.score_structured = score_structured
         existing.match_date = match_date
+        existing.match_date_estimated = match_date_estimated
         existing.status = scraped_match.status
         existing.retirement_set = scraped_match.retirement_set
 
@@ -741,6 +763,7 @@ async def process_scraped_match(
         score=scraped_match.score_raw,
         score_structured=score_structured,
         match_date=match_date,
+        match_date_estimated=match_date_estimated,
         status=scraped_match.status,
         retirement_set=scraped_match.retirement_set,
     )

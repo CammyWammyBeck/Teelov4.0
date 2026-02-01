@@ -13,14 +13,18 @@
     {% endif %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Teelo Ratings — tennis ELO ratings, match predictions, and analytics powered by data.">
+    <meta property="og:title" content="{% block og_title %}Teelo Ratings{% endblock %}">
+    <meta property="og:description" content="Tennis ELO ratings, match predictions, and analytics powered by data.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.url }}">
     <title>{% block title %}Teelo Ratings{% endblock %}</title>
     <link href="{{ url_for('static', path='/css/styles.css') }}" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Heroicons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@0.344.0"></script>
 </head>
 <body class="bg-teelo-light text-teelo-dark font-sans antialiased min-h-screen flex flex-col selection:bg-teelo-lime selection:text-teelo-dark">
-    
+
     <!-- Navbar -->
     <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -38,7 +42,7 @@
                 <!-- Desktop Nav -->
                 <div class="hidden md:flex items-center space-x-2">
                     {% if features.enable_feature_matches %}
-                    <a href="/" class="group relative px-4 py-2 rounded-lg text-sm font-bold text-teelo-dark transition-all duration-200 hover:bg-teelo-lime shadow-sm border border-transparent hover:border-black/5 hover:shadow-md">
+                    <a href="/" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-black/5' if current_path == '/' else 'text-gray-500 hover:text-teelo-dark hover:bg-gray-100' }}">
                         <span class="relative z-10 flex items-center gap-2">
                             <i data-lucide="trophy" class="w-4 h-4"></i> Matches
                         </span>
@@ -54,7 +58,7 @@
                     {% endif %}
 
                     {% if features.enable_feature_blog %}
-                    <a href="/blog" class="group relative px-4 py-2 rounded-lg text-sm font-medium text-gray-500 transition-all duration-200 hover:text-teelo-dark hover:bg-gray-100">
+                    <a href="/blog" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-black/5' if current_path is defined and current_path.startswith('/blog') else 'text-gray-500 hover:text-teelo-dark hover:bg-gray-100' }}">
                         <span class="relative z-10 flex items-center gap-2">
                             <i data-lucide="newspaper" class="w-4 h-4"></i> Blog
                         </span>
@@ -70,15 +74,49 @@
                     {% endif %}
                 </div>
 
-                <!-- Search (Placeholder) -->
-                <div class="flex items-center gap-4">
-                     <button class="p-2 text-gray-400 hover:text-teelo-dark transition-colors">
-                        <i data-lucide="search" class="w-5 h-5"></i>
+                <!-- Mobile hamburger -->
+                <div class="flex items-center md:hidden">
+                    <button id="mobile-menu-btn" class="p-2 text-gray-500 hover:text-teelo-dark transition-colors" aria-label="Open menu">
+                        <i data-lucide="menu" class="w-6 h-6"></i>
                     </button>
                 </div>
             </div>
         </div>
     </nav>
+
+    <!-- Mobile menu drawer -->
+    <div id="mobile-menu" class="mobile-menu-overlay" aria-hidden="true">
+        <div class="mobile-menu-drawer">
+            <div class="flex items-center justify-between p-4 border-b border-gray-100">
+                <span class="text-lg font-bold text-teelo-dark">Menu</span>
+                <button id="mobile-menu-close" class="p-2 text-gray-400 hover:text-teelo-dark" aria-label="Close menu">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="flex flex-col p-4 space-y-1">
+                {% if features.enable_feature_matches %}
+                <a href="/" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path == '/' else 'text-gray-600 hover:bg-gray-50' }}">
+                    <span class="flex items-center gap-3"><i data-lucide="trophy" class="w-4 h-4"></i> Matches</span>
+                </a>
+                {% endif %}
+                {% if features.enable_feature_rankings %}
+                <a href="#" class="px-4 py-3 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+                    <span class="flex items-center gap-3"><i data-lucide="bar-chart-2" class="w-4 h-4"></i> Rankings</span>
+                </a>
+                {% endif %}
+                {% if features.enable_feature_blog %}
+                <a href="/blog" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path is defined and current_path.startswith('/blog') else 'text-gray-600 hover:bg-gray-50' }}">
+                    <span class="flex items-center gap-3"><i data-lucide="newspaper" class="w-4 h-4"></i> Blog</span>
+                </a>
+                {% endif %}
+                {% if features.enable_feature_players %}
+                <a href="#" class="px-4 py-3 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+                    <span class="flex items-center gap-3"><i data-lucide="users" class="w-4 h-4"></i> Players</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 
     <!-- Main Content -->
     <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
@@ -89,21 +127,41 @@
     <footer class="bg-white border-t border-gray-200 mt-auto">
         <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div class="flex items-center gap-2 text-gray-400 text-sm">
+                <div class="flex flex-col items-center md:items-start gap-1">
                     <span class="font-bold text-teelo-dark">Teelo Ratings</span>
-                    <span>&copy; {{ now.year }}</span>
+                    <span class="text-xs text-gray-400">Tennis ratings powered by data</span>
                 </div>
-                <div class="flex space-x-6 text-sm text-gray-500">
-                    <a href="#" class="hover:text-teelo-dark hover:underline decoration-teelo-lime decoration-2 transition-all">About</a>
-                    <a href="#" class="hover:text-teelo-dark hover:underline decoration-teelo-lime decoration-2 transition-all">Privacy</a>
+                <div class="text-sm text-gray-400">
+                    &copy; {{ now.year }} Teelo Ratings
                 </div>
             </div>
         </div>
     </footer>
 
-    <!-- Init Icons -->
+    <!-- Init Icons + Mobile Menu JS -->
     <script>
         lucide.createIcons();
+
+        // Mobile menu toggle
+        const menuBtn = document.getElementById('mobile-menu-btn');
+        const menuClose = document.getElementById('mobile-menu-close');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        function openMenu() {
+            mobileMenu.classList.add('open');
+            mobileMenu.setAttribute('aria-hidden', 'false');
+        }
+        function closeMenu() {
+            mobileMenu.classList.remove('open');
+            mobileMenu.setAttribute('aria-hidden', 'true');
+        }
+
+        menuBtn.addEventListener('click', openMenu);
+        menuClose.addEventListener('click', closeMenu);
+        // Close on overlay click
+        mobileMenu.addEventListener('click', function(e) {
+            if (e.target === mobileMenu) closeMenu();
+        });
     </script>
 </body>
 </html>

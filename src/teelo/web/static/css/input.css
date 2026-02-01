@@ -11,3 +11,17 @@
 .table-container {
     overflow-x: auto;
 }
+
+/* Mobile menu overlay & drawer */
+.mobile-menu-overlay {
+    @apply fixed inset-0 z-50 bg-black/40 opacity-0 pointer-events-none transition-opacity duration-300;
+}
+.mobile-menu-overlay.open {
+    @apply opacity-100 pointer-events-auto;
+}
+.mobile-menu-drawer {
+    @apply absolute top-0 right-0 h-full w-72 bg-white shadow-xl transform translate-x-full transition-transform duration-300;
+}
+.mobile-menu-overlay.open .mobile-menu-drawer {
+    @apply translate-x-0;
+}

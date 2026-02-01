@@ -551,7 +551,9 @@ class Match(Base):
     score_structured: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     # Actual date/time when match was played (may differ from scheduled)
+    # If match_date_estimated is True, the date was estimated from tournament dates + round
     match_date: Mapped[Optional[datetime]] = mapped_column(Date, nullable=True)
+    match_date_estimated: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     match_datetime: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     duration_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 

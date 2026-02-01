@@ -58,33 +58,47 @@ def create_params_from_trial(trial: optuna.Trial) -> EloParams:
     Defines the search space for all ~18 optimizable parameters.
     """
     return EloParams(
-        # Base K-factors per level (range: 50-300)
+        # Men's K-factors per level (range: 50-300)
         K_F=trial.suggest_float("K_F", 80, 300),
         K_C=trial.suggest_float("K_C", 60, 250),
         K_A=trial.suggest_float("K_A", 50, 200),
         K_M=trial.suggest_float("K_M", 50, 200),
         K_G=trial.suggest_float("K_G", 50, 200),
 
-        # Base S-factors per level (range: 500-3000)
+        # Men's S-factors per level (range: 500-3000)
         S_F=trial.suggest_float("S_F", 500, 2500),
         S_C=trial.suggest_float("S_C", 600, 2800),
         S_A=trial.suggest_float("S_A", 800, 3000),
         S_M=trial.suggest_float("S_M", 800, 3000),
         S_G=trial.suggest_float("S_G", 600, 2800),
 
-        # Margin-of-victory parameters
+        # Women's K-factors per level
+        K_WF=trial.suggest_float("K_WF", 80, 300),
+        K_WC=trial.suggest_float("K_WC", 60, 250),
+        K_WA=trial.suggest_float("K_WA", 50, 200),
+        K_WM=trial.suggest_float("K_WM", 50, 200),
+        K_WG=trial.suggest_float("K_WG", 50, 200),
+
+        # Women's S-factors per level
+        S_WF=trial.suggest_float("S_WF", 500, 2500),
+        S_WC=trial.suggest_float("S_WC", 600, 2800),
+        S_WA=trial.suggest_float("S_WA", 800, 3000),
+        S_WM=trial.suggest_float("S_WM", 800, 3000),
+        S_WG=trial.suggest_float("S_WG", 600, 2800),
+
+        # Margin-of-victory parameters (shared across genders)
         margin_base=trial.suggest_float("margin_base", 0.5, 1.2),
         margin_scale=trial.suggest_float("margin_scale", 0.05, 0.8),
 
-        # Decay parameters
+        # Decay parameters (shared across genders)
         decay_rate=trial.suggest_float("decay_rate", 0.001, 0.2),
         decay_start_days=trial.suggest_float("decay_start_days", 20, 180),
 
-        # New player boost
+        # New player boost (shared across genders)
         new_threshold=trial.suggest_int("new_threshold", 5, 80),
         new_boost=trial.suggest_float("new_boost", 1.0, 2.5),
 
-        # Returning player boost
+        # Returning player boost (shared across genders)
         returning_days=trial.suggest_float("returning_days", 60, 365),
         returning_boost=trial.suggest_float("returning_boost", 1.0, 2.0),
     )
@@ -154,6 +168,9 @@ def main():
         # Only evaluate on test portion
         test_probs = probs[test_start_idx:]
         return compute_log_loss(test_probs)
+
+    # Suppress Optuna's per-trial logging (very verbose with all parameter values)
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
 
     print(f"Starting Optuna optimization with {args.n_trials} trials...")
     study = optuna.create_study(
