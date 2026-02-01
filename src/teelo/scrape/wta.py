@@ -302,6 +302,7 @@ class WTAScraper(BaseScraper):
             print(f"Days to scrape: {[d['date'] for d in days]}")
 
             match_number = 0
+            seen_external_ids = set()
 
             # Click the Singles tab once before iterating days.
             # The scores page has a Singles/Doubles filter
@@ -320,12 +321,7 @@ class WTAScraper(BaseScraper):
                     continue
 
                 await buttons[day_idx].click()
-                await asyncio.sleep(2)
-
-                # Re-select singles tab after each day click — the page may
-                # reset the active tab when loading a new day's content
-                await self._select_singles_tab(page)
-                await asyncio.sleep(1)
+                await asyncio.sleep(3)
 
                 # Parse the current page content for this day
                 html = await page.content()
@@ -335,6 +331,11 @@ class WTAScraper(BaseScraper):
 
                 day_count = 0
                 for scraped in day_matches:
+                    # The DOM accumulates matches from all days, so skip
+                    # any we've already yielded from a previous day
+                    if scraped.external_id in seen_external_ids:
+                        continue
+                    seen_external_ids.add(scraped.external_id)
                     match_number += 1
                     scraped.match_number = match_number
                     day_count += 1
@@ -836,7 +837,7 @@ class WTAScraper(BaseScraper):
             if "is-active" in cls:
                 return
 
-            await singles_tab.click()
+            await singles_tab.click(force=True)
             await asyncio.sleep(2)
         except Exception:
             pass
