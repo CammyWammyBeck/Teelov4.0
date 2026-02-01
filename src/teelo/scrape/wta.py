@@ -87,22 +87,18 @@ class WTAScraper(BaseScraper):
         "f": "F",
     }
 
-    async def get_tournament_list(self, year: int) -> list[dict]:
+    async def get_tournament_list(self, year: int, tour_type: str = "main") -> list[dict]:
         """
         Scrape the WTA tournament calendar for a given year.
 
-        URL: /tournaments?year={year}&status=all
-
-        Each tournament is an <li class="tournament-list__item"> with:
-        - data-fav-id: Tournament number (used in draw URLs)
-        - data-fav-name: Official tournament name
-        - Level image alt text: "Grand Slam", "WTA 1000", "WTA 500", "WTA 250"
-        - Surface text in a child element
-        - Location text in a child element
-        - date-time attributes on <time> elements for start date
+        Fetches from either the main WTA Tour page, the WTA 125 page, or both.
+        URLs: 
+        - Main: /tournaments?year={year}&status=all
+        - 125: /tournaments/wta-125?year={year}&status=all
 
         Args:
             year: Year to get tournaments for (e.g., 2024)
+            tour_type: "main", "125", or "all". Defaults to "main".
 
         Returns:
             List of tournament dicts with keys:
@@ -112,42 +108,48 @@ class WTAScraper(BaseScraper):
         tournaments = []
 
         try:
-            url = f"{self.BASE_URL}/tournaments?year={year}&status=all"
-            print(f"Loading WTA tournament calendar: {url}")
-            await self.navigate(page, url, wait_for="domcontentloaded")
-            await asyncio.sleep(3)
-
-            # Dismiss cookie consent (WTA uses OneTrust)
-            await self._dismiss_cookies(page)
-            await asyncio.sleep(2)
-
-            html = await page.content()
-            soup = BeautifulSoup(html, "lxml")
-
-            # Each tournament is a list item in the calendar
-            cards = soup.select("li.tournament-list__item")
-            print(f"Found {len(cards)} tournament cards")
-
+            urls = []
+            if tour_type in ["main", "all"]:
+                urls.append(f"{self.BASE_URL}/tournaments?year={year}&status=all")
+            if tour_type in ["125", "all"]:
+                urls.append(f"{self.BASE_URL}/tournaments/wta-125?year={year}&status=all")
+            
             # Deduplicate — the same tournament can appear twice when it spans
             # Dec/Jan boundaries (e.g., United Cup starting late December)
             seen_keys = set()
 
-            for card in cards:
-                try:
-                    tournament = self._parse_tournament_card(card, year)
-                    if tournament:
-                        key = f"{tournament['number']}_{tournament['year']}"
-                        if key not in seen_keys:
-                            seen_keys.add(key)
-                            tournaments.append(tournament)
-                except Exception as e:
-                    print(f"Warning: Error parsing tournament card: {e}")
-                    continue
+            for url in urls:
+                print(f"Loading WTA tournament calendar: {url}")
+                await self.navigate(page, url, wait_for="domcontentloaded")
+                await asyncio.sleep(3)
+
+                # Dismiss cookie consent (WTA uses OneTrust)
+                await self._dismiss_cookies(page)
+                await asyncio.sleep(2)
+
+                html = await page.content()
+                soup = BeautifulSoup(html, "lxml")
+
+                # Each tournament is a list item in the calendar
+                cards = soup.select("li.tournament-list__item")
+                print(f"Found {len(cards)} tournament cards on {url}")
+
+                for card in cards:
+                    try:
+                        tournament = self._parse_tournament_card(card, year)
+                        if tournament:
+                            key = f"{tournament['number']}_{tournament['year']}"
+                            if key not in seen_keys:
+                                seen_keys.add(key)
+                                tournaments.append(tournament)
+                    except Exception as e:
+                        print(f"Warning: Error parsing tournament card: {e}")
+                        continue
 
         finally:
             await page.close()
 
-        print(f"Parsed {len(tournaments)} WTA tournaments for {year}")
+        print(f"Parsed {len(tournaments)} total WTA tournaments for {year}")
         return tournaments
 
     def _parse_tournament_card(self, card, calendar_year: int) -> Optional[dict]:
@@ -675,15 +677,37 @@ async def scrape_wta_tournament(
     return matches
 
 
-async def get_wta_tournaments(year: int) -> list[dict]:
+async def scrape_wta_125_tournament(
+    tournament_id: str,
+    year: int,
+    tournament_number: str = None,
+) -> list[ScrapedMatch]:
+    """
+    Convenience function to scrape a single WTA 125 tournament.
+    Note: Functionally identical to scrape_wta_tournament as the results page is same,
+    but kept for API consistency.
+
+    Args:
+        tournament_id: Tournament URL slug
+        year: Tournament year
+        tournament_number: WTA tournament number (required)
+
+    Returns:
+        List of ScrapedMatch objects
+    """
+    return await scrape_wta_tournament(tournament_id, year, tournament_number)
+
+
+async def get_wta_tournaments(year: int, tour_type: str = "main") -> list[dict]:
     """
     Convenience function to get WTA tournaments for a year.
 
     Args:
         year: Year to get tournaments for
+        tour_type: "main", "125", or "all"
 
     Returns:
         List of tournament dictionaries
     """
     async with WTAScraper() as scraper:
-        return await scraper.get_tournament_list(year)
+        return await scraper.get_tournament_list(year, tour_type=tour_type)

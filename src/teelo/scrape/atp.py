@@ -433,7 +433,6 @@ class ATPScraper(BaseScraper):
         self,
         tournament_id: str,
         year: int,
-        include_qualifying: bool = True,
         tournament_number: Optional[str] = None,
         tour_type: str = "main",
     ) -> AsyncGenerator[ScrapedMatch, None]:
@@ -441,12 +440,11 @@ class ATPScraper(BaseScraper):
         Scrape all completed match results for a tournament.
 
         Navigates to the tournament results page and extracts all matches
-        from main draw and optionally qualifying.
+        including qualifying rounds (ATP serves all rounds on the same page).
 
         Args:
             tournament_id: Tournament URL slug (e.g., "australian-open")
             year: Year of the tournament edition
-            include_qualifying: Whether to include qualifying matches
             tournament_number: Optional tournament number (e.g., "580").
                               If not provided, will be looked up from archive.
             tour_type: "main" or "challenger" - affects level detection
@@ -506,26 +504,6 @@ class ATPScraper(BaseScraper):
             async for match in self._parse_results_page(html, tournament_info, "main"):
                 yield match
 
-            # Scrape qualifying if requested (navigating in same page)
-            if include_qualifying:
-                qual_url = f"{self.BASE_URL}/en/scores/archive/{tournament_id}/{tournament_number}/{year}/results?matchType=qualifying"
-
-                try:
-                    await self.navigate(page, qual_url, wait_for="domcontentloaded")
-
-                    try:
-                        await page.wait_for_selector(".match", timeout=10000)
-                    except Exception:
-                        pass  # Qualifying might not exist
-
-                    await self.random_delay()
-
-                    qual_html = await page.content()
-
-                    async for match in self._parse_results_page(qual_html, tournament_info, "qualifying"):
-                        yield match
-                except Exception as e:
-                    print(f"No qualifying results for {tournament_id}: {e}")
 
         finally:
             await page.close()
@@ -786,8 +764,10 @@ class ATPScraper(BaseScraper):
         score_items = match_elem.find_all(class_="score-item")
         score_raw = self._parse_score_items(score_items)
 
-        # Check for walkover/retirement in the match
+        # Determine match status (completed, retired, walkover)
         status = "completed"
+
+        # Strategy 1: Check match-cta text for explicit indicators
         match_cta = match_elem.find(class_="match-cta")
         if match_cta:
             cta_text = match_cta.get_text().lower()
@@ -796,12 +776,25 @@ class ATPScraper(BaseScraper):
             elif "ret" in cta_text:
                 status = "retired"
 
-        # Also check score for retirement indicator
-        if score_raw and ("ret" in score_raw.lower() or "w/o" in score_raw.lower()):
-            if "w/o" in score_raw.lower():
+        # Strategy 2: Check score text for explicit indicators
+        if status == "completed" and score_raw:
+            score_lower = score_raw.lower()
+            if "w/o" in score_lower or "walkover" in score_lower:
                 status = "walkover"
-            else:
+            elif "ret" in score_lower:
                 status = "retired"
+
+        # Strategy 3: Detect retirement from incomplete final set
+        # ATP doesn't always mark retirements explicitly — the score just
+        # shows an incomplete set (e.g. "7-5 2-1" where neither player
+        # reached 6 games in the last set)
+        if status == "completed" and score_raw:
+            status = _detect_retirement_from_score(score_raw, status)
+
+        # Strategy 4: No score at all but match exists -> walkover
+        if not score_raw or score_raw.strip() == "":
+            status = "walkover"
+            score_raw = "W/O"
 
         # Generate external ID using player IDs for reliable deduplication
         # Format: YYYY_TOURNEY_ROUND_PLAYERID1_PLAYERID2 (sorted for consistency)
@@ -1016,6 +1009,56 @@ class ATPScraper(BaseScraper):
             player_b_external_id=player_b.external_id,
             source="atp",
         )
+
+
+def _detect_retirement_from_score(score_raw: str, current_status: str) -> str:
+    """
+    Detect retirement from an incomplete final set in the score.
+
+    ATP and WTA websites don't always explicitly mark retirements.
+    The only indicator is an incomplete final set where neither player
+    reached 6 games (e.g. "7-5 2-1" means someone retired at 2-1 in set 2).
+
+    A set is "incomplete" if both players have fewer than 6 games AND
+    it's not a tiebreak situation (both at 6 or 7).
+
+    Args:
+        score_raw: Score string like "6-4 2-1" or "7-6(5) 3-6 4-2"
+        current_status: Current status (only overrides if "completed")
+
+    Returns:
+        Updated status string
+    """
+    if current_status != "completed":
+        return current_status
+
+    if not score_raw:
+        return current_status
+
+    # Split into sets and check the last one
+    sets = score_raw.strip().split()
+    if not sets:
+        return current_status
+
+    last_set = sets[-1]
+
+    # Match standard set score pattern: "6-4", "7-6(5)", etc.
+    match = re.match(r"^(\d+)-(\d+)", last_set)
+    if not match:
+        return current_status
+
+    a_games = int(match.group(1))
+    b_games = int(match.group(2))
+
+    # A set is complete if:
+    # - A player reached 6+ and leads by 2+ (e.g. 6-4, 6-3, 6-0)
+    # - Both reached 6 (goes to tiebreak, shown as 7-6)
+    # - Both reached 6 and one won 7 (7-5 is valid but means tiebreak wasn't needed)
+    # A set is incomplete (retirement) if both players are under 6
+    if a_games < 6 and b_games < 6:
+        return "retired"
+
+    return current_status
 
 
 # Convenience functions for simple usage

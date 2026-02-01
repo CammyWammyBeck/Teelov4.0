@@ -456,6 +456,7 @@ class PlayerIdentityService:
     def _find_by_external_id(self, source: str, external_id: str) -> Optional[Player]:
         """
         Find a player by their external ID from a specific source.
+        Checks both the session (pending) and database (committed).
 
         Args:
             source: 'atp', 'wta', or 'itf'
@@ -464,6 +465,17 @@ class PlayerIdentityService:
         Returns:
             Player if found, None otherwise
         """
+        # 1. Check pending players in session
+        for obj in self.db.new:
+            if isinstance(obj, Player):
+                if source == "atp" and obj.atp_id == external_id:
+                    return obj
+                if source == "wta" and obj.wta_id == external_id:
+                    return obj
+                if source == "itf" and obj.itf_id == external_id:
+                    return obj
+
+        # 2. Check database
         query = self.db.query(Player)
 
         if source == "atp":
@@ -480,6 +492,7 @@ class PlayerIdentityService:
     def _find_by_exact_alias(self, normalized_name: str) -> Optional[Player]:
         """
         Find a player by exact alias match.
+        Checks both the session (pending) and database (committed).
 
         Args:
             normalized_name: Normalized name to search for
@@ -487,6 +500,18 @@ class PlayerIdentityService:
         Returns:
             Player if found, None otherwise
         """
+        # 1. Check pending aliases in session
+        for obj in self.db.new:
+            if isinstance(obj, PlayerAlias):
+                if obj.alias == normalized_name:
+                    # If we have the player object directly, return it
+                    if obj.player:
+                        return obj.player
+                    # If we only have player_id, fetch the player
+                    if obj.player_id:
+                        return self.db.get(Player, obj.player_id)
+
+        # 2. Check database
         alias = self.db.query(PlayerAlias).filter(
             PlayerAlias.alias == normalized_name
         ).first()
@@ -511,21 +536,22 @@ class PlayerIdentityService:
         Returns:
             List of PlayerMatch sorted by confidence (highest first)
         """
-        # Get all aliases (this could be optimized with pg_trgm)
+        # Get all aliases from database
         aliases = self.db.query(PlayerAlias).all()
+        
+        # Also consider pending aliases in session to avoid matching 
+        # the same name to multiple players in one batch
+        pending_aliases = [obj for obj in self.db.new if isinstance(obj, PlayerAlias)]
 
         matches = []
         seen_player_ids = set()
 
+        # Check database aliases
         for alias in aliases:
-            # Skip if we've already matched this player
             if alias.player_id in seen_player_ids:
                 continue
 
-            # Compare names
             confidence = compare_names(normalized_name, alias.alias)
-
-            # Only consider matches above suggestion threshold
             if confidence >= self.suggestion_threshold:
                 matches.append(PlayerMatch(
                     player_id=alias.player_id,
@@ -534,6 +560,22 @@ class PlayerIdentityService:
                     matched_value=alias.alias,
                 ))
                 seen_player_ids.add(alias.player_id)
+                
+        # Check pending aliases
+        for alias in pending_aliases:
+            p_id = alias.player_id or (alias.player.id if alias.player else None)
+            if not p_id or p_id in seen_player_ids:
+                continue
+                
+            confidence = compare_names(normalized_name, alias.alias)
+            if confidence >= self.suggestion_threshold:
+                matches.append(PlayerMatch(
+                    player_id=p_id,
+                    confidence=confidence,
+                    match_type="fuzzy",
+                    matched_value=alias.alias,
+                ))
+                seen_player_ids.add(p_id)
 
         # Sort by confidence (highest first) and limit
         matches.sort(key=lambda m: m.confidence, reverse=True)
@@ -544,14 +586,33 @@ class PlayerIdentityService:
         Ensure an alias exists for a player.
 
         Creates the alias if it doesn't exist, does nothing if it does.
+        Checks both committed data and pending session objects to avoid
+        duplicate key violations in the same transaction.
+
+        IMPORTANT: The uq_player_alias_source constraint is on (alias, source).
+        We must ensure that NO player has this alias/source pair already.
 
         Args:
             player_id: Player to add alias for
             normalized_name: Normalized name to add
             source: Source of this alias
         """
+        # 1. Check pending objects in session (not yet committed)
+        # We check if ANY player has this alias/source pair pending
+        for obj in self.db.new:
+            if isinstance(obj, PlayerAlias):
+                if (
+                    obj.alias == normalized_name
+                    and obj.source == source
+                ):
+                    # If it's already pending for the SAME player, we're good
+                    # If it's pending for a DIFFERENT player, we still return
+                    # because we can't add it again due to the unique constraint.
+                    return
+
+        # 2. Check committed data in database
+        # Again, check if ANY player has this alias/source pair
         existing = self.db.query(PlayerAlias).filter(
-            PlayerAlias.player_id == player_id,
             PlayerAlias.alias == normalized_name,
             PlayerAlias.source == source,
         ).first()

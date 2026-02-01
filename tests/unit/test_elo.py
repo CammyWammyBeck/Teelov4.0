@@ -131,6 +131,30 @@ class TestEloCalculator:
         # Results should be different due to different K/S factors
         assert gs_result.k_factor != atp_result.k_factor
 
+    def test_wta_125_level(self, calculator):
+        """
+        Test that WTA 125 is correctly recognized and uses Challenger constants.
+        """
+        # "ATP Challenger" and "WTA 125" should use the same constants ("C" code)
+        challenger_result = calculator.calculate(
+            elo_a=Decimal("1600"),
+            elo_b=Decimal("1500"),
+            winner="A",
+            tournament_level="ATP Challenger",
+        )
+
+        wta125_result = calculator.calculate(
+            elo_a=Decimal("1600"),
+            elo_b=Decimal("1500"),
+            winner="A",
+            tournament_level="WTA 125",
+        )
+
+        # They should have identical K and S factors
+        assert challenger_result.k_factor == wta125_result.k_factor
+        assert challenger_result.s_factor == wta125_result.s_factor
+        assert challenger_result.player_a_change == wta125_result.player_a_change
+
     def test_win_probability(self, calculator):
         """
         Test win probability calculation.
@@ -144,7 +168,9 @@ class TestEloCalculator:
             tournament_level="ATP 250",
         )
 
-        assert prob > Decimal("0.8")  # Should be heavily favored
+        # With S=1670, 500 points difference gives ~66.6% win prob
+        assert prob > Decimal("0.6")  # Higher rated player favored
+        assert prob < Decimal("0.8")  # But not as heavily as standard ELO (S=400)
 
         # Equal ratings
         prob_equal = calculator.get_win_probability(

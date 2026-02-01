@@ -729,6 +729,10 @@ class BaseScraper(ABC):
         if "250" in level_lower:
             return "ATP 250" if tour == "atp" else "WTA 250"
 
+        # Challenger / WTA 125
+        if "125" in level_lower:
+            return "WTA 125"
+
         # Challenger
         if "challenger" in level_lower or "ch" in level_lower:
             return "Challenger"

@@ -75,6 +75,7 @@ LEVEL_TO_CODE = {
     # Challenger
     "Challenger": "C",
     "ATP Challenger": "C",
+    "WTA 125": "C",
 
     # ITF/Futures
     "ITF": "F",

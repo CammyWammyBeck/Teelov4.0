@@ -69,6 +69,7 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "Haiti": "HAI",
     "Honduras": "HON",
     "Hong Kong": "HKG",
+    "Hong-Kong, China": "HKG",
     "Hungary": "HUN",
     "Iceland": "ISL",
     "India": "IND",

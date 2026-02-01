@@ -11,6 +11,7 @@ Tours supported:
 - ITF Men's World Tennis Tour
 - ITF Women's World Tennis Tour
 - WTA Tour
+- WTA 125 Tour
 
 Usage:
     # Full backfill of all tours for 2020-2024
@@ -67,11 +68,12 @@ TOUR_TYPES = {
     "CHALLENGER": {"scraper": "atp", "tour_type": "challenger", "description": "ATP Challenger Tour"},
     "ITF_MEN": {"scraper": "itf", "gender": "men", "description": "ITF Men's World Tennis Tour"},
     "ITF_WOMEN": {"scraper": "itf", "gender": "women", "description": "ITF Women's World Tennis Tour"},
-    "WTA": {"scraper": "wta", "description": "WTA Tour"},
+    "WTA": {"scraper": "wta", "tour_type": "main", "description": "WTA Tour"},
+    "WTA_125": {"scraper": "wta", "tour_type": "125", "description": "WTA 125 Tour"},
 }
 
 # Processing order (most important first)
-TOUR_ORDER = ["ATP", "CHALLENGER", "WTA", "ITF_MEN", "ITF_WOMEN"]
+TOUR_ORDER = ["ATP", "CHALLENGER", "WTA", "WTA_125", "ITF_MEN", "ITF_WOMEN"]
 
 
 def parse_year_range(year_str: str) -> list[int]:
@@ -198,7 +200,8 @@ async def populate_queue(
                         task_params["tour_type"] = tour_config["tour_type"]
                         if tournament.get("number"):
                             task_params["tournament_number"] = tournament["number"]
-                    elif tour_key == "WTA":
+                    elif tour_key in ["WTA", "WTA_125"]:
+                        task_params["tour_type"] = tour_config["tour_type"]
                         # WTA needs the tournament number for draw URLs
                         if tournament.get("number"):
                             task_params["tournament_number"] = tournament["number"]
@@ -261,7 +264,10 @@ async def get_tournaments_for_tour(tour_key: str, year: int) -> list[dict]:
 
     elif tour_config["scraper"] == "wta":
         async with WTAScraper(headless=False) as scraper:
-            return await scraper.get_tournament_list(year)
+            return await scraper.get_tournament_list(
+                year,
+                tour_type=tour_config.get("tour_type", "main"),
+            )
 
     else:
         return []
@@ -297,6 +303,10 @@ async def process_queue(session, overwrite: bool = False) -> dict:
     print("Press Ctrl+C to pause (progress is saved)")
     print("=" * 60)
 
+    # Get initial count of tasks to process
+    initial_queue_size = queue_manager.pending_count()
+    print(f"Tasks in queue: {initial_queue_size}")
+
     try:
         while True:
             # Get next task
@@ -314,7 +324,7 @@ async def process_queue(session, overwrite: bool = False) -> dict:
             task_params = task.task_params
             tour_key = task_params.get("tour_key", "ATP")
 
-            print(f"\n[Task {task.id}] {task_params.get('tournament_name', task_params['tournament_id'])} ({task_params['year']})")
+            print(f"\n[Task {stats['tasks_processed']}/{initial_queue_size}] {task_params.get('tournament_name', task_params['tournament_id'])} ({task_params['year']})")
             print(f"  Tour: {TOUR_TYPES.get(tour_key, {}).get('description', tour_key)}")
 
             try:
@@ -401,7 +411,6 @@ async def scrape_tournament_task(
             async for scraped_match in scraper.scrape_tournament_results(
                 task_params["tournament_id"],
                 task_params["year"],
-                include_qualifying=True,
                 tournament_number=task_params.get("tournament_number"),
                 tour_type=task_params.get("tour_type", "main"),
             ):
@@ -451,7 +460,6 @@ async def scrape_tournament_task(
             async for scraped_match in scraper.scrape_tournament_results(
                 task_params["tournament_id"],
                 task_params["year"],
-                include_qualifying=True,
                 tournament_number=task_params.get("tournament_number"),
             ):
                 result["matches_scraped"] += 1
@@ -489,6 +497,8 @@ async def get_or_create_edition(
         tour = "ATP" if tour_key == "ATP" else "Challenger"
     elif tour_key.startswith("ITF_"):
         tour = "ITF"
+    elif tour_key == "WTA_125":
+        tour = "WTA 125"
     else:
         tour = "WTA"
 

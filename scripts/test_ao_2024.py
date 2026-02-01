@@ -256,7 +256,7 @@ async def main():
                 async for scraped_match in scraper.scrape_tournament_results(
                     "australian-open",
                     2024,
-                    include_qualifying=False  # Start with main draw only
+                    # ATP serves all rounds (including qualifying) on the same page
                 ):
                     stats["matches_scraped"] += 1
 

@@ -98,7 +98,6 @@ class ScrapeQueueManager:
                 params={
                     "tournament_id": "australian-open",
                     "year": 2024,
-                    "include_qualifying": True,
                 },
                 priority=3,
             )
