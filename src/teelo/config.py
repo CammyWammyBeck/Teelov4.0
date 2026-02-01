@@ -150,6 +150,16 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # Feature Flags
+    # ==========================================================================
+
+    enable_feature_blog: bool = Field(default=True, description="Enable Blog section")
+    enable_feature_matches: bool = Field(default=True, description="Enable Matches section")
+    enable_feature_rankings: bool = Field(default=False, description="Enable Rankings section")
+    enable_feature_players: bool = Field(default=False, description="Enable Players section")
+    enable_feature_predictions: bool = Field(default=False, description="Enable Predictions/ML features")
+
+    # ==========================================================================
     # API Configuration
     # ==========================================================================
 

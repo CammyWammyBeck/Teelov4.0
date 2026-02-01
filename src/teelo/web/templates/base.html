@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Teelo Ratings{% endblock %}</title>
+    <link href="{{ url_for('static', path='/css/styles.css') }}" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Heroicons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-teelo-light text-teelo-dark font-sans antialiased min-h-screen flex flex-col selection:bg-teelo-lime selection:text-teelo-dark">
+    
+    <!-- Navbar -->
+    <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-20">
+                <!-- Logo -->
+                <div class="flex items-center gap-3">
+                    <div class="bg-teelo-lime p-2 rounded-lg shadow-[0_4px_10px_rgba(204,255,0,0.5)] border border-black/5 transform transition hover:scale-105 duration-200">
+                        <i data-lucide="activity" class="text-teelo-dark w-6 h-6"></i>
+                    </div>
+                    <a href="/" class="text-2xl font-bold text-teelo-dark tracking-tight">
+                        Teelo<span class="text-gray-400">Ratings</span>
+                    </a>
+                </div>
+
+                <!-- Desktop Nav -->
+                <div class="hidden md:flex items-center space-x-2">
+                    {% if features.enable_feature_matches %}
+                    <a href="/" class="group relative px-4 py-2 rounded-lg text-sm font-bold text-teelo-dark transition-all duration-200 hover:bg-teelo-lime shadow-sm border border-transparent hover:border-black/5 hover:shadow-md">
+                        <span class="relative z-10 flex items-center gap-2">
+                            <i data-lucide="trophy" class="w-4 h-4"></i> Matches
+                        </span>
+                    </a>
+                    {% endif %}
+
+                    {% if features.enable_feature_rankings %}
+                    <a href="#" class="group relative px-4 py-2 rounded-lg text-sm font-medium text-gray-500 transition-all duration-200 hover:text-teelo-dark hover:bg-gray-100">
+                        <span class="relative z-10 flex items-center gap-2">
+                            <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Rankings
+                        </span>
+                    </a>
+                    {% endif %}
+
+                    {% if features.enable_feature_blog %}
+                    <a href="/blog" class="group relative px-4 py-2 rounded-lg text-sm font-medium text-gray-500 transition-all duration-200 hover:text-teelo-dark hover:bg-gray-100">
+                        <span class="relative z-10 flex items-center gap-2">
+                            <i data-lucide="newspaper" class="w-4 h-4"></i> Blog
+                        </span>
+                    </a>
+                    {% endif %}
+
+                    {% if features.enable_feature_players %}
+                    <a href="#" class="group relative px-4 py-2 rounded-lg text-sm font-medium text-gray-500 transition-all duration-200 hover:text-teelo-dark hover:bg-gray-100">
+                        <span class="relative z-10 flex items-center gap-2">
+                            <i data-lucide="users" class="w-4 h-4"></i> Players
+                        </span>
+                    </a>
+                    {% endif %}
+                </div>
+
+                <!-- Search (Placeholder) -->
+                <div class="flex items-center gap-4">
+                     <button class="p-2 text-gray-400 hover:text-teelo-dark transition-colors">
+                        <i data-lucide="search" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-auto">
+        <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-2 text-gray-400 text-sm">
+                    <span class="font-bold text-teelo-dark">Teelo Ratings</span>
+                    <span>&copy; {{ now.year }}</span>
+                </div>
+                <div class="flex space-x-6 text-sm text-gray-500">
+                    <a href="#" class="hover:text-teelo-dark hover:underline decoration-teelo-lime decoration-2 transition-all">About</a>
+                    <a href="#" class="hover:text-teelo-dark hover:underline decoration-teelo-lime decoration-2 transition-all">Privacy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Init Icons -->
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

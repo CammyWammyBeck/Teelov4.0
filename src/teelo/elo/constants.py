@@ -87,6 +87,34 @@ LEVEL_TO_CODE = {
 }
 
 
+# Default parameters for margin-of-victory K-factor scaling
+# margin_base: baseline multiplier (1.0 = no effect for average match)
+# margin_scale: how much dominance amplifies/reduces the multiplier
+MARGIN_DEFAULTS = {
+    "margin_base": 0.85,
+    "margin_scale": 0.3,
+}
+
+# Default parameters for inactivity decay
+# Pulls inactive players' ratings toward DEFAULT_ELO over time
+# decay_rate: exponential decay rate (per year of excess inactivity)
+# decay_start_days: days of inactivity before decay begins
+DECAY_DEFAULTS = {
+    "decay_rate": 0.05,
+    "decay_start_days": 60,
+}
+
+# Default parameters for K-factor boost on new/returning players
+# New players: higher K for faster convergence to true rating
+# Returning players: higher K because form is uncertain after absence
+BOOST_DEFAULTS = {
+    "new_threshold": 30,       # Matches before player is "established"
+    "new_boost": 1.5,          # K multiplier for brand-new players
+    "returning_days": 180,     # Days absent before "returning" boost applies
+    "returning_boost": 1.3,    # K multiplier for returning players
+}
+
+
 def get_constants_for_level(level: str) -> tuple[int, int]:
     """
     Get K and S constants for a tournament level.

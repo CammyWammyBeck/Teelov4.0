@@ -1,0 +1,18 @@
+# Files to exclude from the final Heroku slug (optimization)
+tests/
+docker/
+.claude/
+.pytest_cache/
+ARCHITECTURE_PLAN.md
+CLAUDE.md
+gemini.md
+*.md
+
+# Exclude heavy logic not needed for the website
+src/teelo/scrape/
+src/teelo/elo/
+src/teelo/ml/
+src/teelo/tasks/
+
+# Exclude python scripts (keep shell scripts for build)
+scripts/*.py

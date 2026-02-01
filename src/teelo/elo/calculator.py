@@ -325,6 +325,57 @@ class EloCalculator:
         return get_constants_for_level(level)
 
 
+def calculate_fast(
+    elo_a: float,
+    elo_b: float,
+    winner: str,
+    k_a: float,
+    k_b: float,
+    s: float,
+) -> tuple[float, float, float]:
+    """
+    Float-only ELO calculation for optimization speed.
+
+    Same math as EloCalculator.calculate() but uses plain floats instead of
+    Decimal, and each player gets their own effective K (since boost/margin
+    can differ per player).
+
+    Args:
+        elo_a: Player A's rating (float)
+        elo_b: Player B's rating (float)
+        winner: 'A' or 'B'
+        k_a: Effective K-factor for player A (base_K * margin * boost_a)
+        k_b: Effective K-factor for player B (base_K * margin * boost_b)
+        s: Spread factor for this tournament level
+
+    Returns:
+        Tuple of (new_elo_a, new_elo_b, expected_winner_probability)
+        The expected_winner_probability is the pre-match probability
+        of the actual winner winning (used for log-loss computation).
+    """
+    # Expected score for player A: E_A = 1 / (1 + 10^((R_B - R_A) / S))
+    try:
+        exp_a = 1.0 / (1.0 + 10.0 ** ((elo_b - elo_a) / s))
+    except OverflowError:
+        exp_a = 0.001 if elo_b > elo_a else 0.999
+
+    exp_b = 1.0 - exp_a
+
+    # Actual scores
+    if winner == "A":
+        actual_a, actual_b = 1.0, 0.0
+        expected_winner_prob = exp_a
+    else:
+        actual_a, actual_b = 0.0, 1.0
+        expected_winner_prob = exp_b
+
+    # Update ratings (each player uses their own K)
+    new_a = elo_a + k_a * (actual_a - exp_a)
+    new_b = elo_b + k_b * (actual_b - exp_b)
+
+    return new_a, new_b, expected_winner_prob
+
+
 # Convenience function for simple usage
 def calculate_elo_change(
     elo_a: float,

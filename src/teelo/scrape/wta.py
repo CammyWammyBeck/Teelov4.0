@@ -239,17 +239,21 @@ class WTAScraper(BaseScraper):
         tournament_number: str = None,
     ) -> AsyncGenerator[ScrapedMatch, None]:
         """
-        Scrape all completed singles match results from the draws page.
+        Scrape all completed singles match results from the scores page.
 
-        URL: /tournaments/{number}/{slug}/{year}/draws
+        URL: /tournaments/{number}/{slug}/{year}/scores
 
-        The draws page loads all rounds in a single HTML page. The page has
-        separate containers for singles (data-event-type="LS") and doubles
-        (data-event-type="LD"). We only scrape the singles container.
+        The scores page groups matches by day. Each day has a navigation button
+        (button.day-navigation__button) with a data-date attribute. Clicking a
+        button loads that day's matches dynamically via JavaScript.
 
-        Within the singles container, rounds are separated by
-        <h2 class="tournament-draw__round-title"> elements. Match tables
-        between consecutive round titles belong to that round.
+        Each match is a div.tennis-match element. Singles matches have "-LS" in
+        their class (e.g. "js-match-0901-2024-LS12345"), doubles have "-LD".
+        The round is in div.tennis-match__round, and the actual match table is
+        table.match-table inside the container.
+
+        Falls back to the draws page if no day navigation buttons are found
+        (e.g. very old tournaments without a scores page).
 
         Args:
             tournament_id: Tournament slug (e.g. "australian-open")
@@ -266,66 +270,240 @@ class WTAScraper(BaseScraper):
 
         page = await self.new_page()
         try:
-            url = f"{self.BASE_URL}/tournaments/{tournament_number}/{tournament_id}/{year}/draws"
-            print(f"Loading WTA draws page: {url}")
+            # Try scores page first (has per-match dates)
+            url = f"{self.BASE_URL}/tournaments/{tournament_number}/{tournament_id}/{year}/scores"
+            print(f"Loading WTA scores page: {url}")
             await self.navigate(page, url, wait_for="domcontentloaded")
             await asyncio.sleep(5)
 
             await self._dismiss_cookies(page)
 
-            html = await page.content()
-            soup = BeautifulSoup(html, "lxml")
+            # Find day navigation buttons
+            day_buttons = await page.query_selector_all("button.day-navigation__button")
+            print(f"Found {len(day_buttons)} day navigation buttons")
 
-            # The draws page has singles and doubles in separate container divs.
-            # We only scrape singles (data-event-type="LS").
-            singles_container = soup.select_one("[data-event-type='LS']")
-            if not singles_container:
-                print(f"WARNING: Could not find singles draw container for {tournament_id} {year}")
+            if not day_buttons:
+                # Fall back to draws page for older tournaments
+                print(f"No day buttons found, falling back to draws page")
+                async for match in self._scrape_draws_page(
+                    page, tournament_id, year, tournament_number
+                ):
+                    yield match
                 return
 
-            round_titles = singles_container.select("h2.tournament-draw__round-title")
-            all_tables = singles_container.select("table.match-table")
+            # Collect day info: (date_str, button_index) for each day
+            # We'll click each button, wait for content, then parse singles matches
+            days = []
+            for btn in day_buttons:
+                date_str = await btn.get_attribute("data-date")
+                title = await btn.get_attribute("title") or ""
+                days.append({"date": date_str, "title": title})
 
-            print(f"Singles draw: {len(round_titles)} rounds, {len(all_tables)} match tables")
+            print(f"Days to scrape: {[d['date'] for d in days]}")
 
-            # Build list of (round_title_element, round_code) pairs
-            round_title_pairs = []
-            for rt in round_titles:
-                text = rt.get_text(strip=True).lower()
-                round_code = self.ROUND_MAP.get(text, text.upper())
-                round_title_pairs.append((rt, round_code))
-
-            # For each round, find match tables between this title and the next
             match_number = 0
 
-            for idx, (round_elem, round_code) in enumerate(round_title_pairs):
-                next_round_elem = (
-                    round_title_pairs[idx + 1][0]
-                    if idx + 1 < len(round_title_pairs)
-                    else None
+            # Click the Singles tab once before iterating days.
+            # The scores page has a Singles/Doubles filter
+            # (li.js-type-filter with data-type="singles" or "doubles").
+            # Default may be doubles on some days, so we must select singles.
+            await self._select_singles_tab(page)
+
+            for day_idx, day_info in enumerate(days):
+                date_str = day_info["date"]  # e.g. "2026-01-11"
+
+                # Click the day button to load its matches
+                # Re-query buttons each time since DOM may have changed
+                buttons = await page.query_selector_all("button.day-navigation__button")
+                if day_idx >= len(buttons):
+                    print(f"Warning: day button {day_idx} disappeared, skipping")
+                    continue
+
+                await buttons[day_idx].click()
+                await asyncio.sleep(2)
+
+                # Re-select singles tab after each day click — the page may
+                # reset the active tab when loading a new day's content
+                await self._select_singles_tab(page)
+                await asyncio.sleep(1)
+
+                # Parse the current page content for this day
+                html = await page.content()
+                day_matches = self._parse_scores_day(
+                    html, tournament_id, tournament_number, year, date_str, match_number
                 )
 
-                # Find tables between this round title and the next
-                round_tables = self._tables_between(
-                    all_tables, round_elem, next_round_elem, singles_container
-                )
+                day_count = 0
+                for scraped in day_matches:
+                    match_number += 1
+                    scraped.match_number = match_number
+                    day_count += 1
+                    yield scraped
 
-                for table in round_tables:
-                    try:
-                        scraped = self._parse_match_table(
-                            table, tournament_id, tournament_number, year, round_code, match_number
-                        )
-                        if scraped:
-                            match_number += 1
-                            yield scraped
-                    except Exception as e:
-                        print(f"Warning: Error parsing WTA match: {e}")
-                        continue
+                print(f"  Day {date_str}: {day_count} singles matches")
 
             print(f"Scraped {match_number} singles matches from {tournament_id} {year}")
 
         finally:
             await page.close()
+
+    def _parse_scores_day(
+        self,
+        html: str,
+        tournament_id: str,
+        tournament_number: str,
+        year: int,
+        match_date: str,
+        start_match_number: int,
+    ) -> list[ScrapedMatch]:
+        """
+        Parse singles matches from the scores page for a single day.
+
+        The scores page shows all matches for the selected day as a flat list
+        of div.tennis-match elements. Singles matches have "-LS" in their class
+        name (e.g. "js-match-0901-2024-LS12345"), doubles have "-LD".
+
+        Each tennis-match contains:
+        - div.tennis-match__round with the round text (e.g. "Round of 64")
+        - table.match-table with the same structure as the draws page
+
+        Args:
+            html: Full page HTML after clicking a day button
+            tournament_id: Tournament slug
+            tournament_number: WTA tournament number
+            year: Season year
+            match_date: ISO date string for this day (e.g. "2026-01-11")
+            start_match_number: Starting match number for ordering
+
+        Returns:
+            List of ScrapedMatch objects for singles matches on this day
+        """
+        soup = BeautifulSoup(html, "lxml")
+        matches = []
+        match_num = start_match_number
+
+        # Find all tennis-match elements
+        all_match_divs = soup.find_all(class_=re.compile(r"tennis-match"))
+
+        for match_div in all_match_divs:
+            classes = " ".join(match_div.get("class", []))
+
+            # Only process top-level tennis-match containers (not child elements
+            # like tennis-match__container, tennis-match__round, etc.)
+            if "tennis-match__" in classes:
+                continue
+
+            # Filter: only singles (-LS), skip doubles (-LD)
+            if "-LD" in classes:
+                continue
+            if "-LS" not in classes:
+                # If neither -LS nor -LD, skip (shouldn't happen but be safe)
+                continue
+
+            # Extract round from tennis-match__round div
+            round_elem = match_div.select_one(".tennis-match__round")
+            round_code = ""
+            if round_elem:
+                round_text = round_elem.get_text(strip=True).lower()
+                round_code = self.ROUND_MAP.get(round_text, round_text.upper())
+
+            # Find the match-table inside this container
+            table = match_div.select_one("table.match-table")
+            if not table:
+                continue
+
+            try:
+                scraped = self._parse_match_table(
+                    table, tournament_id, tournament_number, year,
+                    round_code, match_num
+                )
+                if scraped:
+                    scraped.match_date = match_date
+                    matches.append(scraped)
+                    match_num += 1
+            except Exception as e:
+                print(f"Warning: Error parsing WTA scores match: {e}")
+                continue
+
+        return matches
+
+    async def _scrape_draws_page(
+        self,
+        page: Page,
+        tournament_id: str,
+        year: int,
+        tournament_number: str,
+    ) -> AsyncGenerator[ScrapedMatch, None]:
+        """
+        Fallback: scrape results from the draws page (no per-match dates).
+
+        Used for older tournaments that don't have a scores page with day
+        navigation buttons. The draws page loads all rounds in a single HTML
+        page with separate containers for singles and doubles.
+
+        Args:
+            page: Playwright Page object (already open)
+            tournament_id: Tournament slug
+            year: Season year
+            tournament_number: WTA tournament number
+
+        Yields:
+            ScrapedMatch objects (without match_date set)
+        """
+        url = f"{self.BASE_URL}/tournaments/{tournament_number}/{tournament_id}/{year}/draws"
+        print(f"Loading WTA draws page (fallback): {url}")
+        await self.navigate(page, url, wait_for="domcontentloaded")
+        await asyncio.sleep(5)
+
+        await self._dismiss_cookies(page)
+
+        html = await page.content()
+        soup = BeautifulSoup(html, "lxml")
+
+        # Singles container (data-event-type="LS")
+        singles_container = soup.select_one("[data-event-type='LS']")
+        if not singles_container:
+            print(f"WARNING: Could not find singles draw container for {tournament_id} {year}")
+            return
+
+        round_titles = singles_container.select("h2.tournament-draw__round-title")
+        all_tables = singles_container.select("table.match-table")
+
+        print(f"Singles draw: {len(round_titles)} rounds, {len(all_tables)} match tables")
+
+        # Build (round_element, round_code) pairs
+        round_title_pairs = []
+        for rt in round_titles:
+            text = rt.get_text(strip=True).lower()
+            round_code = self.ROUND_MAP.get(text, text.upper())
+            round_title_pairs.append((rt, round_code))
+
+        match_number = 0
+        for idx, (round_elem, round_code) in enumerate(round_title_pairs):
+            next_round_elem = (
+                round_title_pairs[idx + 1][0]
+                if idx + 1 < len(round_title_pairs)
+                else None
+            )
+
+            round_tables = self._tables_between(
+                all_tables, round_elem, next_round_elem, singles_container
+            )
+
+            for table in round_tables:
+                try:
+                    scraped = self._parse_match_table(
+                        table, tournament_id, tournament_number, year,
+                        round_code, match_number
+                    )
+                    if scraped:
+                        match_number += 1
+                        yield scraped
+                except Exception as e:
+                    print(f"Warning: Error parsing WTA match: {e}")
+                    continue
+
+        print(f"Scraped {match_number} singles matches from {tournament_id} {year} (draws fallback)")
 
     def _tables_between(self, all_tables, start_elem, end_elem, container) -> list:
         """
@@ -633,6 +811,35 @@ class WTAScraper(BaseScraper):
         # TODO: Implement fixture scraping from order-of-play page
         return
         yield  # Make this a generator
+
+    async def _select_singles_tab(self, page: Page) -> None:
+        """
+        Click the Singles event-type filter tab on the scores page.
+
+        The WTA scores page has a filter bar with Singles and Doubles tabs
+        (li.js-type-filter with data-type="singles" or "doubles"). The page
+        may default to Doubles on some days, so we always click Singles to
+        ensure we're viewing the right event type.
+
+        Does nothing if the singles tab is already active or not found.
+        """
+        try:
+            # Check if singles tab is already active
+            singles_tab = await page.query_selector(
+                "li.js-type-filter[data-type='singles']"
+            )
+            if not singles_tab:
+                return
+
+            # Check if already active
+            cls = await singles_tab.get_attribute("class") or ""
+            if "is-active" in cls:
+                return
+
+            await singles_tab.click()
+            await asyncio.sleep(2)
+        except Exception:
+            pass
 
     async def _dismiss_cookies(self, page: Page) -> None:
         """

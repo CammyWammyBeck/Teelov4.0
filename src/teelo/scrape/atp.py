@@ -631,16 +631,15 @@ class ATPScraper(BaseScraper):
         """
         Parse a results page and yield matches.
 
-        Uses v3.0's proven selectors:
-        - Match containers: class="match"
-        - Round headers: class="match-header" → span
-        - Player names: class="name" → a tag
-        - Scores: class="score-item" → span
+        The ATP results page groups matches by day using accordion sections:
+        - Each day has a "tournament-day" header inside "atp_accordion-header"
+        - The header's <h4> contains the date (e.g., "Sun, 11 January, 2026")
+          or just the round name on older pages (e.g., "Final")
+        - Matches for that day are in the sibling "atp_accordion-content" div
 
-        Note: Deduplication is handled via external_id (which includes player IDs)
-        at the calling layer (backfill script's seen_external_ids set) and
-        the database unique constraint. This method simply parses and yields
-        all matches found on the page.
+        If the page doesn't use the accordion/day structure (e.g., older pages
+        or challengers), falls back to iterating all class="match" elements
+        without dates.
 
         Args:
             html: HTML content of the results page
@@ -651,20 +650,69 @@ class ATPScraper(BaseScraper):
             ScrapedMatch objects
         """
         soup = BeautifulSoup(html, "lxml")
+        match_number = 0
 
-        # Find match containers using v3.0's working selector
-        # Each match is wrapped in an element with class="match"
+        # Try day-based parsing first (2025+ ATP layout)
+        day_elems = soup.find_all(class_="tournament-day")
+
+        if day_elems:
+            for day_elem in day_elems:
+                # Extract date from the <h4> inside tournament-day
+                # Format: "Sun, 11 January, 2026Day (9)" or just "Final"
+                match_date = self._extract_date_from_day_header(
+                    day_elem, tournament_info["year"]
+                )
+
+                # Find matches in the accordion content (sibling of the header)
+                header = day_elem.parent  # atp_accordion-header
+                if not header:
+                    continue
+                content = header.find_next_sibling(class_="atp_accordion-content")
+                if not content:
+                    continue
+
+                match_containers = content.find_all(class_="match")
+                for match_elem in match_containers:
+                    try:
+                        round_header = match_elem.find(class_="match-header")
+                        current_round = ""
+                        if round_header:
+                            span = round_header.find("span")
+                            if span:
+                                round_text = span.get_text(strip=True)
+                                current_round = self._normalize_round(round_text)
+
+                        match = self._parse_match_element(
+                            match_elem,
+                            tournament_info,
+                            current_round,
+                            draw_type,
+                            match_number,
+                        )
+
+                        if match:
+                            match.match_date = match_date
+                            match_number += 1
+                            match.match_number = match_number
+                            yield match
+
+                    except Exception as e:
+                        print(f"Error parsing match element: {e}")
+                        continue
+
+            if match_number > 0:
+                return
+
+        # Fallback: iterate all match elements without day grouping
+        # (used for older pages, challengers, or if day parsing yielded nothing)
         match_containers = soup.find_all(class_="match")
 
         if not match_containers:
             print(f"Warning: No matches found on page. HTML length: {len(html)}")
             return
 
-        match_number = 0
-
         for match_elem in match_containers:
             try:
-                # Get round from match-header
                 round_header = match_elem.find(class_="match-header")
                 current_round = ""
                 if round_header:
@@ -673,7 +721,6 @@ class ATPScraper(BaseScraper):
                         round_text = span.get_text(strip=True)
                         current_round = self._normalize_round(round_text)
 
-                # Parse the match
                 match = self._parse_match_element(
                     match_elem,
                     tournament_info,
@@ -690,6 +737,48 @@ class ATPScraper(BaseScraper):
             except Exception as e:
                 print(f"Error parsing match element: {e}")
                 continue
+
+    def _extract_date_from_day_header(self, day_elem, year: int) -> Optional[str]:
+        """
+        Extract an ISO date string from an ATP tournament-day <h4> element.
+
+        The <h4> text can be:
+        - "Sun, 11 January, 2026Day (9)" → "2026-01-11"
+        - "Final" → None (no date available on older pages)
+
+        Args:
+            day_elem: BeautifulSoup element with class="tournament-day"
+            year: Tournament year (used as fallback for parsing)
+
+        Returns:
+            ISO date string "YYYY-MM-DD" or None if no date found
+        """
+        h4 = day_elem.find("h4")
+        if not h4:
+            return None
+
+        text = h4.get_text(strip=True)
+
+        # Try to match a date pattern like "Sun, 11 January, 2026"
+        # The "Day (N)" suffix gets concatenated but we can ignore it
+        date_match = re.search(
+            r"(\d{1,2})\s+(January|February|March|April|May|June|"
+            r"July|August|September|October|November|December)"
+            r"(?:,?\s*(\d{4}))?",
+            text
+        )
+        if not date_match:
+            return None
+
+        day = int(date_match.group(1))
+        month_name = date_match.group(2)
+        match_year = int(date_match.group(3)) if date_match.group(3) else year
+
+        try:
+            dt = datetime.strptime(f"{day} {month_name} {match_year}", "%d %B %Y")
+            return dt.strftime("%Y-%m-%d")
+        except ValueError:
+            return None
 
     def _parse_match_element(
         self,
