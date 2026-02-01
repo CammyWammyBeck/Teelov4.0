@@ -29,7 +29,7 @@ Teelo (version 4) will focus on information for tennis fans. Statistics, graphs,
 
 ## Teelo is when?
 
-I have no date for when Teelo will be fully back. It is probably more helpful to give you an idea of the planned pipeline and where I am at on each point.
+I have no date for when Teelo will be fully back. It is probably more helpful to give you an idea of the planned pipeline and where I am at on each point. I can tell you it isn't going to be another 6 years though. With AI at my fingertips, we are looking at weeks or months instead.
 
 | Phase | Focus | Status |
 | :--- | :--- | :--- |
