@@ -193,6 +193,18 @@ class Settings(BaseSettings):
     # Validators
     # ==========================================================================
 
+    @field_validator("database_url")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        """
+        Ensure database URL uses the correct SQLAlchemy protocol.
+        
+        Heroku provides 'postgres://' but SQLAlchemy 2.0+ requires 'postgresql://'.
+        """
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql://", 1)
+        return v
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
