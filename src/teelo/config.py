@@ -176,6 +176,12 @@ class Settings(BaseSettings):
         description="Enable auto-reload for development",
     )
 
+    # Google Analytics
+    google_analytics_id: Optional[str] = Field(
+        default=None,
+        description="Google Analytics 4 Measurement ID (e.g., G-XXXXXXX)",
+    )
+
     # ==========================================================================
     # Logging Configuration
     # ==========================================================================
