@@ -158,6 +158,61 @@ class ScrapedFixture:
         )
 
 
+@dataclass
+class ScrapedDrawEntry:
+    """
+    A single entry from a tournament draw bracket.
+
+    Represents one match slot in the draw, which may be completed (with score
+    and winner), upcoming (both players known), or TBD (one/both players unknown).
+    Byes are also represented as draw entries with is_bye=True.
+
+    Draw positions are 1-indexed within each round:
+    - R128: positions 1-64 (64 matches)
+    - R64: positions 1-32
+    - ...
+    - F: position 1
+
+    The positional math for bracket progression:
+    - Winner of position p feeds into position ceil(p/2) in the next round
+    - Positions 2p-1 and 2p are the two feeder matches for position p
+    """
+
+    # Match context within the draw
+    round: str                              # Normalized: 'R128', 'R64', ..., 'F'
+    draw_position: int                      # 1-indexed position within the round
+
+    # Player A (top of the draw slot)
+    player_a_name: Optional[str] = None
+    player_a_external_id: Optional[str] = None
+    player_a_seed: Optional[int] = None
+
+    # Player B (bottom of the draw slot)
+    player_b_name: Optional[str] = None
+    player_b_external_id: Optional[str] = None
+    player_b_seed: Optional[int] = None
+
+    # Result (None if not yet played)
+    score_raw: Optional[str] = None
+    winner_name: Optional[str] = None
+
+    # Special cases
+    is_bye: bool = False
+
+    # Tournament context (populated by the scraper)
+    source: str = "atp"
+    tournament_name: str = ""
+    tournament_id: str = ""
+    tournament_year: int = 0
+    tournament_level: str = ""
+    tournament_surface: str = ""
+
+    def __repr__(self) -> str:
+        p_a = self.player_a_name or "TBD"
+        p_b = self.player_b_name or "TBD"
+        return f"<ScrapedDrawEntry({self.round} #{self.draw_position}: {p_a} vs {p_b})>"
+
+
 class VirtualDisplay:
     """
     Manages an Xvfb virtual display with optional x11vnc and noVNC servers.

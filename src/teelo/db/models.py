@@ -501,6 +501,11 @@ class Match(Base):
     round: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     match_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Draw position within the round (1-indexed)
+    # Used for bracket math: winner of position p feeds into position ceil(p/2) in next round
+    # Positions 2p-1 and 2p in round N feed into position p in round N+1
+    draw_position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     # Temporal ordering for chronological comparisons
     # Computed from: match_date + tournament_edition_id + round
     # Use compute_temporal_order() to generate this value
@@ -593,6 +598,7 @@ class Match(Base):
         Index("idx_matches_match_date", "match_date"),
         Index("idx_matches_tournament", "tournament_edition_id"),
         Index("idx_matches_status", "status"),
+        Index("idx_matches_draw", "tournament_edition_id", "round", "draw_position"),
     )
 
     @property

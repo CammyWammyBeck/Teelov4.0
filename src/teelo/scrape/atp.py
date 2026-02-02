@@ -24,7 +24,7 @@ from typing import AsyncGenerator, Optional
 from bs4 import BeautifulSoup
 from playwright.async_api import Page
 
-from teelo.scrape.base import BaseScraper, ScrapedMatch, ScrapedFixture
+from teelo.scrape.base import BaseScraper, ScrapedDrawEntry, ScrapedMatch, ScrapedFixture
 from teelo.scrape.parsers.score import parse_score, ScoreParseError
 from teelo.scrape.parsers.player import extract_player_info, extract_seed_from_name
 from teelo.scrape.atp_tournament_parser import parse_tournament_elements
@@ -507,6 +507,372 @@ class ATPScraper(BaseScraper):
 
         finally:
             await page.close()
+
+    async def scrape_tournament_draw(
+        self,
+        tournament_id: str,
+        year: int,
+        tournament_number: Optional[str] = None,
+        tour_type: str = "main",
+    ) -> list[ScrapedDrawEntry]:
+        """
+        Scrape the full tournament draw bracket.
+
+        Navigates to the ATP draws page and extracts all draw entries
+        with player names, seeds, scores, and draw positions. Draw
+        positions are computed from the order of matches within each round.
+
+        Args:
+            tournament_id: Tournament URL slug (e.g., "australian-open")
+            year: Year of the tournament edition
+            tournament_number: Optional tournament number (e.g., "580").
+                              If not provided, will be looked up from archive.
+            tour_type: "main" or "challenger"
+
+        Returns:
+            List of ScrapedDrawEntry objects for all draw slots
+        """
+        page = await self.new_page()
+        entries = []
+
+        try:
+            # Look up tournament number if not provided
+            if not tournament_number:
+                print(f"Looking up tournament number for {tournament_id}...")
+                tournament_number = await self._get_tournament_number(
+                    page, tournament_id, year, tour_type
+                )
+                if not tournament_number:
+                    print(f"Could not find tournament number for {tournament_id} {year}")
+                    return entries
+                print(f"Found tournament number: {tournament_number}")
+
+            # Get tournament metadata
+            tournament_info = await self._get_tournament_info(
+                page, tournament_id, year, tour_type,
+                tournament_number=tournament_number,
+            )
+
+            # Navigate to draws page
+            draws_url = (
+                f"{self.BASE_URL}/en/scores/archive/"
+                f"{tournament_id}/{tournament_number}/{year}/draws"
+            )
+            print(f"Scraping draw: {draws_url}")
+
+            await self.navigate(page, draws_url, wait_for="domcontentloaded")
+            await asyncio.sleep(5)
+
+            # Wait for draw-item elements (draws page uses .draw-item, not .match)
+            try:
+                await page.wait_for_selector(".draw-item", timeout=15000)
+            except Exception:
+                print(f"Warning: No .draw-item elements found on draws page for {tournament_id}")
+
+            await self.random_delay()
+            html = await page.content()
+
+            # Parse draw entries from the HTML
+            entries = self._parse_draw_page(html, tournament_info)
+
+        finally:
+            await page.close()
+
+        return entries
+
+    def _parse_draw_page(
+        self,
+        html: str,
+        tournament_info: dict,
+    ) -> list[ScrapedDrawEntry]:
+        """
+        Parse the draws page HTML into ScrapedDrawEntry objects.
+
+        ATP draws page structure (confirmed via test_atp_draw.py):
+        - div.draw (one per round, 7 total for a 128 draw)
+          - div.draw-header: round name (e.g., "Round of 128", "Quarter-Finals")
+          - div.draw-content: contains the draw-items for this round
+            - div.draw-item (one per match in the round)
+              - div.draw-stats
+                - div.stats-item (player A)
+                  - div.player-info → div.name → a (player link) + span (seed)
+                  - div.winner (present if this player won)
+                  - div.scores → div.score-item (one per set, 5 slots)
+                    - span (game count), span (tiebreak score, empty if no TB)
+                - div.stats-item (player B) — same structure
+                - div.stats-cta — H2H and Stats links
+
+        Draw positions are assigned sequentially within each round,
+        top-to-bottom in the bracket.
+
+        Args:
+            html: Raw HTML of the draws page
+            tournament_info: Tournament metadata dict
+
+        Returns:
+            List of ScrapedDrawEntry objects
+        """
+        soup = BeautifulSoup(html, "lxml")
+        entries = []
+
+        # Iterate over each round's .draw container
+        draw_rounds = soup.find_all(class_="draw")
+
+        if not draw_rounds:
+            print(f"Warning: No .draw containers found on draws page. HTML length: {len(html)}")
+            return entries
+
+        for draw_round in draw_rounds:
+            # Get round name from header
+            header = draw_round.find(class_="draw-header")
+            if not header:
+                continue
+            round_text = header.get_text(strip=True)
+            round_code = self._normalize_round(round_text)
+
+            # Get all draw-items in this round
+            draw_items = draw_round.find_all(class_="draw-item")
+
+            for position, item in enumerate(draw_items, start=1):
+                try:
+                    entry = self._parse_draw_item(
+                        item, round_code, position, tournament_info
+                    )
+                    if entry:
+                        entries.append(entry)
+                except Exception as e:
+                    print(f"Error parsing draw item {round_code} #{position}: {e}")
+                    continue
+
+        # Print summary by round
+        round_counts: dict[str, int] = {}
+        for entry in entries:
+            round_counts[entry.round] = round_counts.get(entry.round, 0) + 1
+        print(f"Draw entries by round: {round_counts}")
+
+        return entries
+
+    def _parse_draw_item(
+        self,
+        item,
+        round_code: str,
+        draw_position: int,
+        tournament_info: dict,
+    ) -> Optional[ScrapedDrawEntry]:
+        """
+        Parse a single .draw-item element from the draws page.
+
+        Each draw-item contains two .stats-item divs (one per player).
+        Each stats-item has:
+        - .player-info → .name → a (player link) + span (seed like "(1)")
+        - .winner div (present only for the winning player)
+        - .scores → .score-item spans (game count + tiebreak per set)
+
+        Args:
+            item: BeautifulSoup element with class="draw-item"
+            round_code: Normalized round code (e.g., "R128", "QF")
+            draw_position: 1-indexed position within this round
+            tournament_info: Tournament metadata dict
+
+        Returns:
+            ScrapedDrawEntry or None if parsing fails
+        """
+        # Common tournament fields for the entry
+        tourney_kwargs = dict(
+            source="atp",
+            tournament_name=tournament_info["name"],
+            tournament_id=tournament_info["id"],
+            tournament_year=tournament_info["year"],
+            tournament_level=tournament_info["level"],
+            tournament_surface=tournament_info["surface"],
+        )
+
+        # Find the two stats-item divs (player A and player B)
+        stats_items = item.find_all(class_="stats-item")
+        if len(stats_items) < 2:
+            return None
+
+        # Parse each player's info
+        player_a = self._parse_draw_stats_item(stats_items[0])
+        player_b = self._parse_draw_stats_item(stats_items[1])
+
+        # Handle byes
+        if player_a and player_a["name"] and player_a["name"].lower() == "bye":
+            return ScrapedDrawEntry(
+                round=round_code,
+                draw_position=draw_position,
+                player_a_name=player_b["name"] if player_b else None,
+                player_a_external_id=player_b["atp_id"] if player_b else None,
+                player_a_seed=player_b["seed"] if player_b else None,
+                is_bye=True,
+                **tourney_kwargs,
+            )
+        if player_b and player_b["name"] and player_b["name"].lower() == "bye":
+            return ScrapedDrawEntry(
+                round=round_code,
+                draw_position=draw_position,
+                player_a_name=player_a["name"] if player_a else None,
+                player_a_external_id=player_a["atp_id"] if player_a else None,
+                player_a_seed=player_a["seed"] if player_a else None,
+                is_bye=True,
+                **tourney_kwargs,
+            )
+
+        # Skip if no players found
+        p_a_name = player_a["name"] if player_a else None
+        p_b_name = player_b["name"] if player_b else None
+        if not p_a_name and not p_b_name:
+            return None
+
+        # Build score from per-player score items
+        score_raw = None
+        if player_a and player_b and player_a["scores"] and player_b["scores"]:
+            score_raw = self._build_draw_score(player_a["scores"], player_b["scores"])
+
+        # Determine winner from the .winner div presence
+        winner_name = None
+        if player_a and player_a["is_winner"]:
+            winner_name = p_a_name
+        elif player_b and player_b["is_winner"]:
+            winner_name = p_b_name
+
+        return ScrapedDrawEntry(
+            round=round_code,
+            draw_position=draw_position,
+            player_a_name=p_a_name,
+            player_a_external_id=player_a["atp_id"] if player_a else None,
+            player_a_seed=player_a["seed"] if player_a else None,
+            player_b_name=p_b_name,
+            player_b_external_id=player_b["atp_id"] if player_b else None,
+            player_b_seed=player_b["seed"] if player_b else None,
+            score_raw=score_raw,
+            winner_name=winner_name,
+            **tourney_kwargs,
+        )
+
+    def _parse_draw_stats_item(self, stats_item) -> Optional[dict]:
+        """
+        Parse a single .stats-item element for one player in a draw match.
+
+        Structure:
+        - .player-info → .name → a (href has ATP ID), span (seed)
+        - .winner div (present if this player won)
+        - .scores → .score-item (5 slots, each with 2 spans: games + tiebreak)
+
+        Args:
+            stats_item: BeautifulSoup element with class="stats-item"
+
+        Returns:
+            Dict with keys: name, atp_id, seed, is_winner, scores
+            or None if no player info found
+        """
+        player_info = stats_item.find(class_="player-info")
+        if not player_info:
+            return None
+
+        # Extract name and ATP ID from the link
+        name_div = player_info.find(class_="name")
+        if not name_div:
+            return None
+
+        link = name_div.find("a")
+        if not link:
+            # No link — could be "Bye", "Qualifier / Lucky Loser", or other placeholder
+            raw_text = name_div.get_text(strip=True).lower()
+            if "bye" in raw_text:
+                return {"name": "Bye", "atp_id": None, "seed": None, "is_winner": False, "scores": []}
+            # Qualifier/LL or other TBD placeholder — no usable player data
+            return None
+
+        name = link.get_text(strip=True).title()
+
+        # ATP ID from href: /en/players/jannik-sinner/s0ag/overview
+        atp_id = None
+        href = link.get("href", "")
+        id_match = re.search(r"/players/[^/]+/([a-zA-Z0-9]+)/", href)
+        if id_match:
+            atp_id = id_match.group(1).upper()
+
+        # Seed from the span sibling of the link (e.g., "(1)")
+        seed = None
+        seed_span = name_div.find("span")
+        if seed_span:
+            seed_text = seed_span.get_text(strip=True)
+            seed_match = re.search(r"\((\d+)\)", seed_text)
+            if seed_match:
+                seed = int(seed_match.group(1))
+
+        # Check if this player is the winner (has .winner div)
+        is_winner = player_info.find(class_="winner") is not None
+
+        # Extract per-set scores from .scores → .score-item
+        # Each score-item has 2 spans: [game_count, tiebreak_score]
+        scores = []
+        scores_div = stats_item.find(class_="scores")
+        if scores_div:
+            for score_item in scores_div.find_all(class_="score-item"):
+                spans = score_item.find_all("span")
+                games = spans[0].get_text(strip=True) if len(spans) >= 1 else ""
+                tiebreak = spans[1].get_text(strip=True) if len(spans) >= 2 else ""
+                if games:  # Only include sets that have been played
+                    scores.append({"games": games, "tiebreak": tiebreak})
+
+        return {
+            "name": name,
+            "atp_id": atp_id,
+            "seed": seed,
+            "is_winner": is_winner,
+            "scores": scores,
+        }
+
+    def _build_draw_score(
+        self,
+        scores_a: list[dict],
+        scores_b: list[dict],
+    ) -> Optional[str]:
+        """
+        Build a standard score string from per-player set scores.
+
+        The draws page shows scores per player (unlike the results page which
+        interleaves them). Each player has a list of {games, tiebreak} dicts.
+
+        Args:
+            scores_a: Player A's per-set scores [{games: "6", tiebreak: ""}, ...]
+            scores_b: Player B's per-set scores [{games: "3", tiebreak: ""}, ...]
+
+        Returns:
+            Score string like "6-3 7-6(4) 6-3" or None if no scores
+
+        Example:
+            scores_a = [{"games": "6", "tiebreak": ""}, {"games": "7", "tiebreak": ""}]
+            scores_b = [{"games": "3", "tiebreak": ""}, {"games": "6", "tiebreak": "4"}]
+            → "6-3 7-6(4)"
+        """
+        if not scores_a and not scores_b:
+            return None
+
+        num_sets = max(len(scores_a), len(scores_b))
+        if num_sets == 0:
+            return None
+
+        sets = []
+        for i in range(num_sets):
+            a_games = scores_a[i]["games"] if i < len(scores_a) else "0"
+            b_games = scores_b[i]["games"] if i < len(scores_b) else "0"
+
+            set_str = f"{a_games}-{b_games}"
+
+            # Add tiebreak score (shown on the losing side)
+            a_tb = scores_a[i].get("tiebreak", "") if i < len(scores_a) else ""
+            b_tb = scores_b[i].get("tiebreak", "") if i < len(scores_b) else ""
+            tb = a_tb or b_tb
+            if tb:
+                set_str += f"({tb})"
+
+            sets.append(set_str)
+
+        result = " ".join(sets)
+        return result if result.strip() else None
 
     async def _get_tournament_info(
         self,
