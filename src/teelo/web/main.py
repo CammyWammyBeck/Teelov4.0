@@ -58,13 +58,18 @@ def get_blog_posts() -> List[Dict[str, Any]]:
 
     for file_path in blog_dir.glob("*.md"):
         post = frontmatter.load(file_path)
+
+        # Skip draft posts
+        if post.get("draft", False):
+            continue
+
         posts.append({
             "slug": file_path.stem,
             "title": post.get("title", "Untitled"),
             "date": post.get("date", datetime.min),
             "author": post.get("author", "Unknown"),
             "excerpt": post.get("excerpt", ""),
-            "category": post.get("category", ""),
+            "category": post.get("category", "Blog"),
             "content": markdown.markdown(post.content, extensions=['tables']),
         })
 
@@ -113,11 +118,14 @@ async def home(
 async def blog_list(request: Request):
     """List all blog posts."""
     posts = get_blog_posts()
+    # Collect unique categories for the filter UI
+    categories = sorted(set(p["category"] for p in posts if p["category"]))
     return templates.TemplateResponse(
         "blog_list.html",
         {
             "request": request,
             "posts": posts,
+            "categories": categories,
             "now": datetime.utcnow(),
             "current_path": request.url.path,
         },
@@ -134,6 +142,11 @@ async def blog_detail(request: Request, slug: str):
         raise HTTPException(status_code=404, detail="Post not found")
 
     post = frontmatter.load(file_path)
+
+    # Draft posts are not publicly accessible
+    if post.get("draft", False):
+        raise HTTPException(status_code=404, detail="Post not found")
+
     html_content = markdown.markdown(post.content, extensions=['tables'])
 
     post_data = {
@@ -141,7 +154,7 @@ async def blog_detail(request: Request, slug: str):
         "title": post.get("title", "Untitled"),
         "date": post.get("date", datetime.min),
         "author": post.get("author", "Unknown"),
-        "category": post.get("category", ""),
+        "category": post.get("category", "Blog"),
         "content": html_content,
     }
 

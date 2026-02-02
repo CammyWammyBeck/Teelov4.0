@@ -3,6 +3,8 @@ title: Teelo is coming back
 date: 2026-02-01
 author: Cammy
 excerpt: Teelo is coming back better than ever. Version 4 is on its way.
+category: Dev
+draft: false
 ---
 
 # Teelo is coming back
