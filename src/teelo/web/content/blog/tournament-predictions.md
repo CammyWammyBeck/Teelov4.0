@@ -21,7 +21,7 @@ For example, if Player A has a 70% chance of beating Player B in the semi-final,
 
 This also solves the earlier predictions problem. By understanding the draw and knowing who will or might play each other in following rounds, I can predict the next round as soon as results come in — no need to wait for the official schedule.
 
-Technically, I could post predictions for every possible future match as soon as the draw is released. But the numbers get out of hand quickly. Even a 32-player ATP 250 draw would produce a huge number of potential matchups across all rounds, and larger draws would be even worse. Instead, it makes more sense to predict one or two rounds ahead and update as results come in.
+Technically, I could post predictions for every possible future match as soon as the draw is released. But the numbers get out of hand quickly. Even a 32-player ATP 250 draw would produce a huge number of potential matchups across all rounds, and larger draws would be even worse. Instead, it makes more sense to only predict one round ahead. But it does open up possibibilites of creating a UI on the website that allows users to simulate a whole tournament.
 
 ## Summary
 
