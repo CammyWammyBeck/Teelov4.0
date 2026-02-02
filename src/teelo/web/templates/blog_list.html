@@ -3,30 +3,42 @@
 {% block content %}
 <div class="max-w-4xl mx-auto">
     <div class="mb-10 text-center">
-        <h1 class="text-3xl font-bold text-teelo-dark mb-4">Teelo Dev Blog</h1>
-        <p class="text-gray-500 max-w-xl mx-auto">Updates, insights, and behind-the-scenes looks at how we're building the Teelo from the ground up</p>
+        <h1 class="text-3xl font-bold text-teelo-dark mb-4">Teelo Blog</h1>
+        <p class="text-gray-500 max-w-xl mx-auto">Updates, analysis, and insights from the world of tennis and the Teelo project</p>
     </div>
+
+    <!-- Category filter -->
+    {% if categories|length > 1 %}
+    <div class="flex flex-wrap items-center justify-center gap-2 mb-8">
+        <button data-category="all" class="category-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-teelo-dark text-white">All</button>
+        {% for cat in categories %}
+        <button data-category="{{ cat }}" class="category-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">{{ cat }}</button>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <div class="space-y-8">
         {% for post in posts %}
-        <article class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300 group">
+        <article data-post-category="{{ post.category }}" class="blog-post bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300 group">
             <div class="p-8">
                 <div class="flex items-center gap-3 text-sm text-gray-400 mb-4">
+                    <span class="bg-teelo-lime text-teelo-dark px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide">{{ post.category }}</span>
+                    <span>•</span>
                     <time datetime="{{ post.date }}">{{ post.date.strftime('%d %b %Y') if post.date.strftime is defined else post.date }}</time>
                     <span>•</span>
                     <span>{{ post.author }}</span>
                 </div>
-                
+
                 <h2 class="text-2xl font-bold text-teelo-dark mb-3 group-hover:underline decoration-teelo-lime decoration-4 transition-all">
                     <a href="/blog/{{ post.slug }}">
                         {{ post.title }}
                     </a>
                 </h2>
-                
+
                 <p class="text-gray-600 mb-6 leading-relaxed">
                     {{ post.excerpt }}
                 </p>
-                
+
                 <a href="/blog/{{ post.slug }}" class="inline-flex items-center text-teelo-dark font-bold hover:underline decoration-teelo-lime decoration-2 transition-all">
                     Read article <i data-lucide="arrow-right" class="ml-2 w-4 h-4 text-teelo-lime"></i>
                 </a>
@@ -40,4 +52,35 @@
         {% endfor %}
     </div>
 </div>
+
+<!-- Client-side category filtering -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const buttons = document.querySelectorAll('.category-btn');
+    const posts = document.querySelectorAll('.blog-post');
+
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const category = btn.dataset.category;
+
+            // Update button styles
+            buttons.forEach(b => {
+                b.classList.remove('bg-teelo-dark', 'text-white');
+                b.classList.add('bg-gray-100', 'text-gray-600');
+            });
+            btn.classList.remove('bg-gray-100', 'text-gray-600');
+            btn.classList.add('bg-teelo-dark', 'text-white');
+
+            // Filter posts
+            posts.forEach(post => {
+                if (category === 'all' || post.dataset.postCategory === category) {
+                    post.style.display = '';
+                } else {
+                    post.style.display = 'none';
+                }
+            });
+        });
+    });
+});
+</script>
 {% endblock %}
