@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 import frontmatter
 import markdown
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import StarletteHTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -27,6 +28,19 @@ content_path = Path(__file__).parent / "content"
 
 # Inject settings (for feature flags) into all templates
 templates.env.globals["features"] = settings
+
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Render a custom 404 page for not-found errors; fall back to default for others."""
+    if exc.status_code == 404:
+        return templates.TemplateResponse(
+            "404.html",
+            {"request": request, "now": datetime.utcnow(), "current_path": request.url.path},
+            status_code=404,
+        )
+    # For non-404 errors, return a plain JSON-style response
+    return HTMLResponse(content=str(exc.detail), status_code=exc.status_code)
 
 
 def require_feature(feature_flag: str):
