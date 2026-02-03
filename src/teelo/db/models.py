@@ -474,7 +474,8 @@ class Match(Base):
     - score_structured: JSONB with parsed sets and tiebreaks
 
     Match status lifecycle:
-    - 'scheduled': Future match, not yet started
+    - 'upcoming': Match known from draw (players known, no schedule yet)
+    - 'scheduled': Match appears on order of play (has date/time/court)
     - 'in_progress': Match currently being played
     - 'completed': Normal match finish
     - 'retired': Player retired mid-match
@@ -515,6 +516,11 @@ class Match(Base):
     # Players (always use foreign keys, never store names directly)
     player_a_id: Mapped[int] = mapped_column(ForeignKey("players.id"), nullable=False)
     player_b_id: Mapped[int] = mapped_column(ForeignKey("players.id"), nullable=False)
+
+    # Player seeds for this tournament (1 = top seed, None = unseeded)
+    # Populated from draw scraping
+    player_a_seed: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    player_b_seed: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # ==========================================================================
     # Scheduling fields (populated when match is first created as a fixture)
@@ -574,7 +580,8 @@ class Match(Base):
     # ==========================================================================
 
     # Lifecycle status - see docstring for values
-    status: Mapped[str] = mapped_column(String(20), default="scheduled")
+    # Default is 'upcoming' (created from draw, no schedule yet)
+    status: Mapped[str] = mapped_column(String(20), default="upcoming")
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -607,9 +614,19 @@ class Match(Base):
         return self.status in ("completed", "retired", "walkover", "default")
 
     @property
+    def is_upcoming(self) -> bool:
+        """Check if match is known from draw but not yet scheduled."""
+        return self.status == "upcoming"
+
+    @property
     def is_scheduled(self) -> bool:
-        """Check if match is still upcoming."""
+        """Check if match has a schedule (date/time/court assigned)."""
         return self.status == "scheduled"
+
+    @property
+    def is_pending(self) -> bool:
+        """Check if match hasn't started yet (either upcoming or scheduled)."""
+        return self.status in ("upcoming", "scheduled")
 
     def update_temporal_order(
         self,

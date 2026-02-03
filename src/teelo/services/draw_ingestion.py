@@ -6,9 +6,9 @@ This module handles the full lifecycle of tournament draw data:
 1. **Ingestion** (ingest_draw): Takes ScrapedDrawEntry objects from the draw
    scraper and creates/updates Match rows with draw_position set. Byes are
    skipped (no match created). Completed matches get status='completed'.
-   Upcoming matches with both players known get status='scheduled'.
-   Entries with only one known player are skipped — those matches will be
-   created later via result propagation.
+   Matches with both players known get status='upcoming' (they move to
+   'scheduled' when order of play is scraped). Entries with only one known
+   player are skipped — those matches will be created later via propagation.
 
 2. **Propagation** (propagate_draw_result): When a match with a draw_position
    completes, checks if the other feeder match in the same round also completed.
@@ -380,6 +380,8 @@ def _upsert_draw_match(
         return None  # Already exists, skip
 
     # Determine match status and winner
+    # If match is not yet complete, status is 'upcoming' (known from draw, no schedule yet)
+    # Status will change to 'scheduled' when order of play is scraped
     is_completed = entry.score_raw is not None and entry.winner_name is not None
     status = "completed"
     winner_id = None
@@ -401,7 +403,7 @@ def _upsert_draw_match(
             # Default to player_a as winner (ATP lists winner first)
             winner_id = player_a_id
     else:
-        status = "scheduled"
+        status = "upcoming"
 
     # Parse score if available
     score_structured = None
@@ -439,6 +441,8 @@ def _upsert_draw_match(
         # Update existing match
         existing.player_a_id = player_a_id
         existing.player_b_id = player_b_id
+        existing.player_a_seed = entry.player_a_seed
+        existing.player_b_seed = entry.player_b_seed
         existing.winner_id = winner_id
         existing.score = entry.score_raw
         existing.score_structured = score_structured
@@ -461,6 +465,8 @@ def _upsert_draw_match(
         draw_position=entry.draw_position,
         player_a_id=player_a_id,
         player_b_id=player_b_id,
+        player_a_seed=entry.player_a_seed,
+        player_b_seed=entry.player_b_seed,
         winner_id=winner_id,
         score=entry.score_raw,
         score_structured=score_structured,
@@ -567,7 +573,7 @@ def _propagate_all(
             draw_position=next_position,
             player_a_id=top_winner,
             player_b_id=bottom_winner,
-            status="scheduled",
+            status="upcoming",  # Known from draw, no schedule yet
             match_date=match_date,
             match_date_estimated=match_date_estimated,
         )
@@ -692,7 +698,7 @@ def propagate_draw_result(
         draw_position=next_position,
         player_a_id=player_a_id,
         player_b_id=player_b_id,
-        status="scheduled",
+        status="upcoming",  # Known from draw, no schedule yet
         match_date=match_date,
         match_date_estimated=match_date_estimated,
     )

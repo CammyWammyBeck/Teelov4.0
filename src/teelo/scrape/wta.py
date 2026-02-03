@@ -28,7 +28,7 @@ from typing import AsyncGenerator, Optional
 from bs4 import BeautifulSoup
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeout
 
-from teelo.scrape.base import BaseScraper, ScrapedMatch, ScrapedFixture
+from teelo.scrape.base import BaseScraper, ScrapedMatch, ScrapedFixture, ScrapedDrawEntry
 from teelo.scrape.parsers.score import parse_score, ScoreParseError
 from teelo.scrape.parsers.player import extract_seed_from_name
 
@@ -86,6 +86,23 @@ class WTAScraper(BaseScraper):
         "sf": "SF",
         "f": "F",
     }
+
+    def _generate_external_id(
+        self,
+        year: int,
+        tournament_id: str,
+        round_code: str,
+        id_a: str,
+        id_b: str
+    ) -> str:
+        """
+        Generate a consistent external ID for a match.
+
+        Format: YYYY_TOURNEY_ROUND_ID1_ID2
+        IDs are sorted alphabetically to ensure A vs B and B vs A produce the same ID.
+        """
+        sorted_ids = sorted([str(id_a), str(id_b)])
+        return f"{year}_{tournament_id}_{round_code}_{sorted_ids[0]}_{sorted_ids[1]}"
 
     async def get_tournament_list(self, year: int, tour_type: str = "main") -> list[dict]:
         """
@@ -348,6 +365,170 @@ class WTAScraper(BaseScraper):
         finally:
             await page.close()
 
+    async def scrape_tournament_draw(
+        self,
+        tournament_id: str,
+        year: int,
+        tournament_number: str,
+        draw_type: str = "singles",
+    ) -> list[ScrapedDrawEntry]:
+        """
+        Scrape the full draw bracket for a tournament.
+
+        Returns ScrapedDrawEntry objects representing the draw structure, including
+        byes and upcoming matches.
+
+        Args:
+            tournament_id: Tournament slug
+            year: Season year
+            tournament_number: WTA tournament number
+            draw_type: "singles" (doubles not currently supported)
+
+        Returns:
+            List of ScrapedDrawEntry objects
+        """
+        if draw_type != "singles":
+            print(f"Warning: Only singles draws supported for WTA currently")
+            return []
+
+        page = await self.new_page()
+        entries = []
+
+        try:
+            url = f"{self.BASE_URL}/tournaments/{tournament_number}/{tournament_id}/{year}/draws"
+            print(f"Loading WTA draw page: {url}")
+            await self.navigate(page, url, wait_for="domcontentloaded")
+            await asyncio.sleep(5)
+
+            await self._dismiss_cookies(page)
+
+            html = await page.content()
+            soup = BeautifulSoup(html, "lxml")
+
+            # Singles container (data-event-type='LS')
+            singles_container = soup.select_one("[data-event-type='LS']")
+            if not singles_container:
+                print(f"WARNING: Could not find singles draw container for {tournament_id} {year}")
+                return []
+
+            # Iterate over round containers to ensure correct grouping
+            # Structure: .tournament-draw__round-container contains one round's header and matches
+            round_containers = singles_container.select(".tournament-draw__round-container")
+
+            if not round_containers:
+                # Fallback to old logic if containers not found (structure changed?)
+                print("Warning: No round containers found, falling back to flat parsing")
+                round_containers = [singles_container] # Treat whole container as one, will fail round splitting
+
+            print(f"Found {len(round_containers)} round containers")
+
+            for container in round_containers:
+                # Find round header
+                header = container.select_one("h2.tournament-draw__round-title")
+                if not header:
+                    continue
+                
+                text = header.get_text(strip=True).lower()
+                round_code = self.ROUND_MAP.get(text, text.upper())
+                
+                # Find tables in this container
+                tables = container.select("table.match-table")
+                
+                print(f"  Round {round_code}: {len(tables)} matches")
+
+                for pos_idx, table in enumerate(tables):
+                    draw_position = pos_idx + 1
+
+                    # Parse using helper
+                    entry = self._parse_draw_entry_table(
+                        table, tournament_id, year, round_code, draw_position
+                    )
+                    if entry:
+                        entries.append(entry)
+
+        finally:
+            await page.close()
+
+        return entries
+
+    def _parse_draw_entry_table(
+        self,
+        table,
+        tournament_id: str,
+        year: int,
+        round_code: str,
+        draw_position: int,
+    ) -> Optional[ScrapedDrawEntry]:
+        """
+        Parse a single match table into a ScrapedDrawEntry.
+
+        Handles completed matches, upcoming matches, and byes.
+        """
+        rows = table.select("tr.match-table__row")
+        if len(rows) < 2:
+            return None
+
+        row_a, row_b = rows[0], rows[1]
+
+        # Extract players
+        player_a = self._extract_player_from_row(row_a)
+        player_b = self._extract_player_from_row(row_b)
+
+        # Helper to check for Bye
+        def is_bye(p):
+            return p and p["name"].lower() == "bye"
+
+        is_bye_match = False
+        if (player_a and is_bye(player_a)) or (player_b and is_bye(player_b)):
+            is_bye_match = True
+
+        # Process player A
+        name_a, wta_id_a, seed_a = None, None, None
+        if player_a and not is_bye(player_a):
+            name_a, seed_a = extract_seed_from_name(player_a["name"])
+            wta_id_a = player_a["wta_id"]
+
+        # Process player B
+        name_b, wta_id_b, seed_b = None, None, None
+        if player_b and not is_bye(player_b):
+            name_b, seed_b = extract_seed_from_name(player_b["name"])
+            wta_id_b = player_b["wta_id"]
+
+        # Skip entries where both players are unknown (empty/placeholder tables)
+        if not name_a and not name_b and not is_bye_match:
+            return None
+
+        # Scores
+        scores_a = self._extract_scores_from_row(row_a)
+        scores_b = self._extract_scores_from_row(row_b)
+        score_raw = self._build_score_string(scores_a, scores_b)
+
+        # Winner
+        winner_name = None
+        table_classes = " ".join(table.get("class", []))
+        if "match-table--winner-a" in table_classes:
+            winner_name = name_a
+        elif "match-table--winner-b" in table_classes:
+            winner_name = name_b
+
+        return ScrapedDrawEntry(
+            round=round_code,
+            draw_position=draw_position,
+            player_a_name=name_a,
+            player_a_external_id=wta_id_a,
+            player_a_seed=seed_a,
+            player_b_name=name_b,
+            player_b_external_id=wta_id_b,
+            player_b_seed=seed_b,
+            score_raw=score_raw if score_raw else None,
+            winner_name=winner_name,
+            is_bye=is_bye_match,
+            source="wta",
+            tournament_name=tournament_id.replace("-", " ").title(),
+            tournament_id=tournament_id,
+            tournament_year=year,
+        )
+
     def _parse_scores_day(
         self,
         html: str,
@@ -461,37 +642,33 @@ class WTAScraper(BaseScraper):
         html = await page.content()
         soup = BeautifulSoup(html, "lxml")
 
-        # Singles container (data-event-type="LS")
+        # Singles container (data-event-type='LS')
         singles_container = soup.select_one("[data-event-type='LS']")
         if not singles_container:
             print(f"WARNING: Could not find singles draw container for {tournament_id} {year}")
             return
 
-        round_titles = singles_container.select("h2.tournament-draw__round-title")
-        all_tables = singles_container.select("table.match-table")
-
-        print(f"Singles draw: {len(round_titles)} rounds, {len(all_tables)} match tables")
-
-        # Build (round_element, round_code) pairs
-        round_title_pairs = []
-        for rt in round_titles:
-            text = rt.get_text(strip=True).lower()
-            round_code = self.ROUND_MAP.get(text, text.upper())
-            round_title_pairs.append((rt, round_code))
+        # Use robust container-based parsing
+        round_containers = singles_container.select(".tournament-draw__round-container")
+        if not round_containers:
+            # Try to infer based on older structure if needed, or just iterate flat
+             round_containers = [singles_container]
 
         match_number = 0
-        for idx, (round_elem, round_code) in enumerate(round_title_pairs):
-            next_round_elem = (
-                round_title_pairs[idx + 1][0]
-                if idx + 1 < len(round_title_pairs)
-                else None
-            )
+        
+        for container in round_containers:
+            # Find round header
+            header = container.select_one("h2.tournament-draw__round-title")
+            if not header:
+                continue # Skip if no header (or handle flat list if needed)
+                
+            text = header.get_text(strip=True).lower()
+            round_code = self.ROUND_MAP.get(text, text.upper())
+            
+            # Find tables
+            tables = container.select("table.match-table")
 
-            round_tables = self._tables_between(
-                all_tables, round_elem, next_round_elem, singles_container
-            )
-
-            for table in round_tables:
+            for table in tables:
                 try:
                     scraped = self._parse_match_table(
                         table, tournament_id, tournament_number, year,
@@ -632,8 +809,7 @@ class WTAScraper(BaseScraper):
         # Format: YYYY_TOURNEY_ROUND_WTAID1_WTAID2 (sorted for consistency)
         id_a = player_a["wta_id"] or name_a.lower().replace(" ", "-")
         id_b = player_b["wta_id"] or name_b.lower().replace(" ", "-")
-        sorted_ids = sorted([id_a, id_b])
-        external_id = f"{year}_{tournament_id}_{round_code}_{sorted_ids[0]}_{sorted_ids[1]}"
+        external_id = self._generate_external_id(year, tournament_id, round_code, id_a, id_b)
 
         # Tournament name from slug (will be overwritten by backfill with real name)
         tournament_name = tournament_id.replace("-", " ").title()
@@ -667,6 +843,7 @@ class WTAScraper(BaseScraper):
 
         Looks for the player link (a.match-table__player--link) to get
         the player name and WTA ID, and the flag element to get nationality.
+        Falls back to extracting text from .match-table__player if no link found.
 
         Args:
             row: BeautifulSoup <tr> element
@@ -674,24 +851,30 @@ class WTAScraper(BaseScraper):
         Returns:
             Dict with name, wta_id, nationality — or None if no player found
         """
+        name = None
+        wta_id = None
+
         # Player link
         link = (
             row.select_one("a.match-table__player--link")
             or row.select_one("a[href*='/players/']")
         )
-        if not link:
-            return None
-
-        name = link.get_text(strip=True)
+        
+        if link:
+            name = link.get_text(strip=True)
+            # Extract WTA ID from href: /players/{numeric_id}/{slug}
+            href = link.get("href", "")
+            id_match = re.search(r"/players/(\d+)/", href)
+            if id_match:
+                wta_id = id_match.group(1)
+        else:
+            # Fallback for Byes or players without profile links
+            player_div = row.select_one(".match-table__player")
+            if player_div:
+                name = player_div.get_text(strip=True)
+            
         if not name:
             return None
-
-        # Extract WTA ID from href: /players/{numeric_id}/{slug}
-        href = link.get("href", "")
-        wta_id = None
-        id_match = re.search(r"/players/(\d+)/", href)
-        if id_match:
-            wta_id = id_match.group(1)
 
         # Nationality from flag class: match-table__player-flag--{IOC_CODE}
         nationality = None
@@ -797,21 +980,181 @@ class WTAScraper(BaseScraper):
     async def scrape_fixtures(
         self,
         tournament_id: str,
+        year: int,
+        tournament_number: str,
     ) -> AsyncGenerator[ScrapedFixture, None]:
         """
-        Scrape upcoming fixtures for a WTA tournament.
+        Scrape upcoming fixtures from the order of play page.
 
-        Not yet implemented — placeholder for future use.
+        Iterates through all available days on the order of play page to capture
+        scheduled matches. Matches are grouped by court.
 
         Args:
-            tournament_id: Tournament URL slug
+            tournament_id: Tournament slug
+            year: Season year
+            tournament_number: WTA tournament number
 
         Yields:
-            ScrapedFixture objects for upcoming matches
+            ScrapedFixture objects
         """
-        # TODO: Implement fixture scraping from order-of-play page
-        return
-        yield  # Make this a generator
+        page = await self.new_page()
+        try:
+            url = f"{self.BASE_URL}/tournaments/{tournament_number}/{tournament_id}/{year}/order-of-play"
+            print(f"Loading WTA schedule: {url}")
+            await self.navigate(page, url, wait_for="domcontentloaded")
+            await asyncio.sleep(5)
+            await self._dismiss_cookies(page)
+
+            # Check if we have day navigation buttons
+            day_buttons = await page.query_selector_all("button.day-navigation__button")
+
+            if not day_buttons:
+                # Try parsing current content
+                async for fixture in self._parse_fixtures_from_page(page, tournament_id, year):
+                    yield fixture
+                return
+
+            # Collect available days
+            days = []
+            for btn in day_buttons:
+                date_str = await btn.get_attribute("data-date")
+                days.append(date_str)
+
+            print(f"Found schedule days: {days}")
+
+            # Iterate days
+            for i, date_str in enumerate(days):
+                # Re-query buttons to avoid stale element references
+                buttons = await page.query_selector_all("button.day-navigation__button")
+                if i < len(buttons):
+                    await buttons[i].click()
+                    await asyncio.sleep(3)
+                    
+                    # Select Singles tab if available
+                    await self._select_singles_tab(page)
+
+                    async for fixture in self._parse_fixtures_from_page(
+                        page, tournament_id, year, date_str
+                    ):
+                        yield fixture
+
+        finally:
+            await page.close()
+
+    async def _parse_fixtures_from_page(
+        self,
+        page: Page,
+        tournament_id: str,
+        year: int,
+        date_str: Optional[str] = None,
+    ) -> AsyncGenerator[ScrapedFixture, None]:
+        """Parse fixtures from the currently loaded schedule page."""
+        html = await page.content()
+        soup = BeautifulSoup(html, "lxml")
+        
+        # Matches are grouped by court: div.tournament-oop__court
+        court_divs = soup.select("div.tournament-oop__court")
+        
+        # If no court divs, maybe flat list?
+        if not court_divs:
+            # Fallback to finding tennis-match directly
+            court_divs = [soup] # Treat soup as one "court"
+            
+        for court_div in court_divs:
+            # Get court name
+            court_name = "Unknown Court"
+            if court_div != soup:
+                header = court_div.select_one("h3.court-header__name")
+                if header:
+                    court_name = header.get_text(strip=True)
+            
+            # Find matches in this court
+            matches = court_div.select("div.tennis-match")
+            
+            for match_div in matches:
+                # Only process top-level match divs
+                classes = " ".join(match_div.get("class", []))
+                if "tennis-match__" in classes:
+                    continue
+                    
+                # Filter doubles (-LD)
+                if "-LD" in classes:
+                    continue
+                    
+                fixture = self._parse_fixture_div(
+                    match_div, tournament_id, year, court_name, date_str
+                )
+                if fixture:
+                    yield fixture
+
+    def _parse_fixture_div(
+        self,
+        div,
+        tournament_id: str,
+        year: int,
+        court_name: str,
+        date_str: Optional[str],
+    ) -> Optional[ScrapedFixture]:
+        """Parse a single fixture div."""
+        # Round
+        round_elem = div.select_one(".tennis-match__round")
+        round_code = "R32" # Default
+        if round_elem:
+            text = round_elem.get_text(strip=True).lower()
+            round_code = self.ROUND_MAP.get(text, text.upper())
+
+        # Players (from match table inside)
+        table = div.select_one("table.match-table")
+        if not table:
+            return None
+            
+        rows = table.select("tr.match-table__row")
+        if len(rows) < 2:
+            return None
+            
+        row_a, row_b = rows[0], rows[1]
+        player_a = self._extract_player_from_row(row_a)
+        player_b = self._extract_player_from_row(row_b)
+        
+        if not player_a or not player_b:
+            return None
+            
+        # Skip byes
+        if player_a["name"].lower() == "bye" or player_b["name"].lower() == "bye":
+            return None
+            
+        name_a, seed_a = extract_seed_from_name(player_a["name"])
+        name_b, seed_b = extract_seed_from_name(player_b["name"])
+        
+        # Time
+        time_elem = div.select_one(".tennis-match__status-time")
+        scheduled_time = None
+        if time_elem:
+            time_text = time_elem.get_text(strip=True)
+            # Clean up text like "Not before: 13:00"
+            # Extract HH:MM
+            time_match = re.search(r"(\d{1,2}:\d{2})", time_text)
+            if time_match:
+                scheduled_time = time_match.group(1)
+        
+        return ScrapedFixture(
+            tournament_name=tournament_id.replace("-", " ").title(),
+            tournament_id=tournament_id,
+            tournament_year=year,
+            tournament_level="", # Backfilled
+            tournament_surface="", # Backfilled
+            round=round_code,
+            scheduled_date=date_str,
+            scheduled_time=scheduled_time,
+            court=court_name,
+            player_a_name=name_a,
+            player_a_external_id=player_a["wta_id"],
+            player_a_seed=seed_a,
+            player_b_name=name_b,
+            player_b_external_id=player_b["wta_id"],
+            player_b_seed=seed_b,
+            source="wta",
+        )
 
     async def _select_singles_tab(self, page: Page) -> None:
         """
