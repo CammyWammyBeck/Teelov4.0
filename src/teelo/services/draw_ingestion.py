@@ -69,7 +69,7 @@ def _make_external_id(
     draw_position: int,
     player_a_ext_id: Optional[str] = None,
     player_b_ext_id: Optional[str] = None,
-) -> str:
+) -> Optional[str]:
     """
     Generate a match external_id compatible with the results scraper.
 
@@ -85,7 +85,7 @@ def _make_external_id(
     if player_a_ext_id and player_b_ext_id:
         sorted_ids = sorted([player_a_ext_id, player_b_ext_id])
         return f"{year}_{tournament_id}_{round_code}_{sorted_ids[0]}_{sorted_ids[1]}"
-    return f"draw_{year}_{tournament_id}_{round_code}_{draw_position}"
+    return None
 
 
 @dataclass
@@ -165,6 +165,9 @@ def ingest_draw(
     # Key: (round, draw_position), Value: player_id who got the bye
     bye_positions: dict[tuple[str, int], int] = {}
 
+    # Track external_ids seen in this batch to avoid duplicates in-session
+    seen_external_ids: set[str] = set()
+
     # -------------------------------------------------------------------------
     # Phase 1: Process each draw entry
     # -------------------------------------------------------------------------
@@ -208,7 +211,13 @@ def ingest_draw(
 
             # Create or update the match
             match = _upsert_draw_match(
-                session, entry, edition, player_a_id, player_b_id, overwrite
+                session,
+                entry,
+                edition,
+                player_a_id,
+                player_b_id,
+                overwrite,
+                seen_external_ids,
             )
 
             if match is None:
@@ -308,6 +317,26 @@ def _resolve_player(
     return player_id
 
 
+def _get_player_external_id(
+    session: Session,
+    player_id: int,
+    source: str,
+) -> Optional[str]:
+    from teelo.db.models import Player
+
+    player = session.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        return None
+
+    if source == "atp":
+        return player.atp_id
+    if source == "wta":
+        return player.wta_id
+    if source == "itf":
+        return player.itf_id
+    return None
+
+
 def _resolve_bye_player(
     session: Session,
     entry: ScrapedDrawEntry,
@@ -351,6 +380,7 @@ def _upsert_draw_match(
     player_a_id: int,
     player_b_id: int,
     overwrite: bool,
+    seen_external_ids: set[str],
 ) -> Optional[Match]:
     """
     Create or update a Match row from a draw entry.
@@ -369,20 +399,17 @@ def _upsert_draw_match(
     Returns:
         Match object (new or existing), or None if skipped
     """
-    # Check for existing match at this draw position
+    # Check for existing match by draw position
     existing = session.query(Match).filter(
         Match.tournament_edition_id == edition.id,
         Match.round == entry.round,
         Match.draw_position == entry.draw_position,
     ).first()
 
-    if existing and not overwrite:
-        return None  # Already exists, skip
-
     # Determine match status and winner
     # If match is not yet complete, status is 'upcoming' (known from draw, no schedule yet)
     # Status will change to 'scheduled' when order of play is scraped
-    is_completed = entry.score_raw is not None and entry.winner_name is not None
+    is_completed = bool(entry.winner_name) and bool(entry.score_raw and entry.score_raw.strip())
     status = "completed"
     winner_id = None
 
@@ -416,14 +443,60 @@ def _upsert_draw_match(
 
     # Generate an external_id for deduplication
     # Uses player-ID-based format when possible (compatible with results scraper)
+    player_a_ext_id = entry.player_a_external_id or _get_player_external_id(
+        session, player_a_id, entry.source
+    )
+    player_b_ext_id = entry.player_b_external_id or _get_player_external_id(
+        session, player_b_id, entry.source
+    )
+
     external_id = _make_external_id(
         year=entry.tournament_year,
         tournament_id=entry.tournament_id,
         round_code=entry.round,
         draw_position=entry.draw_position,
-        player_a_ext_id=entry.player_a_external_id,
-        player_b_ext_id=entry.player_b_external_id,
+        player_a_ext_id=player_a_ext_id,
+        player_b_ext_id=player_b_ext_id,
     )
+
+    # Check for existing match by external_id (results may have created it already)
+    if external_id:
+        if external_id in seen_external_ids:
+            return None
+        seen_external_ids.add(external_id)
+
+        # Check pending matches in the current session
+        for pending in session.new:
+            if isinstance(pending, Match) and pending.external_id == external_id:
+                return None
+
+        existing_by_external = session.query(Match).filter(
+            Match.external_id == external_id
+        ).first()
+        if existing_by_external:
+            existing = existing_by_external
+
+    if existing and not overwrite:
+        updated = False
+        if existing.draw_position is None:
+            existing.draw_position = entry.draw_position
+            updated = True
+        if existing.player_a_seed is None and entry.player_a_seed is not None:
+            existing.player_a_seed = entry.player_a_seed
+            updated = True
+        if existing.player_b_seed is None and entry.player_b_seed is not None:
+            existing.player_b_seed = entry.player_b_seed
+            updated = True
+        if external_id and not existing.external_id:
+            # Only set if not already used by another match
+            conflict = session.query(Match.id).filter(
+                Match.external_id == external_id,
+                Match.id != existing.id,
+            ).first()
+            if not conflict:
+                existing.external_id = external_id
+                updated = True
+        return existing if updated else None
 
     # Estimate match date from tournament dates + round
     match_date = None
@@ -449,7 +522,10 @@ def _upsert_draw_match(
         existing.status = status
         existing.match_date = match_date
         existing.match_date_estimated = match_date_estimated
-        existing.external_id = external_id
+        if external_id:
+            existing.external_id = external_id
+        if existing.draw_position is None:
+            existing.draw_position = entry.draw_position
         existing.update_temporal_order(
             tournament_start=edition.start_date,
             tournament_end=edition.end_date,

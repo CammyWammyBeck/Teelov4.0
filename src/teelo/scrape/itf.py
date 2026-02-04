@@ -751,6 +751,10 @@ def _parse_match_widget(
         status = "walkover"
         score_raw = "W/O"
 
+    # If there's no winner and no scores, this match hasn't been played yet.
+    if not winner_name and not has_scores and not status_elem:
+        return None
+
     # Generate external ID for deduplication
     # Use sorted ITF IDs (or name slugs as fallback) for consistency
     id_a = player_a["itf_id"] or player_a["name"].lower().replace(" ", "-")

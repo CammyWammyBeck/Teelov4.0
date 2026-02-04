@@ -3,13 +3,13 @@
 Update Current Events Script.
 
 Discovers currently running tournaments (within ±1 week) across all tours
-(ATP, WTA, ITF), scrapes their draws, schedules, and results, and logs
-the data to a text file for verification.
+(ATP, WTA, ITF), scrapes their draws, schedules, and results, and ingests
+the data into the database.
 
 Usage:
     python scripts/update_current_events.py
     python scripts/update_current_events.py --tours ATP,WTA
-    python scripts/update_current_events.py --output my_log.txt
+    python scripts/update_current_events.py
 """
 
 import argparse
@@ -20,111 +20,20 @@ from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent))
 
 from teelo.scrape.atp import ATPScraper
 from teelo.scrape.wta import WTAScraper
 from teelo.scrape.itf import ITFScraper
-from teelo.scrape.base import ScrapedDrawEntry, ScrapedFixture, ScrapedMatch, VirtualDisplay
+from teelo.scrape.base import VirtualDisplay
 from teelo.scrape.utils import TOUR_TYPES, get_tournaments_for_tour
 from teelo.config import settings
-
-class FileLogger:
-    """Handles logging of scraped data to a text file."""
-    
-    def __init__(self, filename: str):
-        self.filename = filename
-        # Clear file on init
-        with open(self.filename, "w", encoding="utf-8") as f:
-            f.write(f"TEELO UPDATE LOG - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write("=" * 80 + "\n\n")
-            
-    def log(self, text: str):
-        """Write raw text to file."""
-        with open(self.filename, "a", encoding="utf-8") as f:
-            f.write(text + "\n")
-            
-    def log_header(self, tournament: dict):
-        """Log tournament header."""
-        name = tournament.get("name", tournament["id"])
-        dates = f"{tournament.get('start_date', '?')} to {tournament.get('end_date', '?')}"
-        level = tournament.get("level", "Unknown")
-        surface = tournament.get("surface", "Unknown")
-        
-        self.log("\n" + "#" * 80)
-        self.log(f"TOURNAMENT: {name}")
-        self.log(f"ID: {tournament['id']} | Dates: {dates}")
-        self.log(f"Level: {level} | Surface: {surface}")
-        self.log("#" * 80 + "\n")
-
-    def log_draw(self, entries: list[ScrapedDrawEntry]):
-        """Log draw entries."""
-        self.log(f"--- DRAW ENTRIES ({len(entries)}) ---")
-        if not entries:
-            self.log("(No draw entries found)\n")
-            return
-            
-        # Group by round
-        by_round = {}
-        for e in entries:
-            by_round.setdefault(e.round, []).append(e)
-            
-        for r, items in by_round.items():
-            self.log(f"\n[Round: {r}]")
-            for item in items:
-                p1 = f"{item.player_a_name}"
-                if item.player_a_seed: p1 += f" ({item.player_a_seed})"
-                
-                p2 = f"{item.player_b_name}"
-                if item.player_b_seed: p2 += f" ({item.player_b_seed})"
-                
-                status = ""
-                if item.winner_name:
-                    status = f" -> Winner: {item.winner_name} ({item.score_raw})"
-                elif item.is_bye:
-                    status = " (BYE)"
-                    
-                self.log(f"  #{item.draw_position}: {p1} vs {p2}{status}")
-        self.log("")
-
-    def log_schedule(self, fixtures: list[ScrapedFixture]):
-        """Log schedule/fixtures."""
-        self.log(f"--- SCHEDULE / ORDER OF PLAY ({len(fixtures)}) ---")
-        if not fixtures:
-            self.log("(No scheduled matches found)\n")
-            return
-            
-        # Sort by date/time/court
-        fixtures.sort(key=lambda x: (x.scheduled_date or "9999", x.scheduled_time or "99:99", x.court or "Z"))
-        
-        current_date = None
-        for f in fixtures:
-            if f.scheduled_date != current_date:
-                current_date = f.scheduled_date
-                self.log(f"\n[Date: {current_date}]")
-                
-            time_str = f.scheduled_time if f.scheduled_time else "TBD"
-            court_str = f.court if f.court else "TBA"
-            
-            p1 = f"{f.player_a_name}"
-            p2 = f"{f.player_b_name}"
-            
-            self.log(f"  {time_str} | {court_str} | {p1} vs {p2} ({f.round})")
-        self.log("")
-
-    def log_results(self, matches: list[ScrapedMatch]):
-        """Log completed results."""
-        self.log(f"--- RESULTS ({len(matches)}) ---")
-        if not matches:
-            self.log("(No results found)\n")
-            return
-            
-        matches.sort(key=lambda x: (x.match_date or "0000", x.match_number or 0))
-        
-        for m in matches:
-            date_str = f"[{m.match_date}] " if m.match_date else ""
-            loser = m.player_b_name or "Unknown"
-            self.log(f"  {date_str}{m.round}: {m.winner_name} d. {loser} {m.score_raw}")
-        self.log("")
+from teelo.db.session import get_session
+from teelo.players.identity import PlayerIdentityService
+from teelo.services.draw_ingestion import ingest_draw
+from teelo.services.schedule_ingestion import ingest_schedule
+from teelo.services.results_ingestion import ingest_results
+from backfill_historical import get_or_create_edition
 
 
 async def discover_current_tournaments(tours: list[str], year: int, today: date) -> list[dict]:
@@ -187,7 +96,7 @@ async def discover_current_tournaments(tours: list[str], year: int, today: date)
     return all_tournaments
 
 
-async def process_tournament(tournament: dict, logger: FileLogger):
+async def process_tournament(tournament: dict, session):
     """Run pipeline for a single tournament."""
     tour_key = tournament["tour_key"]
     tour_config = TOUR_TYPES[tour_key]
@@ -204,8 +113,29 @@ async def process_tournament(tournament: dict, logger: FileLogger):
         print(f"Unknown scraper type for {tour_key}")
         return
 
-    print(f"Processing {tournament['name']} ({tour_key})...")
-    logger.log_header(tournament)
+    tournament_name = tournament.get("name", tournament["id"])
+    print(f"Processing {tournament_name} ({tour_key})...")
+
+    identity_service = PlayerIdentityService(session)
+
+    # Create or fetch tournament edition
+    task_params = {
+        "tournament_id": tournament["id"],
+        "year": tournament["year"],
+        "tour_key": tour_key,
+        "tournament_name": tournament.get("name"),
+        "tournament_level": tournament.get("level"),
+        "tournament_surface": tournament.get("surface"),
+        "tournament_location": tournament.get("location"),
+        "start_date": tournament.get("start_date"),
+        "end_date": tournament.get("end_date"),
+    }
+    if tournament.get("number"):
+        task_params["tournament_number"] = tournament.get("number")
+    if tournament.get("url"):
+        task_params["tournament_url"] = tournament.get("url")
+
+    edition = await get_or_create_edition(session, task_params, tour_key)
     
     async with scraper_cls(**scraper_kwargs) as scraper:
         # 1. DRAW
@@ -230,10 +160,11 @@ async def process_tournament(tournament: dict, logger: FileLogger):
                 }
             
             entries = await scraper.scrape_tournament_draw(**draw_kwargs)
-            logger.log_draw(entries)
+            stats = ingest_draw(session, entries, edition, identity_service)
+            print(f"  Draw: {stats.summary()}")
         except Exception as e:
             print(f"  Draw Error: {e}")
-            logger.log(f"Error scraping draw: {e}\n")
+            session.rollback()
 
         # 2. SCHEDULE
         try:
@@ -254,10 +185,11 @@ async def process_tournament(tournament: dict, logger: FileLogger):
             fixtures = []
             async for f in scraper.scrape_fixtures(**sched_kwargs):
                 fixtures.append(f)
-            logger.log_schedule(fixtures)
+            stats = ingest_schedule(session, fixtures, edition, identity_service)
+            print(f"  Schedule: {stats.summary()}")
         except Exception as e:
             print(f"  Schedule Error: {e}")
-            logger.log(f"Error scraping schedule: {e}\n")
+            session.rollback()
 
         # 3. RESULTS
         try:
@@ -280,20 +212,16 @@ async def process_tournament(tournament: dict, logger: FileLogger):
             matches = []
             async for m in scraper.scrape_tournament_results(**res_kwargs):
                 matches.append(m)
-            logger.log_results(matches)
+            stats = ingest_results(session, matches, edition, identity_service)
+            print(f"  Results: {stats.summary()}")
         except Exception as e:
             print(f"  Results Error: {e}")
-            logger.log(f"Error scraping results: {e}\n")
+            session.rollback()
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Update Current Events Log")
+    parser = argparse.ArgumentParser(description="Update Current Events")
     parser.add_argument("--tours", default="ATP,WTA,CHALLENGER,WTA_125,ITF_MEN,ITF_WOMEN", help="Comma-separated tours")
-    parser.add_argument(
-        "--output",
-        default=str(Path("scratchpad") / f"scraped_updates_{date.today()}.txt"),
-        help="Output filename",
-    )
     args = parser.parse_args()
     
     tours = [t.strip().upper() for t in args.tours.split(",")]
@@ -301,11 +229,8 @@ async def main():
     # Validate tours
     tours = [t for t in tours if t in TOUR_TYPES]
     
-    logger = FileLogger(args.output)
-    
     print("=" * 60)
     print("UPDATE CURRENT EVENTS")
-    print(f"Output: {args.output}")
     print(f"Tours: {tours}")
     print(f"Settings: headless={settings.scrape_headless}, virtual_display={settings.scrape_virtual_display}")
     print("=" * 60)
@@ -325,10 +250,12 @@ async def main():
     print(f"\nProcessing {len(tournaments)} tournaments...")
     
     # 2. Process
-    for t in tournaments:
-        await process_tournament(t, logger)
+    with get_session() as session:
+        for t in tournaments:
+            await process_tournament(t, session)
+            session.commit()
         
-    print("\nDone! Check log file for details.")
+    print("\nDone! Database updated.")
 
 if __name__ == "__main__":
     asyncio.run(main())

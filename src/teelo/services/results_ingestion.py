@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 
 from teelo.db.models import (
     Match,
+    Player,
     TournamentEdition,
     estimate_match_date_from_round,
 )
@@ -160,12 +161,7 @@ def _process_single_result(
     Returns:
         Status string: "created", "updated", "duplicate", "no_player", or "skipped"
     """
-    # Check for in-batch duplicate
-    if scraped.external_id in seen_external_ids:
-        return "duplicate"
-    seen_external_ids.add(scraped.external_id)
-
-    # Resolve player A
+    # Resolve external IDs from DB if missing (only save if we have player IDs)
     player_a_id = _resolve_player(
         session, scraped.player_a_name, scraped.player_a_external_id,
         scraped.source, scraped.player_a_nationality, identity_service,
@@ -174,7 +170,6 @@ def _process_single_result(
         logger.warning("Could not resolve player A: %s", scraped.player_a_name)
         return "no_player"
 
-    # Resolve player B
     player_b_id = _resolve_player(
         session, scraped.player_b_name, scraped.player_b_external_id,
         scraped.source, scraped.player_b_nationality, identity_service,
@@ -182,6 +177,31 @@ def _process_single_result(
     if not player_b_id:
         logger.warning("Could not resolve player B: %s", scraped.player_b_name)
         return "no_player"
+
+    external_id = _make_external_id_from_players(
+        session=session,
+        year=scraped.tournament_year,
+        tournament_id=scraped.tournament_id,
+        round_code=scraped.round,
+        source=scraped.source,
+        player_a_id=player_a_id,
+        player_b_id=player_b_id,
+        scraped_a_ext=scraped.player_a_external_id,
+        scraped_b_ext=scraped.player_b_external_id,
+    )
+
+    # Check for in-batch duplicate
+    dedupe_key = _make_dedupe_key(
+        edition_id=edition.id,
+        round_code=scraped.round,
+        player_a_id=player_a_id,
+        player_b_id=player_b_id,
+        match_date=scraped.match_date,
+        external_id=external_id,
+    )
+    if dedupe_key in seen_external_ids:
+        return "duplicate"
+    seen_external_ids.add(dedupe_key)
 
     # Parse score
     score_structured = None
@@ -212,9 +232,20 @@ def _process_single_result(
             match_date_estimated = True
 
     # Check for existing match
-    existing = session.query(Match).filter(
-        Match.external_id == scraped.external_id
-    ).first()
+    existing = None
+    if external_id:
+        existing = session.query(Match).filter(
+            Match.external_id == external_id
+        ).first()
+
+    if not existing:
+        existing = _find_match_by_players(
+            session=session,
+            edition=edition,
+            round_code=scraped.round,
+            player_a_id=player_a_id,
+            player_b_id=player_b_id,
+        )
 
     if existing:
         if update_existing:
@@ -228,13 +259,15 @@ def _process_single_result(
                 match_date=match_date,
                 match_date_estimated=match_date_estimated,
             )
+            if external_id and (not existing.external_id or existing.external_id.startswith("draw_")):
+                existing.external_id = external_id
             return "updated"
         else:
             return "duplicate"
 
     # Create new match
     match = Match(
-        external_id=scraped.external_id,
+        external_id=external_id,
         source=scraped.source,
         tournament_edition_id=edition.id,
         round=scraped.round,
@@ -366,6 +399,78 @@ def _update_match_with_result(
         tournament_start=edition.start_date,
         tournament_end=edition.end_date,
     )
+
+
+def _get_player_external_id(
+    session: Session,
+    player_id: int,
+    source: str,
+) -> Optional[str]:
+    player = session.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        return None
+
+    if source == "atp":
+        return player.atp_id
+    if source == "wta":
+        return player.wta_id
+    if source == "itf":
+        return player.itf_id
+    return None
+
+
+def _make_external_id_from_players(
+    session: Session,
+    year: int,
+    tournament_id: str,
+    round_code: str,
+    source: str,
+    player_a_id: int,
+    player_b_id: int,
+    scraped_a_ext: Optional[str],
+    scraped_b_ext: Optional[str],
+) -> Optional[str]:
+    ext_a = scraped_a_ext or _get_player_external_id(session, player_a_id, source)
+    ext_b = scraped_b_ext or _get_player_external_id(session, player_b_id, source)
+
+    if not ext_a or not ext_b:
+        return None
+
+    sorted_ids = sorted([ext_a, ext_b])
+    return f"{year}_{tournament_id}_{round_code}_{sorted_ids[0]}_{sorted_ids[1]}"
+
+
+def _make_dedupe_key(
+    edition_id: int,
+    round_code: str,
+    player_a_id: int,
+    player_b_id: int,
+    match_date: Optional[str],
+    external_id: Optional[str],
+) -> str:
+    if external_id:
+        return f"external:{external_id}"
+
+    a_id, b_id = sorted([player_a_id, player_b_id])
+    date_part = match_date or ""
+    return f"fallback:{edition_id}:{round_code}:{a_id}:{b_id}:{date_part}"
+
+
+def _find_match_by_players(
+    session: Session,
+    edition: TournamentEdition,
+    round_code: str,
+    player_a_id: int,
+    player_b_id: int,
+) -> Optional[Match]:
+    return session.query(Match).filter(
+        Match.tournament_edition_id == edition.id,
+        Match.round == round_code,
+        (
+            (Match.player_a_id == player_a_id) & (Match.player_b_id == player_b_id) |
+            (Match.player_a_id == player_b_id) & (Match.player_b_id == player_a_id)
+        )
+    ).first()
 
 
 def ingest_single_result(

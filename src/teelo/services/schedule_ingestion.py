@@ -35,8 +35,9 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from teelo.db.models import Match, TournamentEdition
+from teelo.db.models import Match, Player, TournamentEdition
 from teelo.scrape.base import ScrapedFixture
+from teelo.players.identity import PlayerIdentityService
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,7 @@ def ingest_schedule(
     session: Session,
     fixtures: list[ScrapedFixture],
     edition: TournamentEdition,
+    identity_service: Optional[PlayerIdentityService] = None,
 ) -> ScheduleIngestionStats:
     """
     Process a list of ScrapedFixture objects and update Match rows with schedule data.
@@ -121,7 +123,11 @@ def ingest_schedule(
 
     for fixture in fixtures:
         try:
-            # Skip fixtures without player IDs (can't generate external_id)
+            # If external IDs are missing, try to resolve from DB using names
+            if (not fixture.player_a_external_id or not fixture.player_b_external_id) and identity_service:
+                _fill_missing_external_ids(session, fixture, identity_service)
+
+            # Still missing: skip (can't generate external_id)
             if not fixture.player_a_external_id or not fixture.player_b_external_id:
                 stats.skipped_no_player_ids += 1
                 logger.debug(
@@ -206,14 +212,13 @@ def _find_match_by_players(
     """
     from teelo.db.models import Player
 
-    # Find player IDs from external IDs
-    player_a = session.query(Player).filter(
-        Player.atp_id == fixture.player_a_external_id.upper()
-    ).first() if fixture.player_a_external_id else None
-
-    player_b = session.query(Player).filter(
-        Player.atp_id == fixture.player_b_external_id.upper()
-    ).first() if fixture.player_b_external_id else None
+    # Find player IDs from external IDs (source-aware)
+    player_a = _find_player_by_external_id(
+        session, fixture.player_a_external_id, fixture.source
+    )
+    player_b = _find_player_by_external_id(
+        session, fixture.player_b_external_id, fixture.source
+    )
 
     if not player_a or not player_b:
         return None
@@ -230,6 +235,58 @@ def _find_match_by_players(
     ).first()
 
     return match
+
+
+def _find_player_by_external_id(
+    session: Session,
+    external_id: Optional[str],
+    source: str,
+) -> Optional[Player]:
+    if not external_id:
+        return None
+
+    ext_id = external_id.upper()
+    if source == "atp":
+        return session.query(Player).filter(Player.atp_id == ext_id).first()
+    if source == "wta":
+        return session.query(Player).filter(Player.wta_id == ext_id).first()
+    if source == "itf":
+        return session.query(Player).filter(Player.itf_id == ext_id).first()
+    return None
+
+
+def _fill_missing_external_ids(
+    session: Session,
+    fixture: ScrapedFixture,
+    identity_service: PlayerIdentityService,
+) -> None:
+    if not fixture.player_a_external_id and fixture.player_a_name:
+        match = identity_service.find_player(
+            name=fixture.player_a_name, source=fixture.source
+        )
+        if match:
+            player = session.query(Player).filter(Player.id == match.player_id).first()
+            if player:
+                fixture.player_a_external_id = _get_source_external_id(player, fixture.source)
+
+    if not fixture.player_b_external_id and fixture.player_b_name:
+        match = identity_service.find_player(
+            name=fixture.player_b_name, source=fixture.source
+        )
+        if match:
+            player = session.query(Player).filter(Player.id == match.player_id).first()
+            if player:
+                fixture.player_b_external_id = _get_source_external_id(player, fixture.source)
+
+
+def _get_source_external_id(player: Player, source: str) -> Optional[str]:
+    if source == "atp":
+        return player.atp_id
+    if source == "wta":
+        return player.wta_id
+    if source == "itf":
+        return player.itf_id
+    return None
 
 
 def _update_match_schedule(
