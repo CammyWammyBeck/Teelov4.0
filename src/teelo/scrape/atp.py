@@ -18,11 +18,11 @@ URLs:
 
 import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import AsyncGenerator, Optional
 
 from bs4 import BeautifulSoup
-from playwright.async_api import Page
+from playwright.async_api import Page, TimeoutError as PlaywrightTimeout
 
 from teelo.scrape.base import BaseScraper, ScrapedDrawEntry, ScrapedMatch, ScrapedFixture
 from teelo.scrape.parsers.score import parse_score, ScoreParseError
@@ -126,7 +126,10 @@ class ATPScraper(BaseScraper):
 
             await self.navigate(page, url, wait_for="domcontentloaded")
             # Wait for JS to render the tournament list
-            await asyncio.sleep(5)
+            try:
+                await page.wait_for_selector(".tournament-list, .results-archive-table", timeout=4000)
+            except PlaywrightTimeout:
+                pass
             await self.random_delay()
 
             # Get page content
@@ -487,12 +490,9 @@ class ATPScraper(BaseScraper):
 
             await self.navigate(page, results_url, wait_for="domcontentloaded")
 
-            # Wait longer for JavaScript to render
-            await asyncio.sleep(3)
-
             # Wait for match elements to load (ATP uses JavaScript rendering)
             try:
-                await page.wait_for_selector(".match", timeout=15000)
+                await page.wait_for_selector(".match", timeout=4000)
             except Exception:
                 print(f"Warning: No .match elements found on page for {tournament_id}")
 
@@ -561,11 +561,10 @@ class ATPScraper(BaseScraper):
             print(f"Scraping draw: {draws_url}")
 
             await self.navigate(page, draws_url, wait_for="domcontentloaded")
-            await asyncio.sleep(5)
 
             # Wait for draw-item elements (draws page uses .draw-item, not .match)
             try:
-                await page.wait_for_selector(".draw-item", timeout=15000)
+                await page.wait_for_selector(".draw-item", timeout=4000)
             except Exception:
                 print(f"Warning: No .draw-item elements found on draws page for {tournament_id}")
 
@@ -1365,12 +1364,14 @@ class ATPScraper(BaseScraper):
     async def scrape_fixtures(
         self,
         tournament_id: str,
+        tournament_number: Optional[str] = None,
     ) -> AsyncGenerator[ScrapedFixture, None]:
         """
         Scrape upcoming fixtures (order of play) for a tournament.
 
         Args:
             tournament_id: Tournament URL slug
+            tournament_number: Tournament number (required for URL)
 
         Yields:
             ScrapedFixture objects for upcoming matches
@@ -1381,9 +1382,20 @@ class ATPScraper(BaseScraper):
             # Get current year
             year = datetime.now().year
 
+            # Look up tournament number if not provided
+            if not tournament_number:
+                tournament_number = await self._get_tournament_number(
+                    page, tournament_id, year
+                )
+            
+            if not tournament_number:
+                print(f"Could not find tournament number for {tournament_id} fixtures")
+                return
+
             # Navigate to tournament schedule/order of play
-            url = f"{self.BASE_URL}/en/scores/current/{tournament_id}/daily-schedule"
-            await self.navigate(page, url, wait_for="networkidle")
+            # URL: /en/scores/current/{slug}/{number}/daily-schedule
+            url = f"{self.BASE_URL}/en/scores/current/{tournament_id}/{tournament_number}/daily-schedule"
+            await self.navigate(page, url, wait_for="domcontentloaded")
             await self.random_delay()
 
             html = await page.content()
@@ -1399,14 +1411,73 @@ class ATPScraper(BaseScraper):
             }
 
             # Find match entries
-            match_elements = soup.select(
-                ".match-card, .schedule-match, [class*='match-item']"
-            )
+            # New structure (2025/2026): div.schedule contains match info
+            # Only select those that have a header (some might be placeholders)
+            match_elements = []
+            for schedule in soup.select("div.schedule"):
+                if schedule.select_one(".schedule-header"):
+                    match_elements.append(schedule)
+
+            if not match_elements:
+                # Fallback to old selectors just in case
+                match_elements = soup.select(
+                    ".match-card, .schedule-match, [class*='match-item']"
+                )
+
+            last_court_by_group: dict[int, str] = {}
+            last_dt_by_court: dict[str, datetime] = {}
 
             for elem in match_elements:
+                # Inherit court name within a content-group when only the first
+                # match block declares it.
+                group = elem.find_parent("div", class_="content-group")
+                group_key = id(group) if group else 0
+
+                court = None
+                court_elem = elem.select_one(".schedule-location-timestamp strong")
+                if court_elem:
+                    court = court_elem.get_text(strip=True)
+                    last_court_by_group[group_key] = court
+                else:
+                    court = last_court_by_group.get(group_key)
+
+                # Extract date/time, then estimate "Followed By" times
+                sched = self._extract_schedule_datetime(elem)
+
+                # Compute effective schedule for tracking, even if we skip the fixture
+                effective_date = sched.get("date")
+                effective_time = sched.get("time")
+                if sched.get("followed_by") and court:
+                    prev_dt = last_dt_by_court.get(court)
+                    if prev_dt:
+                        est_dt = prev_dt + timedelta(hours=2)
+                        effective_date = est_dt.strftime("%Y-%m-%d")
+                        effective_time = est_dt.strftime("%H:%M")
+
+                if court and effective_date and effective_time:
+                    try:
+                        last_dt_by_court[court] = datetime.strptime(
+                            f"{effective_date} {effective_time}",
+                            "%Y-%m-%d %H:%M",
+                        )
+                    except ValueError:
+                        pass
+
                 fixture = self._parse_fixture_element(elem, tournament_info)
-                if fixture:
-                    yield fixture
+                if not fixture:
+                    continue
+
+                # Override court if we inferred it
+                if court:
+                    fixture.court = court
+
+                # Apply schedule info to fixture
+                if effective_date:
+                    fixture.scheduled_date = effective_date
+                if effective_time:
+                    fixture.scheduled_time = effective_time
+
+                yield fixture
 
         finally:
             await page.close()
@@ -1419,6 +1490,18 @@ class ATPScraper(BaseScraper):
         """
         Parse a fixture element from the daily schedule.
 
+        Supports new 2026 structure (div.schedule) and legacy structures.
+
+        New Structure:
+        - div.schedule
+          - div.schedule-header
+            - div.schedule-location-timestamp -> span -> strong (Court)
+            - span.time (Time)
+          - div.schedule-content
+            - div.schedule-type (Round)
+            - div.schedule-players -> div.player (x2)
+              - div.names -> div.name -> a (Name + Link)
+
         Args:
             elem: BeautifulSoup element
             tournament_info: Tournament metadata
@@ -1426,6 +1509,11 @@ class ATPScraper(BaseScraper):
         Returns:
             ScrapedFixture if successfully parsed
         """
+        # Check if this is the new structure
+        if "schedule" in elem.get("class", []):
+            return self._parse_new_fixture_structure(elem, tournament_info)
+
+        # Legacy structure parsing
         # Find players
         player_elems = elem.select("a[href*='/players/'], .player-name")
         if len(player_elems) < 2:
@@ -1464,6 +1552,143 @@ class ATPScraper(BaseScraper):
             player_b_external_id=player_b.external_id,
             source="atp",
         )
+
+    def _parse_new_fixture_structure(self, elem, tournament_info) -> Optional[ScrapedFixture]:
+        """Parse the new 'div.schedule' structure."""
+        # 1. Round
+        round_str = "R32"
+        round_elem = elem.select_one(".schedule-type")
+        if round_elem:
+            round_str = round_elem.get_text(strip=True)
+
+        # 2. Players
+        players_div = elem.select_one(".schedule-players")
+        if not players_div:
+            return None
+        
+        # Team A is .player, Team B is .opponent
+        team_a_div = players_div.select_one(".player")
+        team_b_div = players_div.select_one(".opponent")
+        
+        if not team_a_div or not team_b_div:
+            return None
+        team_a = self._extract_team_info(team_a_div)
+        team_b = self._extract_team_info(team_b_div)
+        if not team_a or not team_b:
+            return None
+
+        return ScrapedFixture(
+            tournament_name=tournament_info["name"],
+            tournament_id=tournament_info["id"],
+            tournament_year=tournament_info["year"],
+            tournament_level=tournament_info["level"],
+            tournament_surface=tournament_info["surface"],
+            round=self._normalize_round(round_str),
+            player_a_name=team_a["name"],
+            player_a_external_id=team_a["external_id"],
+            player_b_name=team_b["name"],
+            player_b_external_id=team_b["external_id"],
+            source="atp",
+        )
+
+    def _extract_team_info(self, team_div) -> Optional[dict]:
+        """
+        Extract team/player info from a schedule team block.
+
+        Singles only. Doubles should be skipped.
+        """
+        links = team_div.select(".name a")
+        if not links:
+            return None
+        if len(links) > 1:
+            # Doubles or team entry - skip for this project
+            return None
+
+        names: list[str] = []
+        ids: list[str] = []
+
+        for link in links:
+            player = extract_player_info(link, source="atp")
+            if player:
+                if player.name:
+                    names.append(player.name)
+                if player.external_id:
+                    ids.append(player.external_id)
+            else:
+                # Fallback to link text for placeholders like "Alternate"
+                text = link.get_text(strip=True)
+                if text:
+                    names.append(text)
+
+        if not names:
+            return None
+
+        name = " / ".join(names)
+        external_id = "+".join(ids) if ids else None
+
+        return {"name": name, "external_id": external_id}
+
+    def _extract_schedule_datetime(self, elem) -> dict:
+        """
+        Extract schedule date/time info from a schedule element.
+
+        Returns:
+            dict with keys: date (YYYY-MM-DD), time (HH:MM), followed_by (bool)
+        """
+        date_str = elem.get("data-matchdate") or None
+        datetime_str = elem.get("data-datetime") or ""
+        suffix = (elem.get("data-suffix") or "").lower()
+
+        time_text = None
+        time_elem = elem.select_one(".schedule-location-timestamp .matchtime")
+        if time_elem:
+            time_text = time_elem.get_text(strip=True)
+        else:
+            display_time = elem.get("data-displaytime") or ""
+            if display_time:
+                time_text = display_time
+
+        if time_text:
+            time_text = " ".join(time_text.split())
+
+        followed_by = "followed by" in suffix or (time_text and "followed by" in time_text.lower())
+
+        def parse_ampm_time(text: str) -> Optional[str]:
+            match = re.search(r"(\d{1,2})(?:[:\.](\d{2}))?\s*([AP]M)", text, re.I)
+            if not match:
+                return None
+            hour = int(match.group(1))
+            minute = int(match.group(2) or "00")
+            ampm = match.group(3).upper()
+            if ampm == "PM" and hour != 12:
+                hour += 12
+            if ampm == "AM" and hour == 12:
+                hour = 0
+            return f"{hour:02d}:{minute:02d}"
+
+        def parse_24h_time(text: str) -> Optional[str]:
+            match = re.search(r"(\d{1,2}):(\d{2})", text)
+            if not match:
+                return None
+            return f"{int(match.group(1)):02d}:{match.group(2)}"
+
+        time_str = None
+        if time_text:
+            time_str = parse_ampm_time(time_text)
+            if not time_str:
+                time_str = parse_24h_time(time_text)
+
+        # Fall back to data-datetime when no usable time was parsed.
+        if not time_str and datetime_str:
+            try:
+                dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
+                time_str = dt.strftime("%H:%M")
+                if not date_str:
+                    date_str = dt.strftime("%Y-%m-%d")
+            except ValueError:
+                pass
+
+        return {"date": date_str, "time": time_str, "followed_by": followed_by}
 
 
 def _detect_retirement_from_score(score_raw: str, current_status: str) -> str:

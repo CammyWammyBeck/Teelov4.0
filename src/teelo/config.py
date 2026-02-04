@@ -91,8 +91,8 @@ class Settings(BaseSettings):
         description="noVNC web port - view browser at http://host:6080/vnc.html",
     )
     scrape_timeout: int = Field(
-        default=45000,
-        description="Default timeout for page loads in milliseconds (45s for JS-heavy sites)",
+        default=15000,
+        description="Default timeout for page loads in milliseconds (15s for JS-heavy sites)",
     )
     scrape_delay_min: float = Field(
         default=1.0,

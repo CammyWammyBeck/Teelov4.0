@@ -22,7 +22,9 @@ Match data structure:
 """
 
 import asyncio
+import os
 import re
+from datetime import datetime, timedelta
 from typing import AsyncGenerator, Optional
 
 from bs4 import BeautifulSoup
@@ -138,11 +140,17 @@ class WTAScraper(BaseScraper):
             for url in urls:
                 print(f"Loading WTA tournament calendar: {url}")
                 await self.navigate(page, url, wait_for="domcontentloaded")
-                await asyncio.sleep(3)
+                try:
+                    await page.wait_for_selector("li.tournament-list__item", timeout=4000)
+                except PlaywrightTimeout:
+                    pass
 
                 # Dismiss cookie consent (WTA uses OneTrust)
                 await self._dismiss_cookies(page)
-                await asyncio.sleep(2)
+                try:
+                    await page.wait_for_selector("li.tournament-list__item", timeout=4000)
+                except PlaywrightTimeout:
+                    pass
 
                 html = await page.content()
                 soup = BeautifulSoup(html, "lxml")
@@ -291,9 +299,17 @@ class WTAScraper(BaseScraper):
             url = f"{self.BASE_URL}/tournaments/{tournament_number}/{tournament_id}/{year}/scores"
             print(f"Loading WTA scores page: {url}")
             await self.navigate(page, url, wait_for="domcontentloaded")
-            await asyncio.sleep(5)
+            try:
+                await page.wait_for_selector(
+                    "button.day-navigation__button, div.tennis-match",
+                    timeout=4000,
+                )
+            except PlaywrightTimeout:
+                pass
 
             await self._dismiss_cookies(page)
+            await self._clear_onetrust_overlays(page)
+            await self._clear_onetrust_overlays(page)
 
             # Find day navigation buttons
             day_buttons = await page.query_selector_all("button.day-navigation__button")
@@ -337,8 +353,12 @@ class WTAScraper(BaseScraper):
                     print(f"Warning: day button {day_idx} disappeared, skipping")
                     continue
 
-                await buttons[day_idx].click()
-                await asyncio.sleep(3)
+                await self._clear_onetrust_overlays(page)
+                await buttons[day_idx].click(force=True)
+                try:
+                    await page.wait_for_selector("div.tennis-match", timeout=4000)
+                except PlaywrightTimeout:
+                    pass
 
                 # Parse the current page content for this day
                 html = await page.content()
@@ -398,7 +418,10 @@ class WTAScraper(BaseScraper):
             url = f"{self.BASE_URL}/tournaments/{tournament_number}/{tournament_id}/{year}/draws"
             print(f"Loading WTA draw page: {url}")
             await self.navigate(page, url, wait_for="domcontentloaded")
-            await asyncio.sleep(5)
+            try:
+                await page.wait_for_selector("[data-event-type='LS']", timeout=4000)
+            except PlaywrightTimeout:
+                pass
 
             await self._dismiss_cookies(page)
 
@@ -497,6 +520,10 @@ class WTAScraper(BaseScraper):
         # Skip entries where both players are unknown (empty/placeholder tables)
         if not name_a and not name_b and not is_bye_match:
             return None
+
+        # Treat missing opponent as a bye slot (common in WTA draws)
+        if (name_a and not name_b) or (name_b and not name_a):
+            is_bye_match = True
 
         # Scores
         scores_a = self._extract_scores_from_row(row_a)
@@ -635,9 +662,13 @@ class WTAScraper(BaseScraper):
         url = f"{self.BASE_URL}/tournaments/{tournament_number}/{tournament_id}/{year}/draws"
         print(f"Loading WTA draws page (fallback): {url}")
         await self.navigate(page, url, wait_for="domcontentloaded")
-        await asyncio.sleep(5)
+        try:
+            await page.wait_for_selector("[data-event-type='LS']", timeout=4000)
+        except PlaywrightTimeout:
+            pass
 
         await self._dismiss_cookies(page)
+        await self._clear_onetrust_overlays(page)
 
         html = await page.content()
         soup = BeautifulSoup(html, "lxml")
@@ -1002,8 +1033,12 @@ class WTAScraper(BaseScraper):
             url = f"{self.BASE_URL}/tournaments/{tournament_number}/{tournament_id}/{year}/order-of-play"
             print(f"Loading WTA schedule: {url}")
             await self.navigate(page, url, wait_for="domcontentloaded")
-            await asyncio.sleep(5)
+            try:
+                await page.wait_for_selector("section.tournament-oop__day", timeout=4000)
+            except PlaywrightTimeout:
+                pass
             await self._dismiss_cookies(page)
+            await self._clear_onetrust_overlays(page)
 
             # Check if we have day navigation buttons
             day_buttons = await page.query_selector_all("button.day-navigation__button")
@@ -1027,8 +1062,9 @@ class WTAScraper(BaseScraper):
                 # Re-query buttons to avoid stale element references
                 buttons = await page.query_selector_all("button.day-navigation__button")
                 if i < len(buttons):
-                    await buttons[i].click()
-                    await asyncio.sleep(3)
+                    await self._clear_onetrust_overlays(page)
+                    await buttons[i].click(force=True)
+                    await self._wait_for_oop_day(page, date_str)
                     
                     # Select Singles tab if available
                     await self._select_singles_tab(page)
@@ -1051,15 +1087,37 @@ class WTAScraper(BaseScraper):
         """Parse fixtures from the currently loaded schedule page."""
         html = await page.content()
         soup = BeautifulSoup(html, "lxml")
-        
+
+        day_section = None
+        if date_str:
+            day_section = soup.select_one(f"section.tournament-oop__day[data-date='{date_str}']")
+        if not day_section:
+            day_section = soup.select_one("section.tournament-oop__day.is-active")
+        if not day_section:
+            day_section = soup
+
+        # Derive date_str if not provided (e.g., no day navigation buttons)
+        if not date_str:
+            if day_section and day_section.has_attr("data-date"):
+                date_str = day_section.get("data-date")
+            if not date_str:
+                active_btn = soup.select_one("button.day-navigation__button.is-active")
+                if active_btn:
+                    date_str = active_btn.get("data-date")
+
+        utcoffset = None
+        oop_root = soup.select_one("section.tournament-oop")
+        if oop_root:
+            utcoffset = oop_root.get("data-utcoffset")
+
         # Matches are grouped by court: div.tournament-oop__court
-        court_divs = soup.select("div.tournament-oop__court")
-        
+        court_divs = day_section.select("div.tournament-oop__court")
+
         # If no court divs, maybe flat list?
         if not court_divs:
             # Fallback to finding tennis-match directly
-            court_divs = [soup] # Treat soup as one "court"
-            
+            court_divs = [day_section]  # Treat root as one "court"
+
         for court_div in court_divs:
             # Get court name
             court_name = "Unknown Court"
@@ -1067,7 +1125,13 @@ class WTAScraper(BaseScraper):
                 header = court_div.select_one("h3.court-header__name")
                 if header:
                     court_name = header.get_text(strip=True)
-            
+
+            court_start_time = self._extract_court_start_time(court_div)
+            court_offset = self._extract_court_utc_offset(court_div) or utcoffset
+            last_dt: Optional[datetime] = None
+            last_match_live = False
+            last_match_complete = False
+
             # Find matches in this court
             matches = court_div.select("div.tennis-match")
             
@@ -1077,14 +1141,73 @@ class WTAScraper(BaseScraper):
                 if "tennis-match__" in classes:
                     continue
                     
-                # Filter doubles (-LD)
-                if "-LD" in classes:
+                is_doubles = "-LD" in classes
+
+                time_info = self._extract_match_time(match_div)
+                is_live = self._is_live_match(match_div)
+                is_complete = self._is_completed_match(match_div)
+                self._debug_oop_match(
+                    match_div,
+                    court_name,
+                    date_str,
+                    time_info,
+                    is_live,
+                    last_dt,
+                    court_start_time,
+                )
+
+                sched_date = time_info.get("date")
+                sched_time = time_info.get("time")
+                if sched_time and not sched_date and date_str:
+                    sched_date = date_str
+
+                if sched_date and sched_time:
+                    try:
+                        last_dt = datetime.strptime(
+                            f"{sched_date} {sched_time}",
+                            "%Y-%m-%d %H:%M",
+                        )
+                    except ValueError:
+                        pass
+                else:
+                    base_dt = None
+                    if date_str and court_start_time:
+                        base_dt = self._combine_date_time(date_str, court_start_time)
+                    if time_info["followed_by"]:
+                        if last_dt:
+                            est_dt = last_dt + timedelta(hours=2)
+                            sched_date = est_dt.strftime("%Y-%m-%d")
+                            sched_time = est_dt.strftime("%H:%M")
+                            last_dt = est_dt
+                        elif last_match_live or last_match_complete:
+                            venue_now = self._venue_now(court_offset) if court_offset else None
+                            if venue_now:
+                                sched_date = venue_now.strftime("%Y-%m-%d")
+                                sched_time = venue_now.strftime("%H:%M")
+                                last_dt = venue_now
+                        elif base_dt:
+                            sched_date = base_dt.strftime("%Y-%m-%d")
+                            sched_time = base_dt.strftime("%H:%M")
+                            last_dt = base_dt
+                    elif base_dt and not sched_time:
+                        sched_date = base_dt.strftime("%Y-%m-%d")
+                        sched_time = base_dt.strftime("%H:%M")
+                        last_dt = base_dt
+
+                last_match_live = is_live
+                last_match_complete = is_complete
+
+                if is_doubles:
                     continue
-                    
+
                 fixture = self._parse_fixture_div(
                     match_div, tournament_id, year, court_name, date_str
                 )
                 if fixture:
+                    if sched_time:
+                        fixture.scheduled_time = sched_time
+                    if sched_date:
+                        fixture.scheduled_date = sched_date
                     yield fixture
 
     def _parse_fixture_div(
@@ -1126,17 +1249,6 @@ class WTAScraper(BaseScraper):
         name_a, seed_a = extract_seed_from_name(player_a["name"])
         name_b, seed_b = extract_seed_from_name(player_b["name"])
         
-        # Time
-        time_elem = div.select_one(".tennis-match__status-time")
-        scheduled_time = None
-        if time_elem:
-            time_text = time_elem.get_text(strip=True)
-            # Clean up text like "Not before: 13:00"
-            # Extract HH:MM
-            time_match = re.search(r"(\d{1,2}:\d{2})", time_text)
-            if time_match:
-                scheduled_time = time_match.group(1)
-        
         return ScrapedFixture(
             tournament_name=tournament_id.replace("-", " ").title(),
             tournament_id=tournament_id,
@@ -1145,7 +1257,6 @@ class WTAScraper(BaseScraper):
             tournament_surface="", # Backfilled
             round=round_code,
             scheduled_date=date_str,
-            scheduled_time=scheduled_time,
             court=court_name,
             player_a_name=name_a,
             player_a_external_id=player_a["wta_id"],
@@ -1155,6 +1266,265 @@ class WTAScraper(BaseScraper):
             player_b_seed=seed_b,
             source="wta",
         )
+
+    def _extract_court_start_time(self, court_div) -> Optional[str]:
+        start = court_div.select_one(".court-header__start")
+        if not start:
+            return None
+        # Prefer data-start-time which is in venue time (e.g., "03:30 PM")
+        data_start = start.get("data-start-time")
+        if data_start:
+            return self._parse_time_str(data_start)
+        # Fallback to visible time text
+        time_span = start.select_one(".time")
+        if time_span:
+            return self._parse_time_str(time_span.get_text(strip=True))
+        return None
+
+    def _extract_court_utc_offset(self, court_div) -> Optional[str]:
+        start = court_div.select_one(".court-header__start")
+        if not start:
+            return None
+        offset = start.get("data-utc-offset")
+        return offset or None
+
+    def _extract_match_time(self, match_div) -> dict:
+        """
+        Extract time information from a match block.
+        Returns dict with keys: time (HH:MM), date (YYYY-MM-DD or None), followed_by (bool).
+        """
+        status_text = ""
+        time_text_el = match_div.select_one(".tennis-match__status-time-text")
+        if time_text_el:
+            status_text = time_text_el.get_text(" ", strip=True)
+        if not status_text:
+            status_el = match_div.select_one(".tennis-match__status-time")
+            if status_el:
+                status_text = status_el.get_text(" ", strip=True)
+
+        status_text = " ".join(status_text.split())
+        lower = status_text.lower()
+
+        if not status_text:
+            # Fallback: scan a smaller portion of the match card for follow-by text
+            footer = match_div.select_one(".tennis-match__footer")
+            if footer:
+                status_text = footer.get_text(" ", strip=True)
+                lower = status_text.lower()
+
+        followed_by = "follows previous match" in lower or "followed by" in lower
+        if "warmup" in lower:
+            return {"time": None, "date": None, "followed_by": followed_by}
+
+        # Treat "On Court" as immediate scheduling when no time is provided.
+        if "on court" in lower:
+            return {"time": None, "date": None, "followed_by": True}
+
+        # Check data attributes on the match card for time hints
+        for key, value in (match_div.attrs or {}).items():
+            if "time" in key or "date" in key:
+                if isinstance(value, str):
+                    hhmm = re.search(r"(\d{1,2}):(\d{2})", value)
+                    if hhmm:
+                        return {"time": f"{int(hhmm.group(1)):02d}:{hhmm.group(2)}", "date": None, "followed_by": followed_by}
+
+        # Prefer venue time if present
+        venue_match = re.search(r"(\d{1,2}:\d{2})(?=\s*\(Venue\))", status_text)
+        if venue_match:
+            return {"time": venue_match.group(1), "date": None, "followed_by": followed_by}
+
+        # If "Your time" is present, strip it to avoid wrong timezone
+        if "your time" in lower:
+            status_text = status_text.split("Your time")[0].strip()
+            lower = status_text.lower()
+
+        # Only parse explicit scheduling phrases
+        has_explicit_time = any(
+            key in lower
+            for key in [
+                "not before",
+                "after rest",
+                "starts at",
+                "start at",
+            ]
+        )
+        if not has_explicit_time and not followed_by:
+            return {"time": None, "date": None, "followed_by": followed_by}
+
+        # Parse AM/PM times
+        ampm_match = re.search(r"(\d{1,2})(?::(\d{2}))?\s*([AP]M)", status_text, re.I)
+        if ampm_match:
+            hour = int(ampm_match.group(1))
+            minute = int(ampm_match.group(2) or "00")
+            ampm = ampm_match.group(3).upper()
+            if ampm == "PM" and hour != 12:
+                hour += 12
+            if ampm == "AM" and hour == 12:
+                hour = 0
+            return {"time": f"{hour:02d}:{minute:02d}", "date": None, "followed_by": followed_by}
+
+        # Parse 24h time (HH:MM)
+        hhmm = re.search(r"(\d{1,2}):(\d{2})", status_text)
+        if hhmm:
+            return {"time": f"{int(hhmm.group(1)):02d}:{hhmm.group(2)}", "date": None, "followed_by": followed_by}
+
+        return {"time": None, "date": None, "followed_by": followed_by}
+
+    def _parse_time_str(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        text = " ".join(text.split())
+        ampm = re.search(r"(\d{1,2})(?::(\d{2}))?\s*([AP]M)", text, re.I)
+        if ampm:
+            hour = int(ampm.group(1))
+            minute = int(ampm.group(2) or "00")
+            mer = ampm.group(3).upper()
+            if mer == "PM" and hour != 12:
+                hour += 12
+            if mer == "AM" and hour == 12:
+                hour = 0
+            return f"{hour:02d}:{minute:02d}"
+        hhmm = re.search(r"(\d{1,2}):(\d{2})", text)
+        if hhmm:
+            return f"{int(hhmm.group(1)):02d}:{hhmm.group(2)}"
+        return None
+
+    def _is_live_match(self, match_div) -> bool:
+        """
+        Heuristic: detect if a match is currently live.
+        """
+        try:
+            status = (match_div.get("data-status") or "").upper()
+            status_el = match_div.select_one(".tennis-match__status-time-text")
+            status_text = status_el.get_text(" ", strip=True).lower() if status_el else ""
+            if not status_text:
+                footer = match_div.select_one(".tennis-match__footer")
+                status_text = footer.get_text(" ", strip=True).lower() if footer else ""
+
+            if "finished" in status_text or status == "F":
+                return False
+
+            # Data status sometimes indicates live/in progress
+            if status in {"L", "LIVE", "I", "IN PROGRESS", "P", "IP"}:
+                return True
+
+            # Status text contains "Live Match"
+            if "live match" in status_text:
+                return True
+
+            # Some layouts add a live label
+            if match_div.select_one(".tennis-match__live-label"):
+                return True
+
+            # Fallback: header text contains 'live'
+            header = match_div.select_one(".tennis-match__header")
+            if header and "live" in header.get_text(" ", strip=True).lower():
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _is_completed_match(self, match_div) -> bool:
+        """
+        Detect if a match is completed.
+        """
+        try:
+            status = (match_div.get("data-status") or "").upper()
+            if status == "F":
+                return True
+            status_el = match_div.select_one(".tennis-match__status-time-text")
+            status_text = status_el.get_text(" ", strip=True).lower() if status_el else ""
+            if "finished" in status_text:
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _debug_oop_match(
+        self,
+        match_div,
+        court_name: str,
+        date_str: Optional[str],
+        time_info: dict,
+        is_live: bool,
+        last_dt: Optional[datetime],
+        court_start_time: Optional[str],
+    ) -> None:
+        if os.getenv("WTA_OOP_DEBUG") != "1":
+            return
+        try:
+            round_el = match_div.select_one(".tennis-match__round")
+            round_txt = round_el.get_text(strip=True) if round_el else "?"
+            status_el = match_div.select_one(".tennis-match__status-time-text")
+            status_txt = status_el.get_text(" ", strip=True) if status_el else ""
+            status_full_el = match_div.select_one(".tennis-match__status-time")
+            status_full = status_full_el.get_text(" ", strip=True) if status_full_el else ""
+            if not status_txt:
+                footer = match_div.select_one(".tennis-match__footer")
+                status_txt = footer.get_text(" ", strip=True) if footer else ""
+            status_txt = " ".join(status_txt.split())
+            status_attr = match_div.get("data-status") or ""
+
+            time_attrs = {}
+            for key, value in (match_div.attrs or {}).items():
+                if "time" in key or "date" in key:
+                    time_attrs[key] = value
+
+            def player_name(sel: str) -> str:
+                el = match_div.select_one(sel)
+                return el.get_text(strip=True) if el else "?"
+
+            p1 = player_name(".js-team-a .match-table__player-fullname")
+            p2 = player_name(".js-team-b .match-table__player-fullname")
+
+            print(
+                "[WTA OOP]",
+                f"date={date_str}",
+                f"court={court_name}",
+                f"round={round_txt}",
+                f"players={p1} vs {p2}",
+                f"status_attr={status_attr}",
+                f"status_text='{status_txt}'",
+                f"status_full='{status_full}'",
+                f"time_attrs={time_attrs}",
+                f"followed_by={time_info.get('followed_by')}",
+                f"time={time_info.get('time')}",
+                f"is_live={is_live}",
+                f"last_dt={last_dt}",
+                f"court_start={court_start_time}",
+            )
+        except Exception:
+            pass
+
+    def _combine_date_time(self, date_str: str, time_str: str) -> Optional[datetime]:
+        try:
+            return datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+        except ValueError:
+            return None
+
+    def _venue_now(self, utcoffset: Optional[str]) -> Optional[datetime]:
+        """
+        Convert current UTC time to venue local time using a +HHMM/-HHMM offset.
+        """
+        if not utcoffset:
+            return None
+        match = re.match(r"^([+-])(\d{2})(\d{2})$", utcoffset)
+        if not match:
+            return None
+        sign = 1 if match.group(1) == "+" else -1
+        hours = int(match.group(2))
+        minutes = int(match.group(3))
+        delta = timedelta(hours=hours, minutes=minutes) * sign
+        return datetime.utcnow() + delta
+
+    async def _wait_for_oop_day(self, page: Page, date_str: str) -> None:
+        try:
+            await page.wait_for_selector(
+                f"section.tournament-oop__day.is-active[data-date='{date_str}']",
+                timeout=4000,
+            )
+        except PlaywrightTimeout:
+            pass
 
     async def _select_singles_tab(self, page: Page) -> None:
         """
@@ -1180,8 +1550,15 @@ class WTAScraper(BaseScraper):
             if "is-active" in cls:
                 return
 
+            await self._clear_onetrust_overlays(page)
             await singles_tab.click(force=True)
-            await asyncio.sleep(2)
+            try:
+                await page.wait_for_selector(
+                    "li.js-type-filter[data-type='singles'].is-active",
+                    timeout=4000,
+                )
+            except PlaywrightTimeout:
+                pass
         except Exception:
             pass
 
@@ -1196,7 +1573,40 @@ class WTAScraper(BaseScraper):
             btn = await page.query_selector("#onetrust-accept-btn-handler")
             if btn and await btn.is_visible():
                 await btn.click()
-                await asyncio.sleep(1)
+                try:
+                    await page.wait_for_selector(
+                        "#onetrust-accept-btn-handler",
+                        state="detached",
+                        timeout=4000,
+                    )
+                except PlaywrightTimeout:
+                    pass
+            await self._clear_onetrust_overlays(page)
+        except Exception:
+            pass
+
+    async def _clear_onetrust_overlays(self, page: Page) -> None:
+        """
+        Force-disable OneTrust overlays that intercept pointer events.
+        Safe to call repeatedly.
+        """
+        try:
+            await page.evaluate(
+                """
+                () => {
+                    const overlay = document.querySelector('.onetrust-pc-dark-filter');
+                    if (overlay) {
+                        overlay.style.display = 'none';
+                        overlay.style.pointerEvents = 'none';
+                    }
+                    const sdk = document.querySelector('#onetrust-consent-sdk');
+                    if (sdk) {
+                        sdk.style.display = 'none';
+                        sdk.style.pointerEvents = 'none';
+                    }
+                }
+                """
+            )
         except Exception:
             pass
 

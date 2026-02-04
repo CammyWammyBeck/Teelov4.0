@@ -58,20 +58,11 @@ from teelo.scrape.queue import ScrapeQueueManager
 from teelo.scrape.atp import ATPScraper
 from teelo.scrape.itf import ITFScraper
 from teelo.scrape.wta import WTAScraper
+from teelo.scrape.utils import TOUR_TYPES, get_tournaments_for_tour
 from teelo.scrape.parsers.score import parse_score, ScoreParseError
 from teelo.players.identity import PlayerIdentityService
 from teelo.utils.geo import city_to_country, country_to_ioc
 
-
-# Tour types available for backfill
-TOUR_TYPES = {
-    "ATP": {"scraper": "atp", "tour_type": "main", "description": "ATP Main Tour"},
-    "CHALLENGER": {"scraper": "atp", "tour_type": "challenger", "description": "ATP Challenger Tour"},
-    "ITF_MEN": {"scraper": "itf", "gender": "men", "description": "ITF Men's World Tennis Tour"},
-    "ITF_WOMEN": {"scraper": "itf", "gender": "women", "description": "ITF Women's World Tennis Tour"},
-    "WTA": {"scraper": "wta", "tour_type": "main", "description": "WTA Tour"},
-    "WTA_125": {"scraper": "wta", "tour_type": "125", "description": "WTA 125 Tour"},
-}
 
 # Processing order (most important first)
 TOUR_ORDER = ["ATP", "CHALLENGER", "WTA", "WTA_125", "ITF_MEN", "ITF_WOMEN"]
@@ -234,44 +225,6 @@ async def populate_queue(
         session.commit()
 
     return tasks_added
-
-
-async def get_tournaments_for_tour(tour_key: str, year: int) -> list[dict]:
-    """
-    Fetch tournament list for a specific tour and year.
-
-    Args:
-        tour_key: Tour type key (ATP, CHALLENGER, ITF_MEN, etc.)
-        year: Year to get tournaments for
-
-    Returns:
-        List of tournament dictionaries
-    """
-    tour_config = TOUR_TYPES[tour_key]
-
-    if tour_config["scraper"] == "atp":
-        async with ATPScraper(headless=False) as scraper:
-            return await scraper.get_tournament_list(
-                year,
-                tour_type=tour_config["tour_type"],
-            )
-
-    elif tour_config["scraper"] == "itf":
-        async with ITFScraper(headless=False) as scraper:
-            return await scraper.get_tournament_list(
-                year,
-                gender=tour_config["gender"],
-            )
-
-    elif tour_config["scraper"] == "wta":
-        async with WTAScraper(headless=False) as scraper:
-            return await scraper.get_tournament_list(
-                year,
-                tour_type=tour_config.get("tour_type", "main"),
-            )
-
-    else:
-        return []
 
 
 async def process_queue(session, overwrite: bool = False) -> dict:
