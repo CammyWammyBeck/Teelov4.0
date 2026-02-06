@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright/python:v1.57.0-jammy
+FROM python:3.11-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Etc/UTC \
@@ -8,9 +8,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
-# System packages for virtual display + VNC
+# System packages for virtual display + VNC + Playwright deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
+    curl \
+    gnupg \
     xvfb \
     x11vnc \
     novnc \
@@ -28,6 +30,7 @@ COPY alembic.ini /app/alembic.ini
 RUN python -m pip install --upgrade pip \
  && grep -v '^-e git' /app/requirements-all.txt > /tmp/requirements-docker.txt \
  && python -m pip install -r /tmp/requirements-docker.txt \
- && python -m pip install -e .
+ && python -m pip install -e . \
+ && python -m playwright install --with-deps chromium
 
 CMD ["python", "scripts/update_current_events.py"]
