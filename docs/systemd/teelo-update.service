@@ -1,0 +1,14 @@
+[Unit]
+Description=Teelo update current events
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/teelo
+EnvironmentFile=/opt/teelo/.env
+ExecStart=/opt/teelo/venv/bin/python /opt/teelo/scripts/update_current_events.py
+User=teelo
+Group=teelo
+
+[Install]
+WantedBy=multi-user.target

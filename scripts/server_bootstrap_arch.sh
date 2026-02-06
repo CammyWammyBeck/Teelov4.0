@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "==> Installing system packages"
+sudo pacman -S --needed --noconfirm \
+  git \
+  python \
+  python-pip \
+  xorg-server-xvfb \
+  x11vnc \
+  novnc \
+  websockify \
+  nss \
+  atk \
+  at-spi2-atk \
+  libxcomposite \
+  libxdamage \
+  libxrandr \
+  mesa \
+  alsa-lib \
+  pango \
+  cairo \
+  gtk3 \
+  libdrm \
+  libgbm \
+  libxshmfence \
+  libxext \
+  libxfixes \
+  libxkbcommon \
+  libxcb \
+  libxrender \
+  libxcursor \
+  glib2 \
+  libcups \
+  libxss \
+  libxtst \
+  wayland \
+  fontconfig \
+  ttf-liberation
+
+echo "==> Creating virtualenv"
+python -m venv "${ROOT_DIR}/venv"
+source "${ROOT_DIR}/venv/bin/activate"
+python -m pip install --upgrade pip
+
+echo "==> Installing Python deps"
+pip install -r "${ROOT_DIR}/requirements-all.txt"
+
+echo "==> Installing Playwright Chromium"
+python -m playwright install chromium
+
+echo "==> Done"

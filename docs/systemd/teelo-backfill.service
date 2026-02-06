@@ -1,0 +1,14 @@
+[Unit]
+Description=Teelo backfill (one-time)
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/teelo
+EnvironmentFile=/opt/teelo/.env
+ExecStart=/opt/teelo/venv/bin/python /opt/teelo/scripts/backfill_historical.py
+User=teelo
+Group=teelo
+
+[Install]
+WantedBy=multi-user.target

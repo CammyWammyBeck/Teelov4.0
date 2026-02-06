@@ -86,9 +86,21 @@ class Settings(BaseSettings):
         default=5900,
         description="VNC server port for virtual display (x11vnc)",
     )
+    scrape_vnc_bind: str = Field(
+        default="127.0.0.1",
+        description="Bind address for x11vnc (use 127.0.0.1 for localhost-only)",
+    )
+    scrape_vnc_password: Optional[str] = Field(
+        default=None,
+        description="Optional VNC password for x11vnc (plaintext). Leave unset for no auth.",
+    )
     scrape_novnc_port: int = Field(
         default=6080,
         description="noVNC web port - view browser at http://host:6080/vnc.html",
+    )
+    scrape_novnc_bind: str = Field(
+        default="127.0.0.1",
+        description="Bind address for noVNC/websockify (use 127.0.0.1 for localhost-only)",
     )
     scrape_timeout: int = Field(
         default=15000,

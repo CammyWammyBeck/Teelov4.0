@@ -307,10 +307,18 @@ class VirtualDisplay:
         # Start x11vnc if available (allows VNC clients to connect)
         vnc_path = shutil.which("x11vnc")
         if vnc_path:
+            vnc_bind_args = ["-localhost"]
+            if settings.scrape_vnc_bind not in ("127.0.0.1", "localhost"):
+                vnc_bind_args = ["-listen", settings.scrape_vnc_bind]
+            vnc_auth_args = ["-nopw"]
+            if settings.scrape_vnc_password:
+                vnc_auth_args = ["-passwd", settings.scrape_vnc_password]
             self._vnc_proc = subprocess.Popen(
                 [
                     "x11vnc", "-display", self.display,
-                    "-forever", "-nopw", "-shared",
+                    "-forever", "-shared",
+                    *vnc_auth_args,
+                    *vnc_bind_args,
                     "-rfbport", str(settings.scrape_vnc_port),
                 ],
                 stdout=subprocess.DEVNULL,
@@ -332,7 +340,7 @@ class VirtualDisplay:
             self._novnc_proc = subprocess.Popen(
                 [
                     "websockify", "--web", "/usr/share/novnc",
-                    str(settings.scrape_novnc_port),
+                    f"{settings.scrape_novnc_bind}:{settings.scrape_novnc_port}",
                     f"localhost:{settings.scrape_vnc_port}",
                 ],
                 stdout=subprocess.DEVNULL,
