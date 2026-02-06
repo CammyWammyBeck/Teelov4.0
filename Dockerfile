@@ -1,6 +1,8 @@
 FROM mcr.microsoft.com/playwright/python:v1.57.0-jammy
 
-ENV PYTHONUNBUFFERED=1 \
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Etc/UTC \
+    PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
 
@@ -8,6 +10,7 @@ WORKDIR /app
 
 # System packages for virtual display + VNC
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    tzdata \
     xvfb \
     x11vnc \
     novnc \
