@@ -1,0 +1,20 @@
+services:
+  teelo-update:
+    build: .
+    env_file:
+      - .env
+    command: ["python", "scripts/update_current_events.py"]
+    ports:
+      - "5900:5900"
+      - "6080:6080"
+    restart: "no"
+
+  teelo-backfill:
+    build: .
+    env_file:
+      - .env
+    command: ["python", "scripts/backfill_historical.py"]
+    ports:
+      - "5900:5900"
+      - "6080:6080"
+    restart: "no"
