@@ -50,7 +50,7 @@ from typing import Optional
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from sqlalchemy import func
+from sqlalchemy import func, cast, Integer
 
 from teelo.db import get_session, Player, Match, Tournament, TournamentEdition
 from teelo.db.models import ScrapeQueue, estimate_match_date_from_round
@@ -61,6 +61,7 @@ from teelo.scrape.wta import WTAScraper
 from teelo.scrape.utils import TOUR_TYPES, get_tournaments_for_tour
 from teelo.scrape.parsers.score import parse_score, ScoreParseError
 from teelo.players.identity import PlayerIdentityService
+from teelo.players.aliases import normalize_name
 from teelo.utils.geo import city_to_country, country_to_ioc
 
 
@@ -158,8 +159,26 @@ async def populate_queue(
             
             year_tasks_added = 0
             skipped_future = 0
+            tasks_to_add: list[ScrapeQueue] = []
 
             try:
+                # Fetch existing tasks for this tour/year to avoid duplicates
+                existing_tournament_ids = set(
+                    tid for (tid,) in (
+                        session.query(
+                            ScrapeQueue.task_params["tournament_id"].astext
+                        )
+                        .filter(
+                            ScrapeQueue.task_type == "historical_tournament",
+                            ScrapeQueue.status.in_(["pending", "in_progress", "retry"]),
+                            ScrapeQueue.task_params["tour_key"].astext == tour_key,
+                            cast(ScrapeQueue.task_params["year"].astext, Integer) == year,
+                        )
+                        .all()
+                    )
+                    if tid
+                )
+
                 tournaments = await get_tournaments_for_tour(tour_key, year)
                 
                 for tournament in tournaments:
@@ -201,16 +220,22 @@ async def populate_queue(
                         task_params["gender"] = tour_config["gender"]
                         task_params["tournament_url"] = tournament.get("url")
 
-                    # Enqueue task
-                    task_id = queue_manager.enqueue(
-                        task_type="historical_tournament",
-                        params=task_params,
-                        priority=base_priority,
-                    )
+                    # Skip if already queued
+                    if tournament["id"] in existing_tournament_ids:
+                        continue
 
-                    if task_id:
-                        year_tasks_added += 1
-                        tasks_added += 1
+                    # Enqueue task (bulk later)
+                    tasks_to_add.append(
+                        ScrapeQueue(
+                            task_type="historical_tournament",
+                            task_params=task_params,
+                            priority=base_priority,
+                            max_attempts=3,
+                            status="pending",
+                        )
+                    )
+                    year_tasks_added += 1
+                    tasks_added += 1
                 
                 msg = f"\n  {year}: Found {len(tournaments)} tournaments, added {year_tasks_added} to queue"
                 if skipped_future > 0:
@@ -221,8 +246,10 @@ async def populate_queue(
                 print(f"  Error loading {year} tournaments: {e}")
                 continue
 
-        # Commit after each tour
-        session.commit()
+            if tasks_to_add:
+                session.bulk_save_objects(tasks_to_add)
+            # Commit after each tour
+            session.commit()
 
     return tasks_added
 
@@ -350,12 +377,22 @@ async def scrape_tournament_task(
         "players_created": 0,
     }
 
-    # Track seen external_ids within this tournament to avoid in-batch duplicates
-    # (DB query won't catch duplicates that haven't been committed yet)
-    seen_external_ids: set[str] = set()
+    # Preload existing external_ids for this tournament edition to avoid per-match DB checks
+    # and track new ones in-memory to prevent duplicates within this run.
+    known_external_ids: set[str] = set()
+    player_cache_by_external_id: dict[tuple[str, str], int] = {}
+    player_cache_by_name: dict[tuple[str, str], int] = {}
 
     # Get or create tournament edition
     edition = await get_or_create_edition(session, task_params, tour_key)
+
+    # Preload existing matches for this edition (single DB call)
+    existing_ids = (
+        session.query(Match.external_id)
+        .filter(Match.tournament_edition_id == edition.id)
+        .all()
+    )
+    known_external_ids.update([eid for (eid,) in existing_ids if eid])
     
     # Flag to update tournament metadata once we have real data
     metadata_updated = False
@@ -376,7 +413,13 @@ async def scrape_tournament_task(
                 
                 result["matches_scraped"] += 1
                 match_result = await process_scraped_match(
-                    session, scraped_match, edition, identity_service, seen_external_ids,
+                    session,
+                    scraped_match,
+                    edition,
+                    identity_service,
+                    known_external_ids,
+                    player_cache_by_external_id,
+                    player_cache_by_name,
                     overwrite=overwrite,
                 )
                 if match_result:
@@ -403,7 +446,13 @@ async def scrape_tournament_task(
             ):
                 result["matches_scraped"] += 1
                 match_result = await process_scraped_match(
-                    session, scraped_match, edition, identity_service, seen_external_ids,
+                    session,
+                    scraped_match,
+                    edition,
+                    identity_service,
+                    known_external_ids,
+                    player_cache_by_external_id,
+                    player_cache_by_name,
                     overwrite=overwrite,
                 )
                 if match_result:
@@ -418,7 +467,13 @@ async def scrape_tournament_task(
             ):
                 result["matches_scraped"] += 1
                 match_result = await process_scraped_match(
-                    session, scraped_match, edition, identity_service, seen_external_ids,
+                    session,
+                    scraped_match,
+                    edition,
+                    identity_service,
+                    known_external_ids,
+                    player_cache_by_external_id,
+                    player_cache_by_name,
                     overwrite=overwrite,
                 )
                 if match_result:
@@ -584,7 +639,9 @@ async def process_scraped_match(
     scraped_match,
     edition: TournamentEdition,
     identity_service: PlayerIdentityService,
-    seen_external_ids: set[str] = None,
+    known_external_ids: set[str] = None,
+    player_cache_by_external_id: dict[tuple[str, str], int] | None = None,
+    player_cache_by_name: dict[tuple[str, str], int] | None = None,
     overwrite: bool = False,
 ) -> Optional[Match]:
     """
@@ -604,17 +661,24 @@ async def process_scraped_match(
     """
     # Check for in-batch duplicate first (before DB query)
     # This catches duplicates that haven't been committed yet
-    if seen_external_ids is not None:
-        if scraped_match.external_id in seen_external_ids:
+    if known_external_ids is not None:
+        if scraped_match.external_id in known_external_ids and not overwrite:
             return None  # Skip duplicate
-        seen_external_ids.add(scraped_match.external_id)
 
-    # Find or create player A
-    player_a_id, _ = identity_service.find_or_queue_player(
-        name=scraped_match.player_a_name,
-        source=scraped_match.source,
-        external_id=scraped_match.player_a_external_id,
-    )
+    # Find or create player A (with cache)
+    player_a_id = None
+    if player_cache_by_external_id is not None and scraped_match.player_a_external_id:
+        cache_key = (scraped_match.source, scraped_match.player_a_external_id)
+        player_a_id = player_cache_by_external_id.get(cache_key)
+    if player_a_id is None and player_cache_by_name is not None:
+        name_key = (scraped_match.source, normalize_name(scraped_match.player_a_name))
+        player_a_id = player_cache_by_name.get(name_key)
+    if player_a_id is None:
+        player_a_id, _ = identity_service.find_or_queue_player(
+            name=scraped_match.player_a_name,
+            source=scraped_match.source,
+            external_id=scraped_match.player_a_external_id,
+        )
 
     if not player_a_id and scraped_match.player_a_external_id:
         player_a_id = identity_service.create_player(
@@ -627,12 +691,20 @@ async def process_scraped_match(
     if not player_a_id:
         return None
 
-    # Find or create player B
-    player_b_id, _ = identity_service.find_or_queue_player(
-        name=scraped_match.player_b_name,
-        source=scraped_match.source,
-        external_id=scraped_match.player_b_external_id,
-    )
+    # Find or create player B (with cache)
+    player_b_id = None
+    if player_cache_by_external_id is not None and scraped_match.player_b_external_id:
+        cache_key = (scraped_match.source, scraped_match.player_b_external_id)
+        player_b_id = player_cache_by_external_id.get(cache_key)
+    if player_b_id is None and player_cache_by_name is not None:
+        name_key = (scraped_match.source, normalize_name(scraped_match.player_b_name))
+        player_b_id = player_cache_by_name.get(name_key)
+    if player_b_id is None:
+        player_b_id, _ = identity_service.find_or_queue_player(
+            name=scraped_match.player_b_name,
+            source=scraped_match.source,
+            external_id=scraped_match.player_b_external_id,
+        )
 
     if not player_b_id and scraped_match.player_b_external_id:
         player_b_id = identity_service.create_player(
@@ -644,11 +716,22 @@ async def process_scraped_match(
 
     if not player_b_id:
         return None
+    
+    # Cache matched players
+    if player_cache_by_external_id is not None:
+        if scraped_match.player_a_external_id:
+            player_cache_by_external_id[(scraped_match.source, scraped_match.player_a_external_id)] = player_a_id
+        if scraped_match.player_b_external_id:
+            player_cache_by_external_id[(scraped_match.source, scraped_match.player_b_external_id)] = player_b_id
+    if player_cache_by_name is not None:
+        player_cache_by_name[(scraped_match.source, normalize_name(scraped_match.player_a_name))] = player_a_id
+        player_cache_by_name[(scraped_match.source, normalize_name(scraped_match.player_b_name))] = player_b_id
 
-    # Check for duplicate in database (from previous runs)
-    existing = session.query(Match).filter(
-        Match.external_id == scraped_match.external_id
-    ).first()
+    existing = None
+    if known_external_ids is not None and scraped_match.external_id in known_external_ids:
+        existing = session.query(Match).filter(
+            Match.external_id == scraped_match.external_id
+        ).first()
 
     if existing and not overwrite:
         return existing
@@ -728,6 +811,8 @@ async def process_scraped_match(
     )
 
     session.add(match)
+    if known_external_ids is not None:
+        known_external_ids.add(scraped_match.external_id)
     return match
 
 
