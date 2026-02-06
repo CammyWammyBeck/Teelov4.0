@@ -42,6 +42,7 @@ Examples:
 
 import argparse
 import asyncio
+import multiprocessing
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -52,6 +53,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sqlalchemy import func, cast, Integer
 
+from teelo.config import settings
 from teelo.db import get_session, Player, Match, Tournament, TournamentEdition
 from teelo.db.models import ScrapeQueue, estimate_match_date_from_round
 from teelo.scrape.queue import ScrapeQueueManager
@@ -67,6 +69,14 @@ from teelo.utils.geo import city_to_country, country_to_ioc
 
 # Processing order (most important first)
 TOUR_ORDER = ["ATP", "CHALLENGER", "WTA", "WTA_125", "ITF_MEN", "ITF_WOMEN"]
+
+
+def apply_fast_delays(enabled: bool) -> None:
+    if not enabled:
+        return
+
+    settings.scrape_delay_min = 0.3
+    settings.scrape_delay_max = 0.8
 
 
 def parse_year_range(year_str: str) -> list[int]:
@@ -254,7 +264,11 @@ async def populate_queue(
     return tasks_added
 
 
-async def process_queue(session, overwrite: bool = False) -> dict:
+async def process_queue(
+    session,
+    overwrite: bool = False,
+    worker_id: Optional[int] = None,
+) -> dict:
     """
     Process all tasks in the scrape queue.
 
@@ -279,21 +293,27 @@ async def process_queue(session, overwrite: bool = False) -> dict:
         "players_created": 0,
     }
 
-    print("\n" + "=" * 60)
-    print("Processing scrape queue...")
-    print("Press Ctrl+C to pause (progress is saved)")
-    print("=" * 60)
+    def log(message: str) -> None:
+        if worker_id is None:
+            print(message)
+        else:
+            print(f"[Worker {worker_id}] {message}")
+
+    log("\n" + "=" * 60)
+    log("Processing scrape queue...")
+    log("Press Ctrl+C to pause (progress is saved)")
+    log("=" * 60)
 
     # Get initial count of tasks to process
     initial_queue_size = queue_manager.pending_count()
-    print(f"Tasks in queue: {initial_queue_size}")
+    log(f"Tasks in queue: {initial_queue_size}")
 
     try:
         while True:
             # Get next task
-            task = queue_manager.get_next_task()
+            task = queue_manager.get_next_task(skip_locked=True)
             if not task:
-                print("\nQueue empty - all tasks processed!")
+                log("\nQueue empty - all tasks processed!")
                 break
 
             stats["tasks_processed"] += 1
@@ -305,8 +325,12 @@ async def process_queue(session, overwrite: bool = False) -> dict:
             task_params = task.task_params
             tour_key = task_params.get("tour_key", "ATP")
 
-            print(f"\n[Task {stats['tasks_processed']}/{initial_queue_size}] {task_params.get('tournament_name', task_params['tournament_id'])} ({task_params['year']})")
-            print(f"  Tour: {TOUR_TYPES.get(tour_key, {}).get('description', tour_key)}")
+            log(
+                f"\n[Task {stats['tasks_processed']}/{initial_queue_size}] "
+                f"{task_params.get('tournament_name', task_params['tournament_id'])} "
+                f"({task_params['year']})"
+            )
+            log(f"  Tour: {TOUR_TYPES.get(tour_key, {}).get('description', tour_key)}")
 
             try:
                 # Scrape the tournament
@@ -325,7 +349,7 @@ async def process_queue(session, overwrite: bool = False) -> dict:
                 session.commit()
                 queue_manager.mark_completed(task.id)
                 stats["tasks_completed"] += 1
-                print(f"  Completed: {matches_result['matches_created']} matches created")
+                log(f"  Completed: {matches_result['matches_created']} matches created")
 
             except Exception as e:
                 # Rollback the failed transaction before marking task as failed
@@ -335,7 +359,7 @@ async def process_queue(session, overwrite: bool = False) -> dict:
                 # Mark failed (will retry if attempts remain)
                 queue_manager.mark_failed(task.id, str(e))
                 stats["tasks_failed"] += 1
-                print(f"  Failed: {e}")
+                log(f"  Failed: {e}")
 
             # Commit queue status changes
             session.commit()
@@ -345,9 +369,26 @@ async def process_queue(session, overwrite: bool = False) -> dict:
                 show_progress(stats, queue_manager)
 
     except KeyboardInterrupt:
-        print("\n\nPaused by user. Progress saved - run with --resume to continue.")
+        log("\n\nPaused by user. Progress saved - run with --resume to continue.")
 
     return stats
+
+
+def run_worker(
+    worker_id: int,
+    overwrite: bool,
+    fast: bool,
+    stats_queue: Optional[multiprocessing.Queue] = None,
+) -> None:
+    apply_fast_delays(fast)
+
+    with get_session() as session:
+        stats = asyncio.run(
+            process_queue(session, overwrite=overwrite, worker_id=worker_id)
+        )
+
+    if stats_queue is not None:
+        stats_queue.put(stats)
 
 
 async def scrape_tournament_task(
@@ -899,6 +940,21 @@ Examples:
     )
 
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of parallel worker processes to spawn (default: 1)",
+    )
+
+    parser.add_argument(
+        "--fast",
+        "--fast-delays",
+        dest="fast",
+        action="store_true",
+        help="Use faster delays for historical scraping (reduced rate-limit concern)",
+    )
+
+    parser.add_argument(
         "--stats",
         action="store_true",
         help="Show queue statistics and exit",
@@ -930,6 +986,9 @@ Examples:
     print("Teelo v4.0 - Historical Data Backfill")
     print("=" * 60)
 
+    if args.fast:
+        apply_fast_delays(True)
+
     with get_session() as session:
         queue_manager = ScrapeQueueManager(session)
 
@@ -947,6 +1006,13 @@ Examples:
         print(f"  Tours: {tours}")
         if args.overwrite:
             print(f"  Overwrite: ENABLED (existing matches will be updated)")
+        if args.workers > 1:
+            print(f"  Workers: {args.workers}")
+        if args.fast:
+            print(
+                f"  Fast delays: ENABLED "
+                f"({settings.scrape_delay_min}-{settings.scrape_delay_max}s)"
+            )
 
         # Clear queue if requested
         if args.clear_queue:
@@ -980,7 +1046,44 @@ Examples:
             session.commit()
 
         # Process the queue
-        stats = await process_queue(session, overwrite=args.overwrite)
+        if args.workers > 1:
+            ctx = multiprocessing.get_context("spawn")
+            stats_queue: multiprocessing.Queue = ctx.Queue()
+            processes = []
+
+            for worker_id in range(1, args.workers + 1):
+                process = ctx.Process(
+                    target=run_worker,
+                    args=(worker_id, args.overwrite, args.fast, stats_queue),
+                )
+                process.start()
+                processes.append(process)
+
+            for process in processes:
+                process.join()
+
+            aggregated = {
+                "tasks_processed": 0,
+                "tasks_completed": 0,
+                "tasks_failed": 0,
+                "matches_scraped": 0,
+                "matches_created": 0,
+                "players_created": 0,
+            }
+
+            stats_received = 0
+            while stats_received < len(processes):
+                try:
+                    worker_stats = stats_queue.get_nowait()
+                except Exception:
+                    break
+                for key in aggregated:
+                    aggregated[key] += worker_stats.get(key, 0)
+                stats_received += 1
+
+            stats = aggregated
+        else:
+            stats = await process_queue(session, overwrite=args.overwrite)
 
         # Final summary
         print("\n" + "=" * 60)

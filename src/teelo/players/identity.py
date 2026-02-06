@@ -23,7 +23,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from teelo.config import settings
@@ -87,6 +87,31 @@ class PlayerIdentityService:
 
         # Above this threshold, show as suggestion in review queue
         self.suggestion_threshold = settings.player_suggestion_threshold
+
+        self._trigram_ready: Optional[bool] = None
+
+    def _trigram_enabled(self) -> bool:
+        """
+        Check whether pg_trgm is available for fuzzy matching.
+
+        Falls back to Python-based matching when unavailable.
+        """
+        if self._trigram_ready is not None:
+            return self._trigram_ready
+
+        if not self.db.bind or self.db.bind.dialect.name != "postgresql":
+            self._trigram_ready = False
+            return self._trigram_ready
+
+        try:
+            enabled = self.db.execute(
+                text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'")
+            ).scalar()
+            self._trigram_ready = bool(enabled)
+        except Exception:
+            self._trigram_ready = False
+
+        return self._trigram_ready
 
     # =========================================================================
     # Main Public Methods
@@ -536,30 +561,64 @@ class PlayerIdentityService:
         Returns:
             List of PlayerMatch sorted by confidence (highest first)
         """
-        # Get all aliases from database
-        aliases = self.db.query(PlayerAlias).all()
-        
-        # Also consider pending aliases in session to avoid matching 
-        # the same name to multiple players in one batch
-        pending_aliases = [obj for obj in self.db.new if isinstance(obj, PlayerAlias)]
-
         matches = []
         seen_player_ids = set()
 
-        # Check database aliases
-        for alias in aliases:
-            if alias.player_id in seen_player_ids:
-                continue
+        if self._trigram_enabled():
+            rows = self.db.execute(
+                text(
+                    """
+                    SELECT player_id, alias, similarity(alias, :name) AS score
+                    FROM player_aliases
+                    WHERE similarity(alias, :name) >= :threshold
+                    ORDER BY score DESC
+                    LIMIT :limit
+                    """
+                ),
+                {
+                    "name": normalized_name,
+                    "threshold": float(self.suggestion_threshold),
+                    "limit": limit,
+                },
+            ).fetchall()
 
-            confidence = compare_names(normalized_name, alias.alias)
-            if confidence >= self.suggestion_threshold:
-                matches.append(PlayerMatch(
-                    player_id=alias.player_id,
-                    confidence=confidence,
-                    match_type="fuzzy",
-                    matched_value=alias.alias,
-                ))
-                seen_player_ids.add(alias.player_id)
+            for row in rows:
+                player_id = row._mapping["player_id"]
+                alias_value = row._mapping["alias"]
+                confidence = float(row._mapping["score"])
+                if player_id in seen_player_ids:
+                    continue
+                matches.append(
+                    PlayerMatch(
+                        player_id=player_id,
+                        confidence=confidence,
+                        match_type="fuzzy",
+                        matched_value=alias_value,
+                    )
+                )
+                seen_player_ids.add(player_id)
+        else:
+            # Get all aliases from database
+            aliases = self.db.query(PlayerAlias).all()
+
+            # Check database aliases
+            for alias in aliases:
+                if alias.player_id in seen_player_ids:
+                    continue
+
+                confidence = compare_names(normalized_name, alias.alias)
+                if confidence >= self.suggestion_threshold:
+                    matches.append(PlayerMatch(
+                        player_id=alias.player_id,
+                        confidence=confidence,
+                        match_type="fuzzy",
+                        matched_value=alias.alias,
+                    ))
+                    seen_player_ids.add(alias.player_id)
+
+        # Also consider pending aliases in session to avoid matching
+        # the same name to multiple players in one batch
+        pending_aliases = [obj for obj in self.db.new if isinstance(obj, PlayerAlias)]
                 
         # Check pending aliases
         for alias in pending_aliases:

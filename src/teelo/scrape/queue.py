@@ -153,7 +153,7 @@ class ScrapeQueueManager:
 
         return task_ids
 
-    def get_next_task(self) -> Optional[ScrapeQueue]:
+    def get_next_task(self, skip_locked: bool = True) -> Optional[ScrapeQueue]:
         """
         Get the highest priority task that's ready to process.
 
@@ -170,7 +170,7 @@ class ScrapeQueueManager:
         """
         now = datetime.utcnow()
 
-        task = (
+        query = (
             self.db.query(ScrapeQueue)
             .filter(
                 ScrapeQueue.status.in_(["pending", "retry"]),
@@ -183,8 +183,12 @@ class ScrapeQueueManager:
                 ScrapeQueue.priority.asc(),
                 ScrapeQueue.created_at.asc(),
             )
-            .first()
         )
+
+        if skip_locked and self.db.bind and self.db.bind.dialect.name == "postgresql":
+            query = query.with_for_update(skip_locked=True)
+
+        task = query.first()
 
         return task
 
