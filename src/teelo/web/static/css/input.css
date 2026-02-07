@@ -41,7 +41,9 @@
 }
 .filter-chip.active {
     @apply scale-[1.02] shadow-sm;
-    /* Active colors are applied dynamically via data-active-class from JS */
+    background-color: #ccff00;
+    color: #1a1a1a;
+    border-color: #ccff00;
 }
 
 /* ==========================================================================

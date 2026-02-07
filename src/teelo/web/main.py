@@ -9,7 +9,7 @@ from fastapi.exceptions import StarletteHTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from teelo.config import settings
@@ -118,11 +118,20 @@ async def home(
         .all()
     )
 
+    serialized_matches = [_serialize_match(m) for m in matches]
+
+    stats = {
+        "matches_total": db.query(func.count(Match.id)).scalar() or 0,
+        "players_total": db.query(func.count(Player.id)).scalar() or 0,
+        "editions_total": db.query(func.count(TournamentEdition.id)).scalar() or 0,
+    }
+
     return templates.TemplateResponse(
         "home.html",
         {
             "request": request,
-            "matches": matches,
+            "matches": serialized_matches,
+            "stats": stats,
             "now": datetime.utcnow(),
             "current_path": request.url.path,
         },
@@ -223,6 +232,7 @@ def _serialize_match(match: Match) -> dict:
         "winner_id": match.winner_id,
         "status": match.status,
         "match_date": match.match_date.isoformat() if match.match_date else None,
+        "match_date_display": match.match_date.strftime("%d %b %Y") if match.match_date else None,
         "year": match.match_date.year if match.match_date else (
             te.year if te else None
         ),
@@ -387,12 +397,23 @@ async def api_matches(
     total = query.count()
 
     # --- Ordering and pagination ---
-    query = query.order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+    query = query.order_by(
+        Match.match_date.desc().nullslast(),
+        Match.temporal_order.desc().nullslast(),
+        Match.id.desc(),
+    )
     offset = (page - 1) * per_page
     matches = query.offset(offset).limit(per_page).all()
+    serialized_matches = [_serialize_match(m) for m in matches]
+
+    match_rows_template = templates.get_template("partials/match_rows.html")
+    table_rows_html = match_rows_template.module.render_table_rows(serialized_matches)
+    cards_html = match_rows_template.module.render_cards(serialized_matches)
 
     return JSONResponse({
-        "matches": [_serialize_match(m) for m in matches],
+        "matches": serialized_matches,
+        "table_rows_html": table_rows_html,
+        "cards_html": cards_html,
         "total": total,
         "page": page,
         "per_page": per_page,

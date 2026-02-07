@@ -83,27 +83,6 @@
     // Helpers
     // =========================================================================
 
-    /** Map tour code to badge background class. */
-    function getTourBgClass(tour) {
-        const map = {
-            ATP: 'bg-[#002865]',
-            WTA: 'bg-[#E30066]',
-            CHALLENGER: 'bg-[#006B3F]',
-            Challenger: 'bg-[#006B3F]',
-            WTA_125: 'bg-[#E30066]',
-            'WTA 125': 'bg-[#E30066]',
-            ITF: 'bg-gray-600',
-        };
-        return map[tour] || 'bg-gray-400';
-    }
-
-    /** Short label for tour badges. */
-    function getTourLabel(tour) {
-        if (tour === 'CHALLENGER' || tour === 'Challenger') return 'CHL';
-        if (tour === 'WTA_125' || tour === 'WTA 125') return '125';
-        return tour || '?';
-    }
-
     function getDisplayFilterValue(key, value) {
         if (key === 'tour') {
             if (value === 'CHALLENGER') return 'ATP Challenger';
@@ -172,25 +151,6 @@
                 deactivateChip(chip);
             }
         });
-    }
-
-    /** Map surface to text color class. */
-    function getSurfaceColorClass(surface) {
-        const map = {
-            Hard: 'text-[#3B82F6]',
-            Clay: 'text-[#EA580C]',
-            Grass: 'text-green-600',
-        };
-        return map[surface] || '';
-    }
-
-    /** Format 'YYYY-MM-DD' to '26 Jan' style. */
-    function formatDate(dateStr) {
-        if (!dateStr) return '';
-        const d = new Date(dateStr + 'T00:00:00'); // avoid timezone shift
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        return d.getDate() + ' ' + months[d.getMonth()];
     }
 
     /** Format number with comma separators: 5432 -> '5,432'. */
@@ -380,7 +340,7 @@
             state.total = data.total;
             state.has_more = data.has_more;
 
-            renderMatches(data.matches, append);
+            renderMatches(data, append);
 
             // Update results count
             els.resultsCount.textContent = formatNumber(data.total) + ' match' + (data.total !== 1 ? 'es' : '');
@@ -409,7 +369,8 @@
     // =========================================================================
 
     /** Render match rows into both desktop table and mobile cards. */
-    function renderMatches(matches, append) {
+    function renderMatches(data, append) {
+        var matches = data.matches || [];
         if (matches.length === 0 && !append) {
             // Reset to default empty state text (may have been changed by error handler)
             els.emptyState.querySelector('h3').textContent = 'No matches found';
@@ -421,73 +382,8 @@
 
         els.emptyState.classList.add('hidden');
 
-        var tableHtml = '';
-        var cardHtml = '';
-
-        matches.forEach(function (m) {
-            var isWinnerA = m.winner_id && m.winner_id === m.player_a.id;
-            var isWinnerB = m.winner_id && m.winner_id === m.player_b.id;
-            var tourBg = getTourBgClass(m.tour);
-            var tourLabel = getTourLabel(m.tour);
-            var surfaceCls = getSurfaceColorClass(m.surface);
-            var dateDisplay = formatDate(m.match_date);
-
-            // Desktop table row
-            tableHtml += '<tr class="hover:bg-gray-50/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime">'
-                + '<td class="px-5 py-3">'
-                +   '<div class="flex items-center gap-2">'
-                +     '<span class="' + tourBg + ' text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">' + esc(tourLabel) + '</span>'
-                +     '<div class="min-w-0">'
-                +       '<span class="text-sm font-semibold text-teelo-dark truncate block" title="' + esc(m.tournament_name) + '">' + esc(m.tournament_name || 'Unknown') + '</span>'
-                +       '<span class="text-xs text-gray-400">' + esc(m.round || '') + ' · ' + esc(m.tournament_level || '') + ' · <span class="' + surfaceCls + '">' + esc(m.surface || '') + '</span></span>'
-                +     '</div>'
-                +   '</div>'
-                + '</td>'
-                + '<td class="px-5 py-3 text-right">'
-                +   '<div class="flex items-center justify-end gap-2">'
-                +     '<span class="text-sm ' + (isWinnerA ? 'text-teelo-dark font-bold' : 'text-gray-400') + '">' + esc(m.player_a.name) + '</span>'
-                +     (isWinnerA ? '<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>' : '')
-                +   '</div>'
-                + '</td>'
-                + '<td class="px-5 py-3 text-center">'
-                +   '<span class="inline-block px-2.5 py-1 bg-gray-50 rounded-md text-xs font-mono text-teelo-dark font-semibold whitespace-nowrap group-hover:bg-teelo-lime/10 transition-colors">' + esc(m.score || '') + '</span>'
-                + '</td>'
-                + '<td class="px-5 py-3">'
-                +   '<div class="flex items-center gap-2">'
-                +     (isWinnerB ? '<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>' : '')
-                +     '<span class="text-sm ' + (isWinnerB ? 'text-teelo-dark font-bold' : 'text-gray-400') + '">' + esc(m.player_b.name) + '</span>'
-                +   '</div>'
-                + '</td>'
-                + '<td class="px-5 py-3 text-right">'
-                +   '<span class="text-xs text-gray-400 whitespace-nowrap">' + esc(dateDisplay) + '</span>'
-                + '</td>'
-                + '</tr>';
-
-            // Mobile card
-            cardHtml += '<div class="px-4 py-3 hover:bg-gray-50/50 transition-colors">'
-                + '<div class="flex items-center justify-between mb-2">'
-                +   '<div class="flex items-center gap-2 min-w-0">'
-                +     '<span class="' + tourBg + ' text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">' + esc(tourLabel) + '</span>'
-                +     '<span class="text-sm font-semibold text-teelo-dark truncate">' + esc(m.tournament_name || 'Unknown') + '</span>'
-                +   '</div>'
-                +   '<span class="text-xs text-gray-400 flex-shrink-0 ml-2">' + esc(dateDisplay) + '</span>'
-                + '</div>'
-                + '<div class="text-xs text-gray-400 mb-2.5 pl-[42px]">' + esc(m.round || '') + ' · ' + esc(m.tournament_level || '') + ' · <span class="' + surfaceCls + '">' + esc(m.surface || '') + '</span></div>'
-                + '<div class="flex items-center gap-3 pl-[42px]">'
-                +   '<div class="flex-1 min-w-0">'
-                +     '<div class="flex items-center gap-1.5 ' + (isWinnerA ? 'text-teelo-dark font-bold' : 'text-gray-400') + ' text-sm">'
-                +       (isWinnerA ? '<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>' : '')
-                +       '<span class="truncate">' + esc(m.player_a.name) + '</span>'
-                +     '</div>'
-                +     '<div class="flex items-center gap-1.5 ' + (isWinnerB ? 'text-teelo-dark font-bold' : 'text-gray-400') + ' text-sm mt-0.5">'
-                +       (isWinnerB ? '<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>' : '')
-                +       '<span class="truncate">' + esc(m.player_b.name) + '</span>'
-                +     '</div>'
-                +   '</div>'
-                +   '<span class="px-2.5 py-1 bg-gray-50 rounded-md text-xs font-mono text-teelo-dark font-semibold whitespace-nowrap flex-shrink-0">' + esc(m.score || '') + '</span>'
-                + '</div>'
-                + '</div>';
-        });
+        var tableHtml = data.table_rows_html || '';
+        var cardHtml = data.cards_html || '';
 
         if (append) {
             els.tableBody.insertAdjacentHTML('beforeend', tableHtml);
