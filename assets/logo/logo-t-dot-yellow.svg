@@ -2,13 +2,13 @@
   <title id="title">Teelo T-dot Logo (Yellow)</title>
   <desc id="desc">Minimal T-dot mark in Teelo yellow on transparent background.</desc>
   <text
-    x="106"
-    y="190"
+    x="104"
+    y="206"
     fill="#CCFF00"
     font-family="Inter, Avenir Next, Montserrat, Arial, sans-serif"
-    font-size="182"
+    font-size="224"
     font-weight="900"
     text-anchor="middle"
   >T</text>
-  <circle cx="174" cy="168" r="22" fill="#CCFF00" />
+  <circle cx="182" cy="190" r="24" fill="#CCFF00" />
 </svg>
