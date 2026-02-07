@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Match History - Teelo Ratings{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="space-y-1">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-teelo-dark tracking-tight">Match History</h1>
+        <p class="text-gray-500">Browse and filter results across ATP, WTA, and ITF tours.</p>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-5 space-y-4">
+        <!-- Row 1: Tour chips -->
+        <div>
+            <h3 class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Tour</h3>
+            <div class="flex flex-wrap gap-2 hide-scrollbar overflow-x-auto pb-1">
+                <button class="filter-chip" data-filter="tour" data-value="ATP" data-active-class="bg-[#002865] text-white border-[#002865]">ATP</button>
+                <button class="filter-chip" data-filter="tour" data-value="WTA" data-active-class="bg-[#E30066] text-white border-[#E30066]">WTA</button>
+                <button class="filter-chip" data-filter="tour" data-value="CHALLENGER" data-active-class="bg-[#006B3F] text-white border-[#006B3F]">Challenger</button>
+                <button class="filter-chip" data-filter="tour" data-value="ITF" data-active-class="bg-gray-600 text-white border-gray-600">ITF</button>
+            </div>
+        </div>
+
+        <!-- Row 2: Surface chips -->
+        <div>
+            <h3 class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Surface</h3>
+            <div class="flex flex-wrap gap-2">
+                <button class="filter-chip" data-filter="surface" data-value="Hard" data-active-class="bg-blue-500 text-white border-blue-500">Hard</button>
+                <button class="filter-chip" data-filter="surface" data-value="Clay" data-active-class="bg-orange-500 text-white border-orange-500">Clay</button>
+                <button class="filter-chip" data-filter="surface" data-value="Grass" data-active-class="bg-green-600 text-white border-green-600">Grass</button>
+            </div>
+        </div>
+
+        <!-- Row 3: Date preset chips -->
+        <div>
+            <h3 class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Date Range</h3>
+            <div class="flex flex-wrap gap-2">
+                <button class="filter-chip" data-filter="date_preset" data-value="7d" data-active-class="bg-teelo-dark text-white border-teelo-dark">Last 7 days</button>
+                <button class="filter-chip" data-filter="date_preset" data-value="30d" data-active-class="bg-teelo-dark text-white border-teelo-dark">Last 30 days</button>
+                <button class="filter-chip" data-filter="date_preset" data-value="90d" data-active-class="bg-teelo-dark text-white border-teelo-dark">Last 90 days</button>
+                <button class="filter-chip" data-filter="date_preset" data-value="ytd" data-active-class="bg-teelo-dark text-white border-teelo-dark">This Year</button>
+                <button class="filter-chip" data-filter="date_preset" data-value="2024" data-active-class="bg-teelo-dark text-white border-teelo-dark">2024</button>
+                <button class="filter-chip" data-filter="date_preset" data-value="2023" data-active-class="bg-teelo-dark text-white border-teelo-dark">2023</button>
+                <button class="filter-chip" data-filter="date_preset" data-value="custom" data-active-class="bg-teelo-dark text-white border-teelo-dark">Custom...</button>
+            </div>
+        </div>
+
+        <!-- Custom date range row (hidden by default) -->
+        <div id="custom-date-row" class="hidden flex flex-wrap items-center gap-3">
+            <input type="date" id="date-from" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teelo-dark">
+            <span class="text-gray-400 text-sm">to</span>
+            <input type="date" id="date-to" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teelo-dark">
+            <button id="apply-custom-date" class="px-3 py-1.5 text-sm bg-teelo-dark text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors">Apply</button>
+        </div>
+
+        <!-- Row 4: Player search + More Filters button -->
+        <div class="flex items-center gap-3 pt-1">
+            <div class="relative flex-1 max-w-sm">
+                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" id="player-search" placeholder="Search player..." class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teelo-dark">
+                <div id="player-dropdown" class="autocomplete-dropdown hidden"></div>
+            </div>
+            <button id="more-filters-btn" class="px-4 py-2 text-sm font-semibold text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-2 transition-colors whitespace-nowrap">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+                More Filters
+            </button>
+        </div>
+
+        <!-- Row 5: Active filter summary (hidden when empty) -->
+        <div id="filter-summary" class="hidden pt-3 border-t border-gray-50">
+            <div class="flex items-center flex-wrap gap-2">
+                <span class="text-xs text-gray-400 font-medium">Showing:</span>
+                <div id="filter-tags" class="flex flex-wrap gap-1.5">
+                    <!-- Filled by JS -->
+                </div>
+                <button id="clear-all-btn" class="text-xs text-gray-400 hover:text-teelo-dark font-medium ml-2 transition-colors">Clear all</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Match Results Card -->
+    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
+        <div id="results-header" class="p-6 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="text-xl font-bold text-teelo-dark">Results</h2>
+            <span id="results-count" class="text-sm text-gray-500"></span>
+        </div>
+
+        <!-- Desktop Table (hidden on mobile) -->
+        <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
+                        <th class="px-5 py-3">Tournament</th>
+                        <th class="px-5 py-3 text-right">Player A</th>
+                        <th class="px-5 py-3 text-center">Score</th>
+                        <th class="px-5 py-3">Player B</th>
+                        <th class="px-5 py-3 text-right">Date</th>
+                    </tr>
+                </thead>
+                <tbody id="matches-table-body" class="divide-y divide-gray-100/70">
+                    <!-- Filled by JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile Cards (hidden on desktop) -->
+        <div id="matches-cards-container" class="md:hidden divide-y divide-gray-100">
+            <!-- Filled by JS -->
+        </div>
+
+        <!-- Empty State (hidden by default) -->
+        <div id="empty-state" class="hidden text-center py-20">
+            <i data-lucide="search" class="w-12 h-12 text-gray-200 mx-auto"></i>
+            <h3 class="text-lg font-semibold text-gray-400 mt-4">No matches found</h3>
+            <p class="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
+        </div>
+
+        <!-- Scroll Sentinel / Loading Spinner -->
+        <div id="scroll-sentinel" class="flex justify-center py-8">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Drawer Overlay -->
+<div id="filter-drawer-overlay" class="filter-drawer-overlay">
+    <div class="filter-drawer">
+        <!-- Drawer Header -->
+        <div class="flex items-center justify-between p-5 border-b border-gray-100">
+            <h2 class="text-lg font-bold text-teelo-dark">More Filters</h2>
+            <button id="close-drawer-btn" class="p-2 text-gray-400 hover:text-teelo-dark transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Drawer Body -->
+        <div class="flex-grow p-5 space-y-6 overflow-y-auto">
+            <!-- Level section -->
+            <div>
+                <label class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-3 block">Level</label>
+                <div class="flex flex-wrap gap-2">
+                    {% for lvl in ["Grand Slam", "Masters 1000", "WTA 1000", "ATP 500", "WTA 500", "ATP 250", "WTA 250", "Challenger", "WTA 125", "ITF Men", "ITF Women", "ATP Finals", "WTA Finals"] %}
+                    <button class="filter-chip" data-filter="level" data-value="{{ lvl }}" data-active-class="bg-teelo-dark text-white border-teelo-dark">{{ lvl }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Round section -->
+            <div>
+                <label class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-3 block">Round</label>
+                <div class="flex flex-wrap gap-2">
+                    {% for rnd in ["F", "SF", "QF", "R16", "R32", "R64", "R128", "Q3", "Q2", "Q1", "RR"] %}
+                    <button class="filter-chip" data-filter="round" data-value="{{ rnd }}" data-active-class="bg-teelo-dark text-white border-teelo-dark">{{ rnd }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Status section -->
+            <div>
+                <label class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-3 block">Status</label>
+                <div class="flex flex-wrap gap-2">
+                    <button class="filter-chip" data-filter="status" data-value="completed" data-active-class="bg-teelo-dark text-white border-teelo-dark">Completed</button>
+                    <button class="filter-chip" data-filter="status" data-value="retired" data-active-class="bg-teelo-dark text-white border-teelo-dark">Retired</button>
+                    <button class="filter-chip" data-filter="status" data-value="walkover" data-active-class="bg-teelo-dark text-white border-teelo-dark">Walkover</button>
+                    <button class="filter-chip" data-filter="status" data-value="default" data-active-class="bg-teelo-dark text-white border-teelo-dark">Default</button>
+                </div>
+            </div>
+
+            <!-- Tournament search -->
+            <div>
+                <label class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-3 block">Tournament</label>
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                    <input type="text" id="tournament-search" placeholder="Search tournament..." class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teelo-dark">
+                </div>
+            </div>
+
+            <!-- Head-to-Head section -->
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <label class="text-xs text-gray-400 uppercase tracking-wider font-bold">Head to Head</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="h2h-toggle" class="sr-only peer">
+                        <div class="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teelo-lime"></div>
+                    </label>
+                </div>
+                <div id="h2h-inputs" class="hidden space-y-3">
+                    <div class="relative">
+                        <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                        <input type="text" id="h2h-player-a" placeholder="Player A" class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teelo-dark">
+                        <div id="h2h-player-a-dropdown" class="autocomplete-dropdown hidden"></div>
+                    </div>
+                    <div class="relative">
+                        <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                        <input type="text" id="h2h-player-b" placeholder="Player B" class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teelo-dark">
+                        <div id="h2h-player-b-dropdown" class="autocomplete-dropdown hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drawer Footer -->
+        <div class="p-5 border-t border-gray-100 bg-gray-50/30">
+            <button id="apply-drawer-btn" class="w-full py-3 bg-teelo-dark text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all shadow-md active:scale-[0.98]">
+                Apply Filters
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', path='/js/matches.js') }}"></script>
+{% endblock %}

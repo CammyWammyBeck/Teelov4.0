@@ -25,3 +25,99 @@
 .mobile-menu-overlay.open .mobile-menu-drawer {
     @apply translate-x-0;
 }
+
+/* ==========================================================================
+   Filter chips
+   ========================================================================== */
+
+/* Base chip style (inactive state) */
+.filter-chip {
+    @apply px-3 py-1.5 text-xs font-semibold rounded-full border border-gray-200
+           text-gray-500 bg-white cursor-pointer select-none
+           transition-all duration-150 whitespace-nowrap;
+}
+.filter-chip:hover {
+    @apply border-gray-300 scale-[1.03];
+}
+.filter-chip.active {
+    @apply scale-[1.02] shadow-sm;
+    /* Active colors are applied dynamically via data-active-class from JS */
+}
+
+/* ==========================================================================
+   Filter drawer (slide-out panel for "More Filters")
+   ========================================================================== */
+
+.filter-drawer-overlay {
+    @apply fixed inset-0 z-[60] bg-black/40 opacity-0 pointer-events-none transition-opacity duration-300;
+}
+.filter-drawer-overlay.open {
+    @apply opacity-100 pointer-events-auto;
+}
+.filter-drawer {
+    @apply absolute top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl
+           transform translate-x-full transition-transform duration-300 flex flex-col;
+}
+.filter-drawer-overlay.open .filter-drawer {
+    @apply translate-x-0;
+}
+
+/* ==========================================================================
+   Scrollbar hiding (for horizontally scrollable chip rows)
+   ========================================================================== */
+
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* ==========================================================================
+   Autocomplete dropdown
+   ========================================================================== */
+
+.autocomplete-dropdown {
+    @apply absolute left-0 right-0 top-full mt-1 bg-white border border-gray-100
+           rounded-xl shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto;
+}
+.autocomplete-item {
+    @apply px-4 py-2.5 text-sm text-gray-700 cursor-pointer transition-colors duration-75
+           hover:bg-gray-50 flex items-center justify-between;
+}
+.autocomplete-item .player-name {
+    @apply font-medium;
+}
+.autocomplete-item .player-nationality {
+    @apply text-xs text-gray-400 font-mono;
+}
+
+/* ==========================================================================
+   Loading spinner
+   ========================================================================== */
+
+.loading-spinner {
+    @apply w-7 h-7 rounded-full border-[3px] border-gray-200 animate-spin;
+    border-top-color: #CCFF00; /* teelo-lime */
+}
+
+/* ==========================================================================
+   Filter summary tags (removable active filter indicators)
+   ========================================================================== */
+
+.filter-summary-tag {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium
+           bg-gray-100 text-gray-600 rounded-full;
+}
+.filter-summary-tag button {
+    @apply text-gray-400 hover:text-gray-600 transition-colors;
+}
+
+/* ==========================================================================
+   Empty state
+   ========================================================================== */
+
+.empty-state-icon {
+    @apply w-12 h-12 text-gray-200 mx-auto;
+}

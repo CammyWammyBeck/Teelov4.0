@@ -1,344 +1,365 @@
-# Backfill Historical Data Performance Optimization Plan
+# Plan: Matches Page with Filtering, API, and Infinite Scroll
 
-## Executive Summary
+## Summary
 
-The `backfill_historical.py` script is slow because it processes tournaments **sequentially** with a single browser instance, and each tournament requires multiple page loads with mandatory delays. For ~50 years of data across 6 tours (ATP, Challenger, WTA, WTA 125, ITF Men, ITF Women), this could take months at current speeds.
-
-**Key insight**: The bottlenecks are fundamentally architectural - the current design is built for reliability and correctness, not speed. To backfill 50 years quickly, we need parallel processing at multiple levels.
+Build a dedicated `/matches` page with a rich filtering system, backed by a JSON API (`/api/matches`). The home page keeps its current "recent matches" preview and links through to the full matches page. Filters use an inline pill/chip UI for common filters with a "More Filters" slide-out drawer for less-used options. Date filtering uses quick presets plus a custom date picker. Filter state is synced to URL query params for shareability. Matches load via infinite scroll.
 
 ---
 
-## Identified Bottlenecks (Priority Order)
+## Architecture Overview
 
-### 1. **CRITICAL: Sequential Tournament Processing**
-**Impact: ~95% of total time**
-**Location**: `backfill_historical.py:process_queue()` (lines 257-350)
-
-The main loop processes one tournament at a time:
-```python
-while True:
-    task = queue_manager.get_next_task()  # Get ONE task
-    # ... process entire tournament ...
-    # ... commit ...
-    # ... next tournament ...
+```
+User clicks filter chip / types player name / scrolls down
+        |
+        v
+  Vanilla JS (matches.js)
+        |
+        |-- Updates URL query params (history.replaceState)
+        |-- Fetches GET /api/matches?tour=ATP&surface=Hard&page=1
+        |
+        v
+  FastAPI JSON endpoint (/api/matches)
+        |
+        |-- Parses & validates query params
+        |-- Builds SQLAlchemy query with filters
+        |-- Returns paginated JSON response
+        |
+        v
+  JS renders match rows into the table
 ```
 
-Each tournament scrape involves:
-- Looking up tournament number (1 page load + delay)
-- Getting tournament info (1 page load + delay)
-- Scraping results page (1 page load + delay)
+**Key files to create/modify:**
 
-With 1-3 second delays (`scrape_delay_min`/`scrape_delay_max`), each tournament takes **minimum 6-15 seconds** even before parsing.
-
-For ATP alone: ~70 tournaments/year × 50 years = **3,500 tournaments**
-At 10s average per tournament = **~10 hours** just for ATP main tour.
-Add Challenger, WTA, ITF = **weeks to months**.
-
-### 2. **HIGH: Single Browser Instance Per Scraper**
-**Impact: ~70% of serial time is waiting**
-**Location**: `base.py:BaseScraper.__aenter__()` (lines 453-485)
-
-Each scraper opens one browser, creates one context. Browser operations are inherently blocking - while one page waits for network response, nothing else happens.
-
-### 3. **HIGH: Page Loads Per Tournament Number Lookup**
-**Impact: 1-2 extra page loads per tournament**
-**Location**: `atp.py:_get_tournament_number()` (lines 391-433)
-
-Every tournament without a cached number requires loading the entire archive page just to find a tournament number. For 3,500 ATP tournaments, this is **3,500 extra page loads**.
-
-### 4. **MEDIUM: Player Matching Fuzzy Search**
-**Impact: O(n) scan per player**
-**Location**: `identity.py:_fuzzy_search()` (lines 524-582)
-
-```python
-aliases = self.db.query(PlayerAlias).all()  # Loads ALL aliases
-for alias in aliases:
-    confidence = compare_names(...)  # Compare each one
-```
-
-This loads **every alias in the database** on each fuzzy search. With thousands of players and 2 players per match, this becomes slow.
-
-### 5. **MEDIUM: Database Round-Trips**
-**Impact: N queries per tournament**
-**Location**: Multiple locations in `process_scraped_match()`
-
-Each match check and player lookup causes database queries. While there's some caching (`player_cache_by_external_id`), it's only within a single tournament.
-
-### 6. **LOW: Virtual Display Overhead**
-**Impact: Minor**
-**Location**: `base.py:VirtualDisplay` (lines 216-408)
-
-Starting Xvfb, x11vnc, and noVNC adds startup overhead but not per-request overhead. Not significant for long-running jobs.
-
-### 7. **LOW: Random Delays Are Conservative**
-**Impact: 1-3 seconds per page**
-**Location**: `config.py` (lines 109-116)
-
-```python
-scrape_delay_min: float = Field(default=1.0)
-scrape_delay_max: float = Field(default=3.0)
-```
-
-These delays exist to avoid rate limiting, but for historical data on older tournament pages, the rate limiting risk is lower.
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/teelo/web/main.py` | Modify | Add `/matches` route, `/api/matches` endpoint, `/api/players/search` endpoint |
+| `src/teelo/web/templates/matches.html` | Create | Full matches page with filter UI |
+| `src/teelo/web/templates/home.html` | Modify | Replace dummy data with real data, add "View all" link to `/matches` |
+| `src/teelo/web/static/js/matches.js` | Create | Filter controller, infinite scroll, player autocomplete |
+| `src/teelo/web/static/css/input.css` | Modify | Add filter chip styles, drawer styles, scrollbar hiding |
 
 ---
 
-## Proposed Solutions
+## Step 1: Build the `/api/matches` JSON endpoint
 
-### Solution 1: Parallel Tournament Processing (HIGHEST IMPACT)
-**Estimated speedup: 4-8x with 4-8 workers**
+**File:** `src/teelo/web/main.py`
 
-Run multiple independent worker processes, each with its own browser and database session. The queue system already supports this!
+Add a new route that returns paginated, filterable match data as JSON.
 
-**Implementation approach:**
-```
-Option A: Multi-process with Python
-- Use multiprocessing to spawn N worker processes
-- Each worker runs its own event loop + browser
-- Queue is already in database (ScrapeQueue), provides natural work distribution
-- Workers claim tasks via get_next_task()
+### Query Parameters
 
-Option B: Multiple Script Instances
-- Simply run multiple instances of backfill_historical.py --process-only
-- The queue's task claiming prevents duplicates
-- Simplest to implement - just run N terminals
-```
+| Param | Type | Example | Description |
+|-------|------|---------|-------------|
+| `tour` | str (comma-separated) | `ATP,WTA` | Filter by tour(s) |
+| `surface` | str (comma-separated) | `Hard,Clay` | Filter by surface(s) |
+| `level` | str (comma-separated) | `Grand Slam,Masters 1000` | Filter by tournament level(s) |
+| `round` | str (comma-separated) | `F,SF,QF` | Filter by round(s) |
+| `status` | str (comma-separated) | `completed,retired` | Filter by match status (default: completed + retired + walkover + default) |
+| `player` | str | `Sinner` | Search player name (matches either player_a or player_b) |
+| `player_id` | int | `42` | Exact player ID filter |
+| `player_a_id` | int | `42` | Head-to-head: Player A |
+| `player_b_id` | int | `15` | Head-to-head: Player B |
+| `tournament` | str | `Australian Open` | Tournament name search |
+| `date_from` | str (YYYY-MM-DD) | `2024-01-01` | Start date |
+| `date_to` | str (YYYY-MM-DD) | `2024-12-31` | End date |
+| `date_preset` | str | `7d`, `30d`, `ytd`, `2024`, `2023` | Quick date presets |
+| `page` | int | `1` | Page number (1-indexed) |
+| `per_page` | int | `50` | Results per page (max 100) |
 
-**Recommended**: Option B for simplicity, Option A for better control.
+### Response Format
 
-### Solution 2: Tournament Number Cache (HIGH IMPACT FOR ATP)
-**Estimated speedup: 2x for ATP/Challenger (eliminates half of page loads)**
-
-Build a tournament-to-number mapping cache by scraping the archive page once, then reuse for all tournaments from that year.
-
-**Implementation:**
-1. Before processing a year's tournaments, scrape the archive page once
-2. Build dict: `{tournament_id: tournament_number}`
-3. Pass cached number directly to scraper
-4. Already partially implemented - `task_params["tournament_number"]` exists but only populated when available from initial list parse
-
-### Solution 3: Reduce Delays for Historical Data
-**Estimated speedup: 1.5-2x**
-
-Historical pages are:
-- Not rate-limited as aggressively
-- Static content (no real-time updates)
-- Less monitored by bot detection
-
-**Implementation:**
-- Add `--fast-mode` flag for historical backfill
-- Reduce `scrape_delay_min` to 0.3s, `scrape_delay_max` to 1.0s
-- Or remove random delays entirely between pages within same tournament
-
-### Solution 4: Player Matching Optimization
-**Estimated speedup: 10-100x for player lookups**
-
-Replace O(n) scan with database-powered trigram matching:
-
-**Option A: pg_trgm Extension (PostgreSQL)**
-```sql
-CREATE EXTENSION pg_trgm;
-CREATE INDEX idx_alias_trgm ON player_aliases USING gin (alias gin_trgm_ops);
--- Then: SELECT * FROM player_aliases WHERE alias % 'djokovic' ORDER BY similarity(alias, 'djokovic') DESC LIMIT 3;
+```json
+{
+  "matches": [
+    {
+      "id": 1234,
+      "tour": "ATP",
+      "tournament_name": "Australian Open",
+      "tournament_level": "Grand Slam",
+      "surface": "Hard",
+      "round": "F",
+      "player_a": {"id": 42, "name": "J. Sinner", "seed": 1},
+      "player_b": {"id": 15, "name": "A. Zverev", "seed": 2},
+      "score": "6-3 7-6 6-3",
+      "winner_id": 42,
+      "status": "completed",
+      "match_date": "2025-01-26",
+      "year": 2025
+    }
+  ],
+  "total": 5432,
+  "page": 1,
+  "per_page": 50,
+  "has_more": true
+}
 ```
 
-**Option B: Pre-built Alias Hash Index**
-- Load all aliases into memory at startup
-- Build a blocking-based hash (first 3 letters → candidate set)
-- Only fuzzy compare against small candidate set
+### Implementation Details
 
-**Option C: Skip Fuzzy for Historical (Simpler)**
-- For historical backfill, trust external IDs more
-- Only queue unmatched if no external_id (rare for ATP/WTA)
-- Add aliases eagerly, resolve duplicates later
-
-### Solution 5: Batch Database Operations
-**Estimated speedup: 1.3-1.5x for DB-heavy phases**
-
-Currently commits after each tournament. For large batches:
-- Batch inserts every N matches (e.g., 100)
-- Use `session.execute(insert(...).values([...]))` for bulk inserts
-- Already using `bulk_save_objects` for queue items (good!)
-
-### Solution 6: Headless Mode for Background Scraping
-**Estimated speedup: 1.2x (reduced resource usage)**
-
-When running parallel workers, headed browsers waste resources. The Cloudflare bypass works with headless when:
-- Using playwright-stealth (already enabled)
-- Not hitting aggressive rate limits
-
-Test headless mode specifically for ATP results pages (historical data, less protected).
+- Join `matches` -> `tournament_editions` -> `tournaments` for tour/level/surface filtering
+- Join `matches` -> `players` (both player_a and player_b) for player name search
+- Use `ilike` for player name search (case-insensitive partial match)
+- For head-to-head mode: filter where (player_a_id = X AND player_b_id = Y) OR (player_a_id = Y AND player_b_id = X)
+- Order by `match_date DESC NULLS LAST` (most recent first)
+- Use a window function or separate count query for `total`
+- Use `.offset().limit()` for pagination
+- Date presets resolve server-side: `7d` -> last 7 days from today, `2024` -> full year 2024, `ytd` -> Jan 1 of current year to today
+- Default status filter includes: `completed`, `retired`, `walkover`, `default` (i.e., all finished matches)
 
 ---
 
-## Recommended Implementation Order
+## Step 2: Build the `/api/players/search` endpoint
 
-### Phase 1: Quick Wins (1-2 days, ~4x speedup)
-1. **Run multiple parallel instances** - just open 4 terminals running `--process-only`
-2. **Add `--fast-delays` flag** - reduce delays for historical scraping
-3. **Pre-populate tournament numbers** in queue population phase
+**File:** `src/teelo/web/main.py`
 
-### Phase 2: Database Optimization (2-3 days, additional 2x)
-4. **Enable pg_trgm** and optimize player matching
-5. **Add database indexes** if not present:
-   ```sql
-   CREATE INDEX idx_match_external_id ON matches(external_id);
-   CREATE INDEX idx_player_atp_id ON players(atp_id);
-   CREATE INDEX idx_alias_player ON player_aliases(alias, source);
-   ```
-6. **Batch match inserts** within each tournament
+For the player autocomplete, add a lightweight search endpoint.
 
-### Phase 3: Architecture Improvement (3-5 days, additional 2x)
-7. **Implement proper multiprocessing** with worker pool
-8. **Add progress tracking** and ETA calculation
-9. **Headless mode validation** for historical pages
+### Query Parameters
 
-### Expected Total Speedup
+| Param | Type | Example | Description |
+|-------|------|---------|-------------|
+| `q` | str | `Sinn` | Search query (min 2 chars) |
+| `limit` | int | `8` | Max results (default 8) |
 
-| Optimization | Individual Speedup | Cumulative |
-|--------------|-------------------|------------|
-| 4 parallel workers | 4x | 4x |
-| Fast delays | 1.5x | 6x |
-| Tournament number cache | 1.3x | 7.8x |
-| pg_trgm matching | 1.2x | 9.4x |
-| Batch inserts | 1.2x | 11.3x |
+### Response Format
 
-**Conservative estimate: 8-12x faster**
+```json
+{
+  "players": [
+    {"id": 42, "name": "Jannik Sinner", "nationality": "ITA"},
+    {"id": 198, "name": "Jack Sinners", "nationality": "AUS"}
+  ]
+}
+```
 
-50-year backfill time:
-- Current: ~2-3 months
-- After Phase 1: ~2-3 weeks
-- After Phase 3: ~1 week
+### Implementation Details
+
+- Search `players.canonical_name` with `ilike` (`%query%`)
+- Also search `player_aliases.alias` with `ilike` for broader matching
+- Deduplicate results (a player might match on both name and alias)
+- Order by: exact prefix matches first, then alphabetical
+- Debounced on client side (300ms)
 
 ---
 
-## Implementation Details
+## Step 3: Build the `/matches` page template
 
-### Task 1: Multi-Instance Parallelism
+**File:** `src/teelo/web/templates/matches.html`
 
-Modify `backfill_historical.py` to support parallel execution:
+### Layout Structure
 
-```python
-# New argument
-parser.add_argument(
-    "--workers",
-    type=int,
-    default=1,
-    help="Number of parallel worker instances to spawn (1 = current behavior)",
-)
-
-# In process_queue(), add task claiming
-def get_next_task():
-    # Add FOR UPDATE SKIP LOCKED for proper concurrent access
-    task = (
-        session.query(ScrapeQueue)
-        .filter(...)
-        .with_for_update(skip_locked=True)  # Key change
-        .first()
-    )
+```
++-----------------------------------------------------+
+|  Page header: "Match History"                        |
+|  Subtitle: "Browse and filter results across tours"  |
++-----------------------------------------------------+
+|  INLINE FILTER CHIPS (always visible, scrollable)    |
+|                                                      |
+|  Tour:    [ATP] [WTA] [Challenger] [ITF]            |
+|  Surface: [Hard] [Clay] [Grass]                      |
+|  Date:    [7d] [30d] [This Year] [2024] [2023] [Custom...] |
+|                                                      |
+|  Player search: [Search player...]   [More Filters]  |
+|                                                      |
+|  Active filters: "ATP, Hard, Last 30 days"  [Clear all] |
++-----------------------------------------------------+
+|  MATCH TABLE (same design as home page)              |
+|  ... rows loaded from API ...                        |
+|  ... infinite scroll loads more ...                  |
+|                                                      |
+|  Loading spinner at bottom when fetching more        |
+|  "No matches found" empty state when filters too narrow |
++-----------------------------------------------------+
+|  SLIDE-OUT DRAWER (triggered by "More Filters")      |
+|                                                      |
+|  Level:  [Grand Slam] [Masters 1000] [ATP 500] ...  |
+|  Round:  [F] [SF] [QF] [R16] [R32] [R64]           |
+|  Status: [Completed] [Retired] [Walkover]           |
+|  Year:   [2025] [2024] [2023] [2022] [2021] [2020] |
+|  Tournament search: [Search tournament...]           |
+|  Head-to-Head toggle                                 |
+|    Player A: [autocomplete]                          |
+|    Player B: [autocomplete]                          |
+|                                                      |
+|  [Apply Filters]                                     |
++-----------------------------------------------------+
 ```
 
-### Task 2: Fast Delay Mode
+### Filter Chip Design
 
-```python
-parser.add_argument(
-    "--fast",
-    action="store_true",
-    help="Use faster delays for historical data (less rate-limit concern)",
-)
+Chips are toggle buttons with distinct colors per category:
 
-# In scraper initialization
-if args.fast:
-    # Override delay settings
-    settings.scrape_delay_min = 0.3
-    settings.scrape_delay_max = 0.8
+| Category | Colors (active) | Colors (inactive) |
+|----------|----------------|-------------------|
+| Tour: ATP | `bg-[#002865] text-white` | `bg-white text-gray-500 border border-gray-200` |
+| Tour: WTA | `bg-[#E30066] text-white` | same inactive |
+| Tour: Challenger | `bg-[#006B3F] text-white` | same inactive |
+| Tour: ITF | `bg-gray-600 text-white` | same inactive |
+| Surface: Hard | `bg-blue-500 text-white` | same inactive |
+| Surface: Clay | `bg-orange-500 text-white` | same inactive |
+| Surface: Grass | `bg-green-600 text-white` | same inactive |
+| Date presets | `bg-teelo-dark text-white` | same inactive |
+
+Chips have a subtle scale animation on click and a checkmark icon when active.
+
+### Active Filter Summary
+
+Below the chips, a summary line shows applied filters as removable tags:
+```
+Showing: ATP · Hard · Last 30 days · Player: Sinner    [Clear all]
 ```
 
-### Task 3: Tournament Number Pre-fetch
+Each tag has an X to remove that individual filter.
 
-Modify `populate_queue()` to always fetch and store tournament numbers:
+### Mobile Adaptation
 
-```python
-async def populate_queue(...):
-    for year in years:
-        # Fetch archive page once
-        archive = await scraper.get_tournament_list(year)
-
-        for tournament in archive:
-            task_params = {
-                ...
-                "tournament_number": tournament.get("number"),  # Already present in list!
-            }
-```
-
-The tournament number IS already being captured during `get_tournament_list()` - verify it's being passed through correctly.
-
-### Task 4: pg_trgm Setup
-
-```sql
--- One-time setup on PostgreSQL
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
--- Add trigram index
-CREATE INDEX CONCURRENTLY idx_alias_trgm
-ON player_aliases USING gin (alias gin_trgm_ops);
-```
-
-Then update `_fuzzy_search()`:
-```python
-def _fuzzy_search(self, normalized_name: str, limit: int = 3) -> list[PlayerMatch]:
-    # Use database similarity search instead of loading all
-    results = self.db.execute(text("""
-        SELECT player_id, alias, similarity(alias, :name) as score
-        FROM player_aliases
-        WHERE alias % :name
-        ORDER BY score DESC
-        LIMIT :limit
-    """), {"name": normalized_name, "limit": limit})
-
-    return [PlayerMatch(...) for row in results]
-```
+- Filter chips become a horizontally scrollable row (hiding scrollbar with CSS)
+- "More Filters" button becomes full-screen modal instead of drawer
+- Match table switches to card layout (reusing the existing mobile card design from home.html)
+- Player search moves into the drawer on mobile
 
 ---
 
-## Monitoring & Validation
+## Step 4: Build the JavaScript filter controller
 
-Add progress tracking:
-```python
-import time
+**File:** `src/teelo/web/static/js/matches.js`
 
-class BackfillStats:
-    start_time: float
-    tournaments_processed: int
-    matches_created: int
-    current_rate: float  # tournaments/hour
+### Module Structure
 
-    def eta_remaining(self, total_tournaments: int) -> timedelta:
-        if self.current_rate == 0:
-            return timedelta(days=999)
-        remaining = total_tournaments - self.tournaments_processed
-        hours = remaining / self.current_rate
-        return timedelta(hours=hours)
+```javascript
+// State management
+const filterState = {
+  tour: [],           // ['ATP', 'WTA']
+  surface: [],        // ['Hard']
+  level: [],          // ['Grand Slam']
+  round: [],          // ['F', 'SF']
+  status: [],         // ['completed', 'retired', 'walkover', 'default']
+  player: '',         // free text search
+  player_id: null,    // selected from autocomplete
+  player_a_id: null,  // head-to-head
+  player_b_id: null,  // head-to-head
+  tournament: '',     // tournament name search
+  date_from: '',      // YYYY-MM-DD
+  date_to: '',        // YYYY-MM-DD
+  date_preset: '',    // '7d', '30d', 'ytd', '2024'
+  page: 1,
+};
 ```
 
+### Key Functions
+
+1. **`initFromURL()`** - Parse URL query params into filterState on page load
+2. **`syncToURL()`** - Push filterState to URL via `history.replaceState()`
+3. **`fetchMatches(append)`** - GET `/api/matches` with current filters; if `append=true`, add to existing rows (infinite scroll)
+4. **`renderMatches(matches, append)`** - Build match row HTML and insert into the table; desktop table rows + mobile card layout
+5. **`toggleChip(category, value)`** - Toggle a filter chip on/off, reset page to 1, re-fetch
+6. **`setupInfiniteScroll()`** - IntersectionObserver on a sentinel element at bottom of matches list
+7. **`setupPlayerAutocomplete(inputEl, callback)`** - Debounced search with dropdown results
+8. **`openDrawer()` / `closeDrawer()`** - Slide-out filter drawer
+9. **`clearAllFilters()`** - Reset everything, re-fetch
+10. **`renderActiveSummary()`** - Update the active filters summary line with removable tags
+11. **`handlePopState()`** - Listen for browser back/forward, re-read URL, re-fetch
+
+### Infinite Scroll
+
+- Place a `<div id="scroll-sentinel">` after the match rows container
+- `IntersectionObserver` watches it; when it becomes visible, increment `page` and `fetchMatches(append=true)`
+- Show a loading spinner inside the sentinel during fetch
+- Hide sentinel / stop observing when `has_more` is false from API response
+- When filters change, clear all rows, reset page to 1, re-enable observer
+
+### Player Autocomplete
+
+- `<input>` with 300ms debounce via `setTimeout`/`clearTimeout`
+- On each input event (after debounce), fetch `/api/players/search?q=...`
+- Show dropdown below input with player names + nationality IOC code
+- Clicking a player sets `player_id` (or `player_a_id`/`player_b_id` for H2H) and displays their name as a chip
+- ESC or clicking outside closes dropdown
+- Minimum 2 characters before searching
+
+### URL Sync
+
+- Array filters use comma separation: `?tour=ATP,WTA&surface=Hard`
+- Single-value filters: `?player_id=42&date_preset=30d`
+- On page load, `initFromURL()` parses URL params, applies them to chip states, and triggers initial fetch
+- On filter change, `syncToURL()` updates URL via `history.replaceState` (no page reload)
+- `popstate` event listener handles browser back/forward
+
 ---
 
-## Risks & Mitigations
+## Step 5: Update the home page
 
-| Risk | Mitigation |
-|------|------------|
-| Rate limiting with multiple workers | Start with 4 workers, monitor for blocks |
-| Database lock contention | Use `skip_locked` for queue claiming |
-| Memory usage with many browsers | Limit workers based on available RAM |
-| Cloudflare blocks | Keep 1 worker as fallback with full delays |
-| Data integrity with parallelism | External_id unique constraint handles duplicates |
+**File:** `src/teelo/web/templates/home.html`
+
+- Remove the hardcoded `dummy_matches` Jinja2 variable
+- The server-side query in `main.py` already fetches real matches and passes them as `matches` - wire the template to use this data
+- Access tournament name via `m.tournament_edition.tournament.name`, surface via `m.tournament_edition.tournament.surface` or `m.tournament_edition.surface`, etc.
+- Determine tour badge color from `m.tournament_edition.tournament.tour`
+- Determine surface color from the surface value
+- Determine winner by comparing `m.winner_id` to `m.player_a_id`
+- Update "View all match history" link at the bottom to point to `/matches`
+- Keep the stat cards (can be wired to real counts later)
 
 ---
 
-## Files to Modify
+## Step 6: Add CSS for filters and drawer
 
-1. `scripts/backfill_historical.py` - Add parallel workers, fast mode
-2. `src/teelo/scrape/queue.py` - Add `skip_locked` support
-3. `src/teelo/players/identity.py` - Use pg_trgm for fuzzy search
-4. `src/teelo/config.py` - Add fast-scrape settings
-5. Database migration - Add pg_trgm extension and index
+**File:** `src/teelo/web/static/css/input.css`
+
+Add styles for:
+- `.filter-chip` - Base chip: `px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all duration-150 select-none`
+- `.filter-chip:hover` - Subtle lift/scale
+- `.filter-chip.active` - Active state (category-specific colors applied via data attributes or individual classes)
+- `.filter-drawer-overlay` / `.filter-drawer` - Slide-out panel (reuse the mobile menu pattern already in `input.css`)
+- `.hide-scrollbar` - `overflow-x: auto; -ms-overflow-style: none; scrollbar-width: none;` and `::-webkit-scrollbar { display: none; }`
+- `.autocomplete-dropdown` - Absolute positioned below input, white bg, shadow, max-height with scroll
+- `.autocomplete-item` - Hover state, padding, cursor pointer
+- `.loading-spinner` - Simple CSS spinner animation
+- `.filter-summary-tag` - Inline removable tags with X button
+- `.empty-state` - "No matches found" centered message
+
+---
+
+## Step 7: Custom date picker
+
+For the "Custom" date preset chip:
+- Clicking "Custom" toggles visibility of a small inline row with two `<input type="date">` fields (From / To)
+- Uses native browser date pickers (good cross-browser/mobile support, zero dependencies)
+- "Apply" button next to the date fields triggers the filter
+- When a custom date range is active, the "Custom" chip shows as active with the date range in the summary
+- Clearing the custom date range hides the date inputs and removes the date filter
+
+---
+
+## Implementation Order
+
+1. **API endpoint** (`/api/matches`) - Can test independently with curl/browser
+2. **Player search endpoint** (`/api/players/search`) - Needed for autocomplete
+3. **Matches page template** (`matches.html`) - Static HTML structure with filter chip placeholders
+4. **CSS additions** (`input.css`) - Filter chip styles, drawer, autocomplete dropdown
+5. **JavaScript controller** (`matches.js`) - Wire everything together: chips, API calls, rendering, infinite scroll, autocomplete, URL sync
+6. **Home page update** (`home.html`) - Replace dummy data with real DB data, add `/matches` link
+7. **Testing & polish** - Verify all filters work, mobile responsiveness, empty states, edge cases
+
+---
+
+## Scope Boundaries
+
+### In scope
+- `/api/matches` JSON endpoint with all listed filters
+- `/api/players/search` autocomplete endpoint
+- `/matches` page with chip filters, slide-out drawer, infinite scroll, player autocomplete
+- Home page wired to real data with link to `/matches`
+- URL query param sync (shareable/bookmarkable filter states)
+- Mobile responsive design (scrollable chips, card layout, full-screen drawer)
+- Head-to-head filter mode
+- Active filter summary with removable tags
+
+### Out of scope (future work)
+- Column sorting (currently fixed to most recent first)
+- Match detail page (clicking a match row)
+- Export/download filtered results
+- Saved filter presets
+- Advanced match statistics display in the table
+- Tournament-specific pages
+- ELO ratings display (depends on Phase 2 ELO implementation)
