@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Teelo T-dot Logo (Dark)</title>
+  <desc id="desc">Minimal T-dot mark in dark charcoal on transparent background.</desc>
+  <text
+    x="106"
+    y="190"
+    fill="#1A1A1A"
+    font-family="Inter, Avenir Next, Montserrat, Arial, sans-serif"
+    font-size="182"
+    font-weight="900"
+    text-anchor="middle"
+  >T</text>
+  <circle cx="174" cy="168" r="22" fill="#1A1A1A" />
+</svg>

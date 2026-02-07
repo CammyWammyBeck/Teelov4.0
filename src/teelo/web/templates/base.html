@@ -18,6 +18,17 @@
     <meta property="og:description" content="Tennis ELO ratings, match predictions, and analytics powered by data.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:image" content="{{ url_for('static', path='/img/og-image.png') }}">
+    <meta name="theme-color" content="#0F1115">
+    <meta name="msapplication-TileColor" content="#0F1115">
+    <meta name="msapplication-TileImage" content="{{ url_for('static', path='/favicon/mstile-150x150.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', path='/favicon/favicon-16x16.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', path='/favicon/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="48x48" href="{{ url_for('static', path='/favicon/favicon-48x48.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', path='/favicon/favicon.ico') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', path='/favicon/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', path='/favicon/android-chrome-192x192.png') }}">
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', path='/favicon/android-chrome-512x512.png') }}">
     <title>{% block title %}Teelo Ratings{% endblock %}</title>
     <link href="{{ url_for('static', path='/css/styles.css') }}" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -32,7 +43,11 @@
                 <!-- Logo -->
                 <div class="flex items-center gap-3">
                     <div class="bg-teelo-lime p-2 rounded-lg shadow-[0_4px_10px_rgba(204,255,0,0.5)] border border-black/5 transform transition hover:scale-105 duration-200">
-                        <i data-lucide="activity" class="text-teelo-dark w-6 h-6"></i>
+                        <img
+                            src="{{ url_for('static', path='/img/logo-t-dot-dark-128.png') }}"
+                            alt="Teelo logo"
+                            class="w-6 h-6"
+                        >
                     </div>
                     <a href="/" class="text-2xl font-bold text-teelo-dark tracking-tight">
                         Teelo<span class="text-gray-400">Ratings</span>
@@ -96,7 +111,14 @@
     <div id="mobile-menu" class="mobile-menu-overlay" aria-hidden="true">
         <div class="mobile-menu-drawer">
             <div class="flex items-center justify-between p-4 border-b border-gray-100">
-                <span class="text-lg font-bold text-teelo-dark">Menu</span>
+                <span class="text-lg font-bold text-teelo-dark flex items-center gap-2">
+                    <img
+                        src="{{ url_for('static', path='/img/logo-t-dot-dark-128.png') }}"
+                        alt="Teelo logo"
+                        class="w-5 h-5"
+                    >
+                    Menu
+                </span>
                 <button id="mobile-menu-close" class="p-2 text-gray-400 hover:text-teelo-dark" aria-label="Close menu">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
@@ -141,7 +163,14 @@
         <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="flex flex-col items-center md:items-start gap-1">
-                    <span class="font-bold text-teelo-dark">Teelo Ratings</span>
+                    <span class="font-bold text-teelo-dark flex items-center gap-2">
+                        <img
+                            src="{{ url_for('static', path='/img/logo-t-dot-dark-128.png') }}"
+                            alt="Teelo logo"
+                            class="w-5 h-5"
+                        >
+                        Teelo Ratings
+                    </span>
                     <span class="text-xs text-gray-400">Tennis ratings powered by data</span>
                 </div>
                 <div class="text-sm text-gray-400">
