@@ -18,6 +18,7 @@
     // =========================================================================
 
     const state = {
+        gender: '',
         tour: [],
         surface: [],
         level: [],
@@ -39,6 +40,8 @@
         has_more: true,
         loading: false,
     };
+
+    const MULTI_VALUE_FILTERS = ['tour', 'surface', 'level', 'round', 'status'];
 
     // =========================================================================
     // DOM references (cached after DOMContentLoaded)
@@ -86,6 +89,9 @@
             ATP: 'bg-[#002865]',
             WTA: 'bg-[#E30066]',
             CHALLENGER: 'bg-[#006B3F]',
+            Challenger: 'bg-[#006B3F]',
+            WTA_125: 'bg-[#E30066]',
+            'WTA 125': 'bg-[#E30066]',
             ITF: 'bg-gray-600',
         };
         return map[tour] || 'bg-gray-400';
@@ -93,8 +99,79 @@
 
     /** Short label for tour badges. */
     function getTourLabel(tour) {
-        if (tour === 'CHALLENGER') return 'CHL';
+        if (tour === 'CHALLENGER' || tour === 'Challenger') return 'CHL';
+        if (tour === 'WTA_125' || tour === 'WTA 125') return '125';
         return tour || '?';
+    }
+
+    function getDisplayFilterValue(key, value) {
+        if (key === 'tour') {
+            if (value === 'CHALLENGER') return 'ATP Challenger';
+            if (value === 'WTA_125') return 'WTA 125';
+        }
+        return value;
+    }
+
+    function getAllowedToursForGender(gender) {
+        if (gender === 'men') return ['ATP', 'CHALLENGER', 'ITF'];
+        if (gender === 'women') return ['WTA', 'WTA_125', 'ITF'];
+        return [];
+    }
+
+    function getEffectiveTourFilters() {
+        if (!state.gender) {
+            return state.tour.slice();
+        }
+
+        var allowedTours = getAllowedToursForGender(state.gender);
+        if (state.tour.length === 0) {
+            return allowedTours;
+        }
+        return state.tour.filter(function (tour) {
+            return allowedTours.indexOf(tour) !== -1;
+        });
+    }
+
+    function isChipSelected(chip) {
+        var filter = chip.dataset.filter;
+        var value = chip.dataset.value;
+
+        if (MULTI_VALUE_FILTERS.indexOf(filter) !== -1) {
+            return state[filter].indexOf(value) !== -1;
+        }
+        if (filter === 'date_preset') {
+            return state.date_preset === value;
+        }
+        if (filter === 'gender') {
+            return state.gender === value;
+        }
+        return false;
+    }
+
+    function applyGenderToSubcategoryChips() {
+        document.querySelectorAll('.filter-chip[data-role="subcategory"]').forEach(function (chip) {
+            var chipGender = (chip.dataset.gender || 'all').toLowerCase();
+            var isVisible = !state.gender || chipGender === 'all' || chipGender === state.gender;
+            var filter = chip.dataset.filter;
+            var value = chip.dataset.value;
+
+            chip.classList.toggle('hidden', !isVisible);
+
+            if (!isVisible) {
+                if (MULTI_VALUE_FILTERS.indexOf(filter) !== -1) {
+                    var idx = state[filter].indexOf(value);
+                    if (idx !== -1) state[filter].splice(idx, 1);
+                }
+                deactivateChip(chip);
+                return;
+            }
+
+            if (isChipSelected(chip)) {
+                activateChip(chip);
+            } else {
+                deactivateChip(chip);
+            }
+        });
     }
 
     /** Map surface to text color class. */
@@ -149,12 +226,13 @@
         const params = new URLSearchParams(window.location.search);
 
         // Array params
-        ['tour', 'surface', 'level', 'round', 'status'].forEach(function (key) {
+        MULTI_VALUE_FILTERS.forEach(function (key) {
             const val = params.get(key);
             state[key] = val ? val.split(',').map(function (s) { return s.trim(); }) : [];
         });
 
         // Scalar params
+        state.gender = params.get('gender') || '';
         state.player_id = params.get('player_id') ? parseInt(params.get('player_id'), 10) : null;
         state.player_name = params.get('player_name') || '';
         state.player_a_id = params.get('player_a_id') ? parseInt(params.get('player_a_id'), 10) : null;
@@ -171,20 +249,14 @@
             var filter = chip.dataset.filter;
             var value = chip.dataset.value;
 
-            if (['tour', 'surface', 'level', 'round', 'status'].indexOf(filter) !== -1) {
-                if (state[filter].indexOf(value) !== -1) {
-                    activateChip(chip);
-                } else {
-                    deactivateChip(chip);
-                }
-            } else if (filter === 'date_preset') {
-                if (state.date_preset === value) {
-                    activateChip(chip);
-                } else {
-                    deactivateChip(chip);
-                }
+            if (isChipSelected(chip)) {
+                activateChip(chip);
+            } else {
+                deactivateChip(chip);
             }
         });
+
+        applyGenderToSubcategoryChips();
 
         // Apply to inputs
         if (els.playerSearch && state.player_name) {
@@ -218,12 +290,13 @@
     function syncToURL() {
         var params = new URLSearchParams();
 
-        ['tour', 'surface', 'level', 'round', 'status'].forEach(function (key) {
+        MULTI_VALUE_FILTERS.forEach(function (key) {
             if (state[key].length > 0) {
                 params.set(key, state[key].join(','));
             }
         });
 
+        if (state.gender) params.set('gender', state.gender);
         if (state.player_id) {
             params.set('player_id', state.player_id);
             if (state.player_name) params.set('player_name', state.player_name);
@@ -254,7 +327,15 @@
     function buildQueryString() {
         var params = new URLSearchParams();
 
-        ['tour', 'surface', 'level', 'round', 'status'].forEach(function (key) {
+        var effectiveTours = getEffectiveTourFilters();
+        if (effectiveTours.length > 0) {
+            params.set('tour', effectiveTours.join(','));
+        }
+        if (state.gender) {
+            params.set('gender', state.gender);
+        }
+
+        ['surface', 'level', 'round', 'status'].forEach(function (key) {
             if (state[key].length > 0) params.set(key, state[key].join(','));
         });
 
@@ -442,7 +523,19 @@
                 var filter = chip.dataset.filter;
                 var value = chip.dataset.value;
 
-                if (filter === 'date_preset') {
+                if (filter === 'gender') {
+                    document.querySelectorAll('.filter-chip[data-filter="gender"]').forEach(deactivateChip);
+
+                    if (state.gender === value) {
+                        state.gender = '';
+                    } else {
+                        state.gender = value;
+                        activateChip(chip);
+                    }
+
+                    applyGenderToSubcategoryChips();
+                    onFilterChange();
+                } else if (filter === 'date_preset') {
                     handleDatePresetClick(chip, value);
                 } else {
                     // Multi-select toggle for tour, surface, level, round, status
@@ -454,6 +547,7 @@
                         state[filter].push(value);
                         activateChip(chip);
                     }
+                    applyGenderToSubcategoryChips();
                     onFilterChange();
                 }
             });
@@ -511,6 +605,13 @@
     function renderActiveSummary() {
         var tags = [];
 
+        if (state.gender) {
+            tags.push({
+                label: 'Gender: ' + (state.gender === 'men' ? 'Men' : 'Women'),
+                removeKey: 'gender:',
+            });
+        }
+
         // Array filters
         var filterLabels = {
             tour: 'Tour',
@@ -522,7 +623,9 @@
 
         Object.keys(filterLabels).forEach(function (key) {
             state[key].forEach(function (value) {
-                var displayValue = key === 'status' ? (value.charAt(0).toUpperCase() + value.slice(1)) : value;
+                var displayValue = key === 'status'
+                    ? (value.charAt(0).toUpperCase() + value.slice(1))
+                    : getDisplayFilterValue(key, value);
                 tags.push({
                     label: displayValue,
                     removeKey: key + ':' + value,
@@ -589,12 +692,16 @@
         var filterName = parts[0];
         var value = parts.slice(1).join(':');
 
-        if (['tour', 'surface', 'level', 'round', 'status'].indexOf(filterName) !== -1) {
+        if (MULTI_VALUE_FILTERS.indexOf(filterName) !== -1) {
             var idx = state[filterName].indexOf(value);
             if (idx !== -1) state[filterName].splice(idx, 1);
             // Deactivate matching chip
             var chip = document.querySelector('.filter-chip[data-filter="' + filterName + '"][data-value="' + value + '"]');
             if (chip) deactivateChip(chip);
+        } else if (filterName === 'gender') {
+            state.gender = '';
+            document.querySelectorAll('.filter-chip[data-filter="gender"]').forEach(deactivateChip);
+            applyGenderToSubcategoryChips();
         } else if (filterName === 'date_preset') {
             state.date_preset = '';
             document.querySelectorAll('.filter-chip[data-filter="date_preset"]').forEach(deactivateChip);
@@ -629,6 +736,7 @@
 
     /** Reset all filters to defaults. */
     function clearAllFilters() {
+        state.gender = '';
         state.tour = [];
         state.surface = [];
         state.level = [];
@@ -647,6 +755,7 @@
 
         // Deactivate all chips
         document.querySelectorAll('.filter-chip').forEach(deactivateChip);
+        applyGenderToSubcategoryChips();
 
         // Clear inputs
         els.playerSearch.value = '';

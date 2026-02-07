@@ -204,6 +204,7 @@ def _serialize_match(match: Match) -> dict:
     return {
         "id": match.id,
         "tour": tournament.tour if tournament else None,
+        "gender": tournament.gender if tournament else None,
         "tournament_name": tournament.name if tournament else None,
         "tournament_level": tournament.level if tournament else None,
         "surface": surface,
@@ -232,6 +233,7 @@ def _serialize_match(match: Match) -> dict:
 async def api_matches(
     db: Session = Depends(get_db),
     tour: Optional[str] = Query(None, description="Comma-separated tours: ATP,WTA,CHALLENGER,ITF"),
+    gender: Optional[str] = Query(None, description="Comma-separated genders: men,women"),
     surface: Optional[str] = Query(None, description="Comma-separated surfaces: Hard,Clay,Grass"),
     level: Optional[str] = Query(None, description="Comma-separated levels: Grand Slam,Masters 1000"),
     round: Optional[str] = Query(None, description="Comma-separated rounds: F,SF,QF,R16"),
@@ -277,8 +279,28 @@ async def api_matches(
 
     # --- Tour filter ---
     if tour:
-        tour_list = [t.strip() for t in tour.split(",")]
-        query = query.filter(Tournament.tour.in_(tour_list))
+        raw_tour_values = [t.strip() for t in tour.split(",") if t.strip()]
+        tour_aliases = {
+            "ATP": ["ATP"],
+            "WTA": ["WTA"],
+            "ITF": ["ITF"],
+            "CHALLENGER": ["CHALLENGER", "Challenger"],
+            "WTA_125": ["WTA_125", "WTA 125"],
+            "ATP_CHALLENGER": ["CHALLENGER", "Challenger"],
+        }
+        tour_values: List[str] = []
+        for raw_value in raw_tour_values:
+            normalized = raw_value.upper().replace(" ", "_")
+            tour_values.extend(tour_aliases.get(normalized, [raw_value]))
+
+        query = query.filter(Tournament.tour.in_(sorted(set(tour_values))))
+
+    # --- Gender filter ---
+    if gender:
+        gender_list = [g.strip().lower() for g in gender.split(",") if g.strip()]
+        gender_list = [g for g in gender_list if g in {"men", "women"}]
+        if gender_list:
+            query = query.filter(Tournament.gender.in_(sorted(set(gender_list))))
 
     # --- Surface filter ---
     if surface:

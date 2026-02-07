@@ -378,7 +378,8 @@ class Tournament(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Classification
-    tour: Mapped[str] = mapped_column(String(15), nullable=False)  # 'ATP', 'WTA', 'CHALLENGER', 'ITF'
+    tour: Mapped[str] = mapped_column(String(15), nullable=False)  # 'ATP', 'WTA', 'Challenger', 'ITF', 'WTA 125'
+    gender: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # 'men', 'women'
     level: Mapped[str] = mapped_column(String(30), nullable=False)  # 'Grand Slam', 'Masters 1000', etc.
 
     # Location
@@ -405,7 +406,7 @@ class Tournament(Base):
     editions: Mapped[list["TournamentEdition"]] = relationship(back_populates="tournament")
 
     __table_args__ = (
-        UniqueConstraint("tournament_code", "tour", name="uq_tournament_code_tour"),
+        UniqueConstraint("tournament_code", "tour", "gender", name="uq_tournament_code_tour_gender"),
     )
 
     def __repr__(self) -> str:

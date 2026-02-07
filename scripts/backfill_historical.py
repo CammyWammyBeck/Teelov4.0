@@ -542,27 +542,44 @@ async def get_or_create_edition(
     tournament_id = task_params["tournament_id"]
     year = task_params["year"]
 
-    # Determine tour type for database
+    # Determine tour and gender for database
     if tour_key in ["ATP", "CHALLENGER"]:
         tour = "ATP" if tour_key == "ATP" else "Challenger"
+        gender = "men"
     elif tour_key.startswith("ITF_"):
         tour = "ITF"
+        gender = task_params.get("gender", "men")
     elif tour_key == "WTA_125":
         tour = "WTA 125"
+        gender = "women"
     else:
         tour = "WTA"
+        gender = "women"
 
-    # Check if tournament exists
+    # Check if tournament exists (prefer exact gender match)
     tournament = session.query(Tournament).filter(
         Tournament.tournament_code == tournament_id,
         Tournament.tour == tour,
+        Tournament.gender == gender,
     ).first()
+
+    # Backward-compat: if we find an old row with missing gender, claim it.
+    if not tournament:
+        legacy_tournament = session.query(Tournament).filter(
+            Tournament.tournament_code == tournament_id,
+            Tournament.tour == tour,
+            Tournament.gender.is_(None),
+        ).first()
+        if legacy_tournament:
+            legacy_tournament.gender = gender
+            tournament = legacy_tournament
 
     if not tournament:
         tournament = Tournament(
             tournament_code=tournament_id,
             name=task_params.get("tournament_name", tournament_id.replace("-", " ").title()),
             tour=tour,
+            gender=gender,
             level=task_params.get("tournament_level", "ATP 250"),
             surface=task_params.get("tournament_surface", "Hard"),
             city=task_params.get("tournament_location", "").split(",")[0] if task_params.get("tournament_location") else None,
