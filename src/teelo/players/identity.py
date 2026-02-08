@@ -89,6 +89,10 @@ class PlayerIdentityService:
         self.suggestion_threshold = settings.player_suggestion_threshold
 
         self._trigram_ready: Optional[bool] = None
+        # In-memory lookup caches to reduce DB round-trips in ingestion loops.
+        self._external_cache: dict[tuple[str, str], Optional[int]] = {}
+        self._alias_cache: dict[str, Optional[int]] = {}
+        self._fuzzy_cache: dict[tuple[str, int], list[PlayerMatch]] = {}
 
     def _trigram_enabled(self) -> bool:
         """
@@ -490,14 +494,22 @@ class PlayerIdentityService:
         Returns:
             Player if found, None otherwise
         """
+        cache_key = (source, external_id)
+        if cache_key in self._external_cache:
+            player_id = self._external_cache[cache_key]
+            return self.db.get(Player, player_id) if player_id else None
+
         # 1. Check pending players in session
         for obj in self.db.new:
             if isinstance(obj, Player):
                 if source == "atp" and obj.atp_id == external_id:
+                    self._external_cache[cache_key] = obj.id
                     return obj
                 if source == "wta" and obj.wta_id == external_id:
+                    self._external_cache[cache_key] = obj.id
                     return obj
                 if source == "itf" and obj.itf_id == external_id:
+                    self._external_cache[cache_key] = obj.id
                     return obj
 
         # 2. Check database
@@ -511,8 +523,9 @@ class PlayerIdentityService:
             query = query.filter(Player.itf_id == external_id)
         else:
             return None
-
-        return query.first()
+        player = query.first()
+        self._external_cache[cache_key] = player.id if player else None
+        return player
 
     def _find_by_exact_alias(self, normalized_name: str) -> Optional[Player]:
         """
@@ -525,15 +538,21 @@ class PlayerIdentityService:
         Returns:
             Player if found, None otherwise
         """
+        if normalized_name in self._alias_cache:
+            player_id = self._alias_cache[normalized_name]
+            return self.db.get(Player, player_id) if player_id else None
+
         # 1. Check pending aliases in session
         for obj in self.db.new:
             if isinstance(obj, PlayerAlias):
                 if obj.alias == normalized_name:
                     # If we have the player object directly, return it
                     if obj.player:
+                        self._alias_cache[normalized_name] = obj.player.id
                         return obj.player
                     # If we only have player_id, fetch the player
                     if obj.player_id:
+                        self._alias_cache[normalized_name] = obj.player_id
                         return self.db.get(Player, obj.player_id)
 
         # 2. Check database
@@ -542,8 +561,10 @@ class PlayerIdentityService:
         ).first()
 
         if alias:
+            self._alias_cache[normalized_name] = alias.player_id
             return alias.player
 
+        self._alias_cache[normalized_name] = None
         return None
 
     def _fuzzy_search(self, normalized_name: str, limit: int = 3) -> list[PlayerMatch]:
@@ -561,6 +582,10 @@ class PlayerIdentityService:
         Returns:
             List of PlayerMatch sorted by confidence (highest first)
         """
+        cache_key = (normalized_name, limit)
+        if cache_key in self._fuzzy_cache:
+            return self._fuzzy_cache[cache_key]
+
         matches = []
         seen_player_ids = set()
 
@@ -638,7 +663,9 @@ class PlayerIdentityService:
 
         # Sort by confidence (highest first) and limit
         matches.sort(key=lambda m: m.confidence, reverse=True)
-        return matches[:limit]
+        limited = matches[:limit]
+        self._fuzzy_cache[cache_key] = limited
+        return limited
 
     def _ensure_alias(self, player_id: int, normalized_name: str, source: str) -> None:
         """
@@ -683,6 +710,10 @@ class PlayerIdentityService:
                 source=source,
             )
             self.db.add(alias)
+            self._alias_cache[normalized_name] = player_id
+            # Alias changes can affect fuzzy results for this exact normalized name.
+            self._fuzzy_cache.pop((normalized_name, 1), None)
+            self._fuzzy_cache.pop((normalized_name, 3), None)
             # Don't commit here - let caller handle transaction
 
     def _link_external_id(
@@ -702,10 +733,13 @@ class PlayerIdentityService:
 
         if source == "atp" and not player.atp_id:
             player.atp_id = external_id
+            self._external_cache[("atp", external_id)] = player.id
         elif source == "wta" and not player.wta_id:
             player.wta_id = external_id
+            self._external_cache[("wta", external_id)] = player.id
         elif source == "itf" and not player.itf_id:
             player.itf_id = external_id
+            self._external_cache[("itf", external_id)] = player.id
 
     def _add_to_review_queue(
         self,

@@ -519,7 +519,13 @@ class BaseScraper(ABC):
 
         return page
 
-    async def navigate(self, page: Page, url: str, wait_for: str = "load") -> None:
+    async def navigate(
+        self,
+        page: Page,
+        url: str,
+        wait_for: str = "load",
+        max_attempts: Optional[int] = None,
+    ) -> None:
         """
         Navigate to a URL with retry logic.
 
@@ -533,7 +539,8 @@ class BaseScraper(ABC):
         """
         # Use lambda to create a fresh coroutine on each retry attempt
         await self.with_retry(
-            lambda: page.goto(url, wait_until=wait_for, timeout=45000),
+            lambda: page.goto(url, wait_until=wait_for, timeout=self.timeout),
+            max_attempts=max_attempts,
             description=f"Navigate to {url}",
         )
 

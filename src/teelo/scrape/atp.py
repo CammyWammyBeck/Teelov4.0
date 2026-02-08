@@ -86,6 +86,12 @@ class ATPScraper(BaseScraper):
         "canada", "cincinnati", "shanghai", "paris",
     }
 
+    def __init__(self, headless: bool = None):
+        super().__init__(headless=headless)
+        # Cache expensive lookup pages within a scraper session.
+        self._tournament_number_cache: dict[tuple[str, int, str], Optional[str]] = {}
+        self._tournament_info_cache: dict[tuple[str, int, str, Optional[str]], dict] = {}
+
     async def get_tournament_list(
         self,
         year: int,
@@ -410,6 +416,10 @@ class ATPScraper(BaseScraper):
         Returns:
             Tournament number as string, or None if not found
         """
+        cache_key = (tournament_id, year, tour_type)
+        if cache_key in self._tournament_number_cache:
+            return self._tournament_number_cache[cache_key]
+
         url = f"{self.BASE_URL}/en/scores/results-archive?year={year}"
         if tour_type == "challenger":
             url += "&tournamentType=ch"
@@ -428,8 +438,11 @@ class ATPScraper(BaseScraper):
             href = link.get("href", "")
             match = re.search(pattern, href)
             if match:
-                return match.group(1)
+                number = match.group(1)
+                self._tournament_number_cache[cache_key] = number
+                return number
 
+        self._tournament_number_cache[cache_key] = None
         return None
 
     async def scrape_tournament_results(
@@ -896,6 +909,11 @@ class ATPScraper(BaseScraper):
         Returns:
             Dictionary with tournament metadata
         """
+        cache_key = (tournament_id, year, tour_type, tournament_number)
+        cached = self._tournament_info_cache.get(cache_key)
+        if cached is not None:
+            return dict(cached)
+
         # Get initial level from known tournament sets
         initial_level = self._detect_level_from_id(tournament_id, tour_type)
 
@@ -985,6 +1003,7 @@ class ATPScraper(BaseScraper):
         except Exception as e:
             print(f"Could not get tournament info for {tournament_id}: {e}")
 
+        self._tournament_info_cache[cache_key] = dict(info)
         return info
 
     async def _parse_results_page(
