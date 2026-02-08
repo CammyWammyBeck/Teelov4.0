@@ -3,6 +3,36 @@
 {% block title %}Match History - Teelo Ratings{% endblock %}
 
 {% block content %}
+<style>
+    .matches-filter-layout > * + * {
+        margin-top: 1rem;
+    }
+
+    @media (min-width: 768px) {
+        .matches-filter-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.4rem 1.5rem;
+            align-items: start;
+        }
+
+        .matches-filter-layout > * + * {
+            margin-top: 0;
+        }
+
+        .matches-filter-block {
+            flex: 0 0 auto;
+        }
+
+        .matches-filter-block--full {
+            flex: 1 0 100%;
+        }
+    }
+
+    .matches-filter-block--group {
+        padding: 0.2rem 0.35rem 0.35rem;
+    }
+</style>
 <div class="space-y-6">
     <!-- Page Header -->
     <div class="space-y-1">
@@ -11,20 +41,20 @@
     </div>
 
     <!-- Filter Section -->
-    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-5 space-y-4">
+    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-5 matches-filter-layout">
         <!-- Row 1: Gender chips -->
-        <div>
+        <div class="matches-filter-block matches-filter-block--group">
             <h3 class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Gender</h3>
-            <div class="flex flex-wrap gap-2 hide-scrollbar overflow-x-auto pb-1">
+            <div class="flex flex-nowrap gap-2 hide-scrollbar overflow-x-auto pb-1">
                 <button class="filter-chip" data-filter="gender" data-value="men" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Men</button>
                 <button class="filter-chip" data-filter="gender" data-value="women" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Women</button>
             </div>
         </div>
 
         <!-- Row 2: Category chips -->
-        <div>
+        <div class="matches-filter-block matches-filter-block--group">
             <h3 class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Category</h3>
-            <div class="flex flex-wrap gap-2 hide-scrollbar overflow-x-auto pb-1">
+            <div class="flex flex-nowrap gap-2 hide-scrollbar overflow-x-auto pb-1">
                 <button class="filter-chip" data-role="subcategory" data-gender="men" data-filter="tour" data-value="ATP" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">ATP</button>
                 <button class="filter-chip" data-role="subcategory" data-gender="men" data-filter="tour" data-value="CHALLENGER" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">ATP Challenger</button>
                 <button class="filter-chip" data-role="subcategory" data-gender="women" data-filter="tour" data-value="WTA" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">WTA</button>
@@ -35,9 +65,9 @@
         </div>
 
         <!-- Row 3: Surface chips -->
-        <div>
+        <div class="matches-filter-block matches-filter-block--group">
             <h3 class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Surface</h3>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-nowrap gap-2 hide-scrollbar overflow-x-auto pb-1">
                 <button class="filter-chip" data-filter="surface" data-value="Hard" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Hard</button>
                 <button class="filter-chip" data-filter="surface" data-value="Clay" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Clay</button>
                 <button class="filter-chip" data-filter="surface" data-value="Grass" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Grass</button>
@@ -45,9 +75,9 @@
         </div>
 
         <!-- Row 4: Date preset chips -->
-        <div>
+        <div class="matches-filter-block matches-filter-block--group">
             <h3 class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Date Range</h3>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-nowrap gap-2 hide-scrollbar overflow-x-auto pb-1">
                 <button class="filter-chip" data-filter="date_preset" data-value="7d" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Last 7 days</button>
                 <button class="filter-chip" data-filter="date_preset" data-value="30d" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Last 30 days</button>
                 <button class="filter-chip" data-filter="date_preset" data-value="90d" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Last 90 days</button>
@@ -59,7 +89,7 @@
         </div>
 
         <!-- Custom date range row (hidden by default) -->
-        <div id="custom-date-row" class="hidden flex flex-wrap items-center gap-3">
+        <div id="custom-date-row" class="hidden flex flex-wrap items-center gap-3 matches-filter-block matches-filter-block--full">
             <input type="date" id="date-from" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teelo-dark">
             <span class="text-gray-400 text-sm">to</span>
             <input type="date" id="date-to" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teelo-dark">
@@ -67,7 +97,7 @@
         </div>
 
         <!-- Row 5: Player search + More Filters button -->
-        <div class="flex items-center gap-3 pt-1">
+        <div class="flex items-center gap-3 pt-1 matches-filter-block matches-filter-block--full">
             <div class="relative flex-1 max-w-sm">
                 <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
                 <input type="text" id="player-search" placeholder="Search player..." class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teelo-dark">
@@ -80,7 +110,7 @@
         </div>
 
         <!-- Row 6: Active filter summary (hidden when empty) -->
-        <div id="filter-summary" class="hidden pt-3 border-t border-gray-50">
+        <div id="filter-summary" class="hidden pt-3 border-t border-gray-50 matches-filter-block matches-filter-block--full">
             <div class="flex items-center flex-wrap gap-2">
                 <span class="text-xs text-gray-400 font-medium">Showing:</span>
                 <div id="filter-tags" class="flex flex-wrap gap-1.5">

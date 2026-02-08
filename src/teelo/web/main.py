@@ -99,26 +99,65 @@ async def home(
     _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches"))
 ):
     """
-    Home page displaying recent matches.
+    Home page displaying upcoming and recent matches.
     """
     if not settings.enable_feature_matches:
         return RedirectResponse(url="/blog")
 
-    # Query recent completed matches
-    matches = (
+    # Home feed filters:
+    # - All Grand Slam, ATP, WTA
+    # - Challenger/WTA 125 only SF/F
+    # - ITF only F
+    home_scope_filter = or_(
+        Tournament.level == "Grand Slam",
+        Tournament.tour.in_(["ATP", "WTA"]),
+        and_(
+            Tournament.tour.in_(["CHALLENGER", "Challenger", "WTA 125", "WTA_125"]),
+            Match.round.in_(["SF", "F"]),
+        ),
+        and_(
+            Tournament.tour == "ITF",
+            Match.round == "F",
+        ),
+    )
+
+    home_base_query = (
         db.query(Match)
+        .outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+        .outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
         .options(
             joinedload(Match.player_a),
             joinedload(Match.player_b),
             joinedload(Match.tournament_edition).joinedload(TournamentEdition.tournament),
         )
-        .filter(Match.status.in_(["completed", "retired", "walkover", "default"]))
-        .order_by(Match.match_date.desc().nullslast())
-        .limit(50)
+        .filter(home_scope_filter)
+    )
+
+    upcoming_matches = (
+        home_base_query
+        .filter(Match.status.in_(["upcoming", "scheduled"]))
+        .order_by(
+            func.coalesce(Match.scheduled_date, Match.match_date).asc().nullslast(),
+            Match.scheduled_datetime.asc().nullslast(),
+            Match.id.asc(),
+        )
+        .limit(10)
         .all()
     )
 
-    serialized_matches = [_serialize_match(m) for m in matches]
+    completed_matches = (
+        home_base_query
+        .filter(Match.status.in_(["completed", "retired", "walkover", "default"]))
+        .order_by(
+            func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
+            Match.id.desc(),
+        )
+        .limit(10)
+        .all()
+    )
+
+    serialized_upcoming_matches = [_serialize_match(m) for m in upcoming_matches]
+    serialized_completed_matches = [_serialize_match(m) for m in completed_matches]
 
     stats = {
         "matches_total": db.query(func.count(Match.id)).scalar() or 0,
@@ -130,7 +169,8 @@ async def home(
         "home.html",
         {
             "request": request,
-            "matches": serialized_matches,
+            "upcoming_matches": serialized_upcoming_matches,
+            "completed_matches": serialized_completed_matches,
             "stats": stats,
             "now": datetime.utcnow(),
             "current_path": request.url.path,
@@ -209,6 +249,7 @@ def _serialize_match(match: Match) -> dict:
 
     pa = match.player_a
     pb = match.player_b
+    display_date = match.match_date or match.scheduled_date
 
     return {
         "id": match.id,
@@ -231,9 +272,9 @@ def _serialize_match(match: Match) -> dict:
         "score": match.score,
         "winner_id": match.winner_id,
         "status": match.status,
-        "match_date": match.match_date.isoformat() if match.match_date else None,
-        "match_date_display": match.match_date.strftime("%d %b %Y") if match.match_date else None,
-        "year": match.match_date.year if match.match_date else (
+        "match_date": display_date.isoformat() if display_date else None,
+        "match_date_display": display_date.strftime("%d %b %Y") if display_date else None,
+        "year": display_date.year if display_date else (
             te.year if te else None
         ),
     }
