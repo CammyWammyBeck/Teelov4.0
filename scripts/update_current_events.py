@@ -3,37 +3,37 @@
 Update Current Events Script.
 
 Discovers currently running tournaments (within ±1 week) across all tours
-(ATP, WTA, ITF), scrapes their draws, schedules, and results, and ingests
-the data into the database.
+(ATP, WTA, ITF), enqueues them in the scrape queue, and processes tasks
+via worker loops that reuse a single scraper per worker.
 
 Usage:
     python scripts/update_current_events.py
     python scripts/update_current_events.py --tours ATP,WTA
     python scripts/update_current_events.py --discover-only
-    python scripts/update_current_events.py --process-only --tasks-file current_tasks.json
+    python scripts/update_current_events.py --process-only
 """
 
 import argparse
 import asyncio
-import json
+import multiprocessing
 import sys
 from datetime import date, timedelta
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent))
 
+from teelo.config import settings
+from teelo.db import get_session
+from teelo.players.identity import PlayerIdentityService
 from teelo.scrape.atp import ATPScraper
 from teelo.scrape.base import VirtualDisplay
 from teelo.scrape.discovery import discover_tournament_tasks
 from teelo.scrape.itf import ITFScraper
-from teelo.scrape.pipeline import TaskParams, TournamentTask, execute_task
+from teelo.scrape.pipeline import TaskParams, execute_task
+from teelo.scrape.queue import ScrapeQueueManager
 from teelo.scrape.utils import TOUR_TYPES
 from teelo.scrape.wta import WTAScraper
-from teelo.config import settings
-from teelo.db.session import SessionLocal
-from teelo.players.identity import PlayerIdentityService
 
 
 def _get_scraper_class(tour_key: str):
@@ -47,54 +47,13 @@ def _get_scraper_class(tour_key: str):
     raise ValueError(f"Unknown scraper type for {tour_key}")
 
 
-def _serialize_tasks(tasks: list[TournamentTask]) -> list[dict]:
-    return [
-        {"task_type": task.task_type, "params": task.params.to_dict()}
-        for task in tasks
-    ]
-
-
-def _load_tasks(path: Path) -> list[TournamentTask]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    tasks: list[TournamentTask] = []
-    for item in payload:
-        params = TaskParams.from_dict(item["params"])
-        tasks.append(TournamentTask(task_type=item["task_type"], params=params))
-    return tasks
-
-
-def _save_tasks(path: Path, tasks: list[TournamentTask]) -> None:
-    payload = _serialize_tasks(tasks)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-async def process_task(
-    scraper,
-    task_params: TaskParams,
-    session,
-    identity_service: PlayerIdentityService,
-):
-    """Run pipeline for a single tournament using a shared scraper/session."""
-    tour_key = task_params.tour_key
-    tournament_name = task_params.tournament_name or task_params.tournament_id
-    print(f"Processing {tournament_name} ({tour_key})...")
-
-    await execute_task(
-        task_params,
-        scraper=scraper,
-        session=session,
-        identity_service=identity_service,
-        mode="current",
-    )
-
-
 async def discover_tour_tasks(
     tour_key: str,
     year: int,
     today: date,
     headless: bool,
     semaphore: asyncio.Semaphore,
-) -> list[TournamentTask]:
+) -> list:
     """Discover current tournaments for one tour."""
     scraper_cls = _get_scraper_class(tour_key)
     window_start = today - timedelta(days=7)
@@ -119,71 +78,180 @@ async def discover_tour_tasks(
             return tasks
 
 
-async def process_tour_tasks(
-    tour_key: str,
-    headless: bool,
-    semaphore: asyncio.Semaphore,
-    tasks: list[TournamentTask],
+def enqueue_current_tasks(
+    session,
+    queue_manager: ScrapeQueueManager,
+    tasks: list,
 ) -> int:
-    """Process current tournaments for one tour with shared resources."""
-    scraper_cls = _get_scraper_class(tour_key)
+    queue_payload = []
+    for task in tasks:
+        queue_payload.append(
+            {
+                "task_type": "current_tournament",
+                "params": task.params.to_dict(),
+                "priority": ScrapeQueueManager.PRIORITY_HIGH,
+            }
+        )
+    if not queue_payload:
+        return 0
+    queue_manager.enqueue_batch(queue_payload)
+    session.commit()
+    return len(queue_payload)
 
-    print(f"\n[{tour_key}] Starting tour worker...")
 
-    async with semaphore:
-        async with scraper_cls(headless=headless) as scraper:
-            if not tasks:
-                return 0
+async def process_queue(
+    session,
+    headless: bool,
+    worker_id: int | None = None,
+) -> dict:
+    queue_manager = ScrapeQueueManager(session)
+    identity_service = PlayerIdentityService(session)
+    active_scraper = None
+    active_ctx = None
+    active_tour_key = None
 
-            # Process in chronological order so immediate tournaments are updated first.
-            tasks.sort(
-                key=lambda task: (
-                    task.params.start_date or "9999-12-31",
-                    task.params.tournament_name or "",
-                )
+    stats = {
+        "tasks_processed": 0,
+        "tasks_completed": 0,
+        "tasks_failed": 0,
+        "current_tasks_completed": 0,
+    }
+
+    def log(message: str) -> None:
+        if worker_id is None:
+            print(message)
+        else:
+            print(f"[Worker {worker_id}] {message}")
+
+    async def ensure_scraper(tour_key: str):
+        nonlocal active_scraper, active_ctx, active_tour_key
+        if active_scraper is not None and active_tour_key == tour_key:
+            return active_scraper
+        if active_ctx is not None:
+            await active_ctx.__aexit__(None, None, None)
+        scraper_cls = _get_scraper_class(tour_key)
+        active_ctx = scraper_cls(headless=headless)
+        active_scraper = await active_ctx.__aenter__()
+        active_tour_key = tour_key
+        return active_scraper
+
+    log("\n" + "=" * 60)
+    log("Processing scrape queue...")
+    log("Press Ctrl+C to pause (progress is saved)")
+    log("=" * 60)
+
+    try:
+        while True:
+            task = queue_manager.get_next_task(skip_locked=True)
+            if not task:
+                log("\nQueue empty - all tasks processed!")
+                break
+
+            stats["tasks_processed"] += 1
+            queue_manager.mark_in_progress(task.id)
+
+            task_params = TaskParams.from_dict(task.task_params)
+            tour_key = task_params.tour_key
+            task_type = task.task_type
+
+            log(
+                f"\n[Task {stats['tasks_processed']}] "
+                f"{task_params.tournament_name or task_params.tournament_id} "
+                f"({task_params.year})"
             )
+            log(f"  Tour: {TOUR_TYPES.get(tour_key, {}).get('description', tour_key)}")
+            log(f"  Task type: {task_type}")
 
-            session = SessionLocal()
-            identity_service = PlayerIdentityService(session)
-            processed = 0
             try:
-                for task in tasks:
-                    try:
-                        await process_task(
-                            scraper=scraper,
-                            task_params=task.params,
-                            session=session,
-                            identity_service=identity_service,
-                        )
-                        processed += 1
-                    except Exception as e:
-                        session.rollback()
-                        name = task.params.tournament_name or task.params.tournament_id
-                        print(f"[{tour_key}] Tournament failed ({name}): {e}")
-                return processed
-            finally:
-                session.close()
+                scraper = await ensure_scraper(tour_key)
+
+                if task_type == "current_tournament":
+                    await execute_task(
+                        task_params,
+                        scraper=scraper,
+                        session=session,
+                        identity_service=identity_service,
+                        mode="current",
+                    )
+                    stats["current_tasks_completed"] += 1
+                elif task_type == "historical_tournament":
+                    await execute_task(
+                        task_params,
+                        scraper=scraper,
+                        session=session,
+                        identity_service=identity_service,
+                        mode="historical",
+                    )
+                else:
+                    raise ValueError(f"Unsupported task type: {task_type}")
+
+                session.commit()
+                queue_manager.mark_completed(task.id)
+                stats["tasks_completed"] += 1
+                log("  Completed")
+
+            except Exception as e:
+                session.rollback()
+                queue_manager.mark_failed(task.id, str(e))
+                stats["tasks_failed"] += 1
+                log(f"  Failed: {e}")
+
+            session.commit()
+
+    except KeyboardInterrupt:
+        log("\n\nPaused by user. Progress saved - run with --process-only to continue.")
+    finally:
+        if active_ctx is not None:
+            await active_ctx.__aexit__(None, None, None)
+
+    return stats
+
+
+def run_worker(
+    worker_id: int,
+    headless: bool,
+    stats_queue: multiprocessing.Queue | None = None,
+) -> None:
+    with get_session() as session:
+        stats = asyncio.run(
+            process_queue(
+                session,
+                headless=headless,
+                worker_id=worker_id,
+            )
+        )
+    if stats_queue is not None:
+        stats_queue.put(stats)
 
 
 async def main():
     parser = argparse.ArgumentParser(description="Update Current Events")
-    parser.add_argument("--tours", default="ATP,WTA,CHALLENGER,WTA_125,ITF_MEN,ITF_WOMEN", help="Comma-separated tours")
+    parser.add_argument(
+        "--tours",
+        default="ATP,WTA,CHALLENGER,WTA_125,ITF_MEN,ITF_WOMEN",
+        help="Comma-separated tours",
+    )
     parser.add_argument("--year", type=int, default=date.today().year, help="Season year to scan")
     parser.add_argument("--max-parallel-tours", type=int, default=3, help="Max tour workers to run concurrently")
     parser.add_argument("--headed", action="store_true", help="Force headed browser mode (slower)")
     parser.add_argument("--discover-only", action="store_true", help="Discover current tournaments only")
-    parser.add_argument("--process-only", action="store_true", help="Process from tasks file only (skip discovery)")
-    parser.add_argument("--tasks-file", type=str, default="current_tasks.json", help="Path to tasks JSON file")
+    parser.add_argument("--process-only", action="store_true", help="Process from queue only (skip discovery)")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of parallel worker processes to spawn (default: 1)",
+    )
     args = parser.parse_args()
 
     if args.discover_only and args.process_only:
         raise SystemExit("Error: --discover-only cannot be combined with --process-only.")
 
     tours = [t.strip().upper() for t in args.tours.split(",")]
-    
+
     # Validate tours
     tours = [t for t in tours if t in TOUR_TYPES]
-    
+
     print("=" * 60)
     print("UPDATE CURRENT EVENTS")
     print(f"Tours: {tours}")
@@ -196,7 +264,7 @@ async def main():
         f"delays={settings.scrape_delay_min}-{settings.scrape_delay_max}s"
     )
     print("=" * 60)
-    
+
     # Explicitly ensure virtual display is running if configured
     if settings.scrape_virtual_display and not headless:
         print("Starting Virtual Display...")
@@ -204,17 +272,8 @@ async def main():
 
     semaphore = asyncio.Semaphore(max(1, args.max_parallel_tours))
     today = date.today()
-    tasks_file = Path(args.tasks_file)
-    tasks_by_tour: dict[str, list[TournamentTask]] = {tour: [] for tour in tours}
 
-    if args.process_only:
-        if not tasks_file.exists():
-            raise SystemExit(f"Tasks file not found: {tasks_file}")
-        loaded_tasks = _load_tasks(tasks_file)
-        for task in loaded_tasks:
-            if task.params.tour_key in tasks_by_tour:
-                tasks_by_tour[task.params.tour_key].append(task)
-    else:
+    if not args.process_only:
         discovered = await asyncio.gather(
             *(
                 discover_tour_tasks(
@@ -228,43 +287,70 @@ async def main():
             ),
             return_exceptions=True,
         )
-        all_tasks: list[TournamentTask] = []
+        all_tasks = []
         for tour_key, result in zip(tours, discovered):
             if isinstance(result, Exception):
                 print(f"[{tour_key}] Discovery failed: {result}")
                 continue
-            tasks_by_tour[tour_key] = result
             all_tasks.extend(result)
 
-        _save_tasks(tasks_file, all_tasks)
-        print(f"\nSaved {len(all_tasks)} tasks to {tasks_file}")
+        with get_session() as session:
+            queue_manager = ScrapeQueueManager(session)
+            tasks_added = enqueue_current_tasks(session, queue_manager, all_tasks)
+
+        print(f"\nAdded {tasks_added} current tasks to the queue")
 
         if args.discover_only:
             print("\nDiscovery complete (--discover-only).")
             return
 
-    results = await asyncio.gather(
-        *(
-            process_tour_tasks(
-                tour_key=t,
-                headless=headless,
-                semaphore=semaphore,
-                tasks=tasks_by_tour.get(t, []),
+    if args.workers > 1:
+        ctx = multiprocessing.get_context("spawn")
+        stats_queue: multiprocessing.Queue = ctx.Queue()
+        processes = []
+
+        for worker_id in range(1, args.workers + 1):
+            process = ctx.Process(
+                target=run_worker,
+                args=(worker_id, headless, stats_queue),
             )
-            for t in tours
-        ),
-        return_exceptions=True,
-    )
+            process.start()
+            processes.append(process)
 
-    total_processed = 0
-    for tour_key, result in zip(tours, results):
-        if isinstance(result, Exception):
-            print(f"[{tour_key}] Worker failed: {result}")
-            continue
-        total_processed += result
-        print(f"[{tour_key}] Processed {result} tournaments.")
+        for process in processes:
+            process.join()
 
-    print(f"\nDone! Database updated. Tournaments processed: {total_processed}")
+        aggregated = {
+            "tasks_processed": 0,
+            "tasks_completed": 0,
+            "tasks_failed": 0,
+            "current_tasks_completed": 0,
+        }
+
+        stats_received = 0
+        while stats_received < len(processes):
+            try:
+                worker_stats = stats_queue.get_nowait()
+            except Exception:
+                break
+            for key in aggregated:
+                aggregated[key] += worker_stats.get(key, 0)
+            stats_received += 1
+
+        stats = aggregated
+    else:
+        with get_session() as session:
+            stats = await process_queue(session, headless=headless)
+
+    print("\n" + "=" * 60)
+    print("Current Events Update Complete")
+    print("=" * 60)
+    print(f"  Tasks processed: {stats['tasks_processed']}")
+    print(f"  Tasks completed: {stats['tasks_completed']}")
+    print(f"  Tasks failed: {stats['tasks_failed']}")
+    if stats.get("current_tasks_completed"):
+        print(f"  Current tournaments updated: {stats['current_tasks_completed']}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

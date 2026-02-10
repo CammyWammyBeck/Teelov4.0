@@ -59,15 +59,30 @@ from sqlalchemy import func, cast, Integer
 from teelo.config import settings
 from teelo.db import get_session
 from teelo.db.models import ScrapeQueue
+from teelo.scrape.atp import ATPScraper
+from teelo.scrape.base import VirtualDisplay
 from teelo.scrape.discovery import discover_tournament_tasks
+from teelo.scrape.itf import ITFScraper
 from teelo.scrape.pipeline import TaskParams, execute_task
 from teelo.scrape.queue import ScrapeQueueManager
 from teelo.scrape.utils import TOUR_TYPES
+from teelo.scrape.wta import WTAScraper
 from teelo.players.identity import PlayerIdentityService
 
 
 # Processing order (most important first)
 TOUR_ORDER = ["ATP", "CHALLENGER", "WTA", "WTA_125", "ITF_MEN", "ITF_WOMEN"]
+
+
+def _get_scraper_class(tour_key: str):
+    scraper_type = TOUR_TYPES[tour_key]["scraper"]
+    if scraper_type == "atp":
+        return ATPScraper
+    if scraper_type == "wta":
+        return WTAScraper
+    if scraper_type == "itf":
+        return ITFScraper
+    raise ValueError(f"Unknown scraper type for {tour_key}")
 
 
 def apply_fast_delays(enabled: bool) -> None:
@@ -243,6 +258,7 @@ async def populate_queue(
 async def process_queue(
     session,
     overwrite: bool = False,
+    headless: bool = True,
     worker_id: Optional[int] = None,
 ) -> dict:
     """
@@ -259,6 +275,9 @@ async def process_queue(
     """
     queue_manager = ScrapeQueueManager(session)
     identity_service = PlayerIdentityService(session)
+    active_scraper = None
+    active_ctx = None
+    active_tour_key = None
 
     stats = {
         "tasks_processed": 0,
@@ -267,6 +286,7 @@ async def process_queue(
         "matches_scraped": 0,
         "matches_created": 0,
         "players_created": 0,
+        "current_tasks_completed": 0,
     }
 
     def log(message: str) -> None:
@@ -284,6 +304,18 @@ async def process_queue(
     initial_queue_size = queue_manager.pending_count()
     log(f"Tasks in queue: {initial_queue_size}")
 
+    async def ensure_scraper(tour_key: str):
+        nonlocal active_scraper, active_ctx, active_tour_key
+        if active_scraper is not None and active_tour_key == tour_key:
+            return active_scraper
+        if active_ctx is not None:
+            await active_ctx.__aexit__(None, None, None)
+        scraper_cls = _get_scraper_class(tour_key)
+        active_ctx = scraper_cls(headless=headless)
+        active_scraper = await active_ctx.__aenter__()
+        active_tour_key = tour_key
+        return active_scraper
+
     try:
         while True:
             # Get next task
@@ -300,6 +332,7 @@ async def process_queue(
             # Process the task
             task_params = TaskParams.from_dict(task.task_params)
             tour_key = task_params.tour_key
+            task_type = task.task_type
 
             log(
                 f"\n[Task {stats['tasks_processed']}/{initial_queue_size}] "
@@ -307,27 +340,45 @@ async def process_queue(
                 f"({task_params.year})"
             )
             log(f"  Tour: {TOUR_TYPES.get(tour_key, {}).get('description', tour_key)}")
+            log(f"  Task type: {task_type}")
 
             try:
-                # Scrape the tournament
-                matches_result = await execute_task(
-                    task_params,
-                    scraper=None,
-                    session=session,
-                    identity_service=identity_service,
-                    mode="historical",
-                    overwrite=overwrite,
-                )
+                scraper = await ensure_scraper(tour_key)
 
-                stats["matches_scraped"] += matches_result["matches_scraped"]
-                stats["matches_created"] += matches_result["matches_created"]
-                stats["players_created"] += matches_result["players_created"]
+                if task_type == "historical_tournament":
+                    # Scrape the tournament
+                    matches_result = await execute_task(
+                        task_params,
+                        scraper=scraper,
+                        session=session,
+                        identity_service=identity_service,
+                        mode="historical",
+                        overwrite=overwrite,
+                    )
+
+                    stats["matches_scraped"] += matches_result["matches_scraped"]
+                    stats["matches_created"] += matches_result["matches_created"]
+                    stats["players_created"] += matches_result["players_created"]
+                elif task_type == "current_tournament":
+                    await execute_task(
+                        task_params,
+                        scraper=scraper,
+                        session=session,
+                        identity_service=identity_service,
+                        mode="current",
+                    )
+                    stats["current_tasks_completed"] += 1
+                else:
+                    raise ValueError(f"Unsupported task type: {task_type}")
 
                 # Commit the matches, then mark completed
                 session.commit()
                 queue_manager.mark_completed(task.id)
                 stats["tasks_completed"] += 1
-                log(f"  Completed: {matches_result['matches_created']} matches created")
+                if task_type == "historical_tournament":
+                    log(f"  Completed: {matches_result['matches_created']} matches created")
+                else:
+                    log("  Completed: current tournament updated")
 
             except Exception as e:
                 # Rollback the failed transaction before marking task as failed
@@ -348,6 +399,9 @@ async def process_queue(
 
     except KeyboardInterrupt:
         log("\n\nPaused by user. Progress saved - run with --resume to continue.")
+    finally:
+        if active_ctx is not None:
+            await active_ctx.__aexit__(None, None, None)
 
     return stats
 
@@ -356,13 +410,19 @@ def run_worker(
     worker_id: int,
     overwrite: bool,
     fast: bool,
+    headless: bool,
     stats_queue: Optional[multiprocessing.Queue] = None,
 ) -> None:
     apply_fast_delays(fast)
 
     with get_session() as session:
         stats = asyncio.run(
-            process_queue(session, overwrite=overwrite, worker_id=worker_id)
+            process_queue(
+                session,
+                overwrite=overwrite,
+                headless=headless,
+                worker_id=worker_id,
+            )
         )
 
     if stats_queue is not None:
@@ -508,6 +568,10 @@ Examples:
 
     if args.fast:
         apply_fast_delays(True)
+    headless = settings.scrape_headless
+    if settings.scrape_virtual_display and not headless:
+        print("Starting Virtual Display...")
+        VirtualDisplay.ensure_running()
 
     with get_session() as session:
         queue_manager = ScrapeQueueManager(session)
@@ -582,7 +646,7 @@ Examples:
             for worker_id in range(1, args.workers + 1):
                 process = ctx.Process(
                     target=run_worker,
-                    args=(worker_id, args.overwrite, args.fast, stats_queue),
+                    args=(worker_id, args.overwrite, args.fast, headless, stats_queue),
                 )
                 process.start()
                 processes.append(process)
@@ -597,6 +661,7 @@ Examples:
                 "matches_scraped": 0,
                 "matches_created": 0,
                 "players_created": 0,
+                "current_tasks_completed": 0,
             }
 
             stats_received = 0
@@ -611,7 +676,11 @@ Examples:
 
             stats = aggregated
         else:
-            stats = await process_queue(session, overwrite=args.overwrite)
+            stats = await process_queue(
+                session,
+                overwrite=args.overwrite,
+                headless=headless,
+            )
 
         # Final summary
         print("\n" + "=" * 60)
@@ -622,6 +691,8 @@ Examples:
         print(f"  Tasks failed: {stats['tasks_failed']}")
         print(f"  Matches scraped: {stats['matches_scraped']}")
         print(f"  Matches created: {stats['matches_created']}")
+        if stats.get("current_tasks_completed"):
+            print(f"  Current tournaments updated: {stats['current_tasks_completed']}")
 
         # Show remaining queue
         remaining = queue_manager.pending_count()

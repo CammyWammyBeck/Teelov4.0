@@ -232,6 +232,7 @@ async def execute_task(
     if mode == "historical":
         return await _execute_historical_task(
             normalized,
+            scraper,
             session,
             identity_service,
             overwrite=overwrite,
@@ -387,6 +388,7 @@ async def _execute_current_task(
 
 async def _execute_historical_task(
     task_params: TaskParams,
+    scraper,
     session,
     identity_service: PlayerIdentityService,
     overwrite: bool = False,
@@ -420,7 +422,7 @@ async def _execute_historical_task(
     # Flag to update tournament metadata once we have real data
     metadata_updated = False
 
-    scraper_ctx = _scraper_context(tour_key)
+    scraper_ctx = _scraper_context(tour_key, scraper)
 
     async with scraper_ctx as active_scraper:
         if tour_config["scraper"] == "atp":
