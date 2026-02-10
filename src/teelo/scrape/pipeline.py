@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
+from time import perf_counter
 from typing import Any, Mapping, Optional
 
 from teelo.db import Match, Tournament, TournamentEdition
@@ -282,6 +283,18 @@ async def _execute_current_task(
     session,
     identity_service: PlayerIdentityService,
 ) -> dict[str, Any]:
+    total_start = perf_counter()
+    timings = {
+        "scraping": 0.0,
+        "ingestion": 0.0,
+        "db_commit": 0.0,
+        "total": 0.0,
+        "phases": {
+            "draw": {"scrape": 0.0, "ingest": 0.0},
+            "schedule": {"scrape": 0.0, "ingest": 0.0},
+            "results": {"scrape": 0.0, "ingest": 0.0},
+        },
+    }
     today = date.today()
     tour_key = task_params.tour_key
     tour_config = TOUR_TYPES[tour_key]
@@ -314,8 +327,17 @@ async def _execute_current_task(
                     "tournament_info": _itf_tournament_info(task_params),
                 }
 
+            draw_scrape_start = perf_counter()
             entries = await active_scraper.scrape_tournament_draw(**draw_kwargs)
+            draw_scrape_elapsed = perf_counter() - draw_scrape_start
+            timings["phases"]["draw"]["scrape"] += draw_scrape_elapsed
+            timings["scraping"] += draw_scrape_elapsed
+
+            draw_ingest_start = perf_counter()
             stats = ingest_draw(session, entries, edition, identity_service)
+            draw_ingest_elapsed = perf_counter() - draw_ingest_start
+            timings["phases"]["draw"]["ingest"] += draw_ingest_elapsed
+            timings["ingestion"] += draw_ingest_elapsed
             results["draw"] = stats.summary()
             print(f"  Draw: {results['draw']}")
         except Exception as exc:
@@ -335,13 +357,22 @@ async def _execute_current_task(
                         "tournament_id": task_params.tournament_id,
                         "tournament_number": task_params.tournament_number,
                     }
-                    if tour_key in ["WTA", "WTA_125"]:
-                        sched_kwargs["year"] = task_params.year
+                if tour_key in ["WTA", "WTA_125"]:
+                    sched_kwargs["year"] = task_params.year
 
+                schedule_scrape_start = perf_counter()
                 fixtures = []
                 async for fixture in active_scraper.scrape_fixtures(**sched_kwargs):
                     fixtures.append(fixture)
+                schedule_scrape_elapsed = perf_counter() - schedule_scrape_start
+                timings["phases"]["schedule"]["scrape"] += schedule_scrape_elapsed
+                timings["scraping"] += schedule_scrape_elapsed
+
+                schedule_ingest_start = perf_counter()
                 stats = ingest_schedule(session, fixtures, edition, identity_service)
+                schedule_ingest_elapsed = perf_counter() - schedule_ingest_start
+                timings["phases"]["schedule"]["ingest"] += schedule_ingest_elapsed
+                timings["ingestion"] += schedule_ingest_elapsed
                 results["schedule"] = stats.summary()
                 print(f"  Schedule: {results['schedule']}")
             except Exception as exc:
@@ -370,10 +401,19 @@ async def _execute_current_task(
                         "tournament_info": _itf_tournament_info(task_params),
                     }
 
+                results_scrape_start = perf_counter()
                 matches = []
                 async for match in active_scraper.scrape_tournament_results(**res_kwargs):
                     matches.append(match)
+                results_scrape_elapsed = perf_counter() - results_scrape_start
+                timings["phases"]["results"]["scrape"] += results_scrape_elapsed
+                timings["scraping"] += results_scrape_elapsed
+
+                results_ingest_start = perf_counter()
                 stats = ingest_results(session, matches, edition, identity_service)
+                results_ingest_elapsed = perf_counter() - results_ingest_start
+                timings["phases"]["results"]["ingest"] += results_ingest_elapsed
+                timings["ingestion"] += results_ingest_elapsed
                 results["results"] = stats.summary()
                 print(f"  Results: {results['results']}")
             except Exception as exc:
@@ -382,7 +422,11 @@ async def _execute_current_task(
         else:
             print("  Skipping Results (tournament has not started yet).")
 
+    commit_start = perf_counter()
     session.commit()
+    timings["db_commit"] = perf_counter() - commit_start
+    timings["total"] = perf_counter() - total_start
+    results["timings"] = timings
     return results
 
 
@@ -392,7 +436,15 @@ async def _execute_historical_task(
     session,
     identity_service: PlayerIdentityService,
     overwrite: bool = False,
-) -> dict[str, int]:
+) -> dict[str, Any]:
+    total_start = perf_counter()
+    timings = {
+        "scraping": 0.0,
+        "ingestion": 0.0,
+        "db_commit": 0.0,
+        "total": 0.0,
+        "phases": {"matches": {"scrape": 0.0, "ingest": 0.0}},
+    }
     tour_key = task_params.tour_key
     tour_config = TOUR_TYPES.get(tour_key, TOUR_TYPES["ATP"])
 
@@ -432,12 +484,15 @@ async def _execute_historical_task(
 
     async with scraper_ctx as active_scraper:
         if tour_config["scraper"] == "atp":
+            loop_start = perf_counter()
+            ingest_time = 0.0
             async for scraped_match in active_scraper.scrape_tournament_results(
                 task_params.tournament_id,
                 task_params.year,
                 tournament_number=task_params.tournament_number,
                 tour_type=task_params.tour_type or "main",
             ):
+                ingest_start = perf_counter()
                 if not metadata_updated:
                     await update_tournament_metadata(session, edition, scraped_match)
                     metadata_updated = True
@@ -461,6 +516,12 @@ async def _execute_historical_task(
                         session.add_all(pending_matches)
                         session.flush()
                         pending_matches.clear()
+                ingest_time += perf_counter() - ingest_start
+            loop_elapsed = perf_counter() - loop_start
+            timings["phases"]["matches"]["ingest"] += ingest_time
+            timings["phases"]["matches"]["scrape"] += max(loop_elapsed - ingest_time, 0.0)
+            timings["ingestion"] += ingest_time
+            timings["scraping"] += max(loop_elapsed - ingest_time, 0.0)
 
         elif tour_config["scraper"] == "itf":
             if not task_params.tournament_url:
@@ -468,9 +529,12 @@ async def _execute_historical_task(
 
             tournament_info = _itf_tournament_info(task_params)
 
+            loop_start = perf_counter()
+            ingest_time = 0.0
             async for scraped_match in active_scraper.scrape_tournament_results(
                 task_params.tournament_url, tournament_info
             ):
+                ingest_start = perf_counter()
                 result["matches_scraped"] += 1
                 match_result, created = await process_scraped_match(
                     session,
@@ -490,13 +554,22 @@ async def _execute_historical_task(
                         session.add_all(pending_matches)
                         session.flush()
                         pending_matches.clear()
+                ingest_time += perf_counter() - ingest_start
+            loop_elapsed = perf_counter() - loop_start
+            timings["phases"]["matches"]["ingest"] += ingest_time
+            timings["phases"]["matches"]["scrape"] += max(loop_elapsed - ingest_time, 0.0)
+            timings["ingestion"] += ingest_time
+            timings["scraping"] += max(loop_elapsed - ingest_time, 0.0)
 
         elif tour_config["scraper"] == "wta":
+            loop_start = perf_counter()
+            ingest_time = 0.0
             async for scraped_match in active_scraper.scrape_tournament_results(
                 task_params.tournament_id,
                 task_params.year,
                 tournament_number=task_params.tournament_number,
             ):
+                ingest_start = perf_counter()
                 result["matches_scraped"] += 1
                 match_result, created = await process_scraped_match(
                     session,
@@ -516,12 +589,26 @@ async def _execute_historical_task(
                         session.add_all(pending_matches)
                         session.flush()
                         pending_matches.clear()
+                ingest_time += perf_counter() - ingest_start
+            loop_elapsed = perf_counter() - loop_start
+            timings["phases"]["matches"]["ingest"] += ingest_time
+            timings["phases"]["matches"]["scrape"] += max(loop_elapsed - ingest_time, 0.0)
+            timings["ingestion"] += ingest_time
+            timings["scraping"] += max(loop_elapsed - ingest_time, 0.0)
 
     if pending_matches:
+        flush_start = perf_counter()
         session.add_all(pending_matches)
         session.flush()
+        flush_elapsed = perf_counter() - flush_start
+        timings["phases"]["matches"]["ingest"] += flush_elapsed
+        timings["ingestion"] += flush_elapsed
 
+    commit_start = perf_counter()
     session.commit()
+    timings["db_commit"] = perf_counter() - commit_start
+    timings["total"] = perf_counter() - total_start
+    result["timings"] = timings
     return result
 
 
