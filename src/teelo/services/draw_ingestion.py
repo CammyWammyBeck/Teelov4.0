@@ -399,12 +399,52 @@ def _upsert_draw_match(
     Returns:
         Match object (new or existing), or None if skipped
     """
+    pending_statuses = {"upcoming", "scheduled"}
+    terminal_statuses = {"completed", "retired", "walkover", "default"}
+
     # Check for existing match by draw position
     existing = session.query(Match).filter(
         Match.tournament_edition_id == edition.id,
         Match.round == entry.round,
         Match.draw_position == entry.draw_position,
     ).first()
+
+    # Reconcile pairings for this draw slot every ingest run.
+    # If a pending fixture changed players, keep the old row for audit by
+    # cancelling it, then proceed to create/update the latest pairing.
+    if existing:
+        scraped_pair = {player_a_id, player_b_id}
+        existing_pair = {existing.player_a_id, existing.player_b_id}
+
+        if existing.status in terminal_statuses:
+            if existing_pair != scraped_pair:
+                logger.info(
+                    "Preserving terminal draw match for %s #%d with status=%s; "
+                    "scraped pairing changed from (%s, %s) to (%s, %s)",
+                    entry.round,
+                    entry.draw_position,
+                    existing.status,
+                    existing.player_a_id,
+                    existing.player_b_id,
+                    player_a_id,
+                    player_b_id,
+                )
+            return None
+
+        if existing.status in pending_statuses and existing_pair != scraped_pair:
+            logger.info(
+                "Cancelling stale pending draw match %s #%d (match_id=%s) due to "
+                "pairing change: (%s, %s) -> (%s, %s). reason=draw_pairing_changed",
+                entry.round,
+                entry.draw_position,
+                existing.id,
+                existing.player_a_id,
+                existing.player_b_id,
+                player_a_id,
+                player_b_id,
+            )
+            existing.status = "cancelled"
+            existing = None
 
     # Determine match status and winner
     # If match is not yet complete, status is 'upcoming' (known from draw, no schedule yet)
