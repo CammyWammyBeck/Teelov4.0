@@ -134,14 +134,16 @@ def parse_tours(tours_str: Optional[str]) -> list[str]:
 
     tours = [t.strip().upper() for t in tours_str.split(",")]
 
-    # Validate tour types
+    # Validate tour types without mutating the list while iterating
+    valid_tours: list[str] = []
     for tour in tours:
-        if tour not in TOUR_TYPES:
+        if tour in TOUR_TYPES:
+            valid_tours.append(tour)
+        else:
             print(f"Warning: Unknown tour type '{tour}'. Valid types: {', '.join(TOUR_TYPES.keys())}")
-            tours.remove(tour)
 
     # Sort by processing order
-    return [t for t in TOUR_ORDER if t in tours]
+    return [t for t in TOUR_ORDER if t in valid_tours]
 
 
 async def populate_queue(
