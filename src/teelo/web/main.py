@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from teelo.config import settings
 from teelo.db.models import Match, Player, PlayerAlias, Tournament, TournamentEdition
 from teelo.db.session import get_db
+from teelo.match_statuses import get_status_group, normalize_status_filter
 
 app = FastAPI(title="Teelo Ratings")
 
@@ -26,6 +27,7 @@ app.mount("/static", StaticFiles(directory=static_path), name="static")
 templates_path = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=templates_path)
 content_path = Path(__file__).parent / "content"
+MATCHES_PAGE_STATUS_FILTERS = get_status_group("all")
 
 # Inject settings (for feature flags) into all templates
 templates.env.globals["features"] = settings
@@ -135,7 +137,7 @@ async def home(
 
     upcoming_matches = (
         home_base_query
-        .filter(Match.status.in_(["upcoming", "scheduled"]))
+        .filter(Match.status.in_(get_status_group("upcoming")))
         .order_by(
             func.coalesce(Match.scheduled_date, Match.match_date).asc().nullslast(),
             Match.scheduled_datetime.asc().nullslast(),
@@ -147,7 +149,7 @@ async def home(
 
     completed_matches = (
         home_base_query
-        .filter(Match.status.in_(["completed", "retired", "walkover", "default"]))
+        .filter(Match.status.in_(get_status_group("historical_default")))
         .order_by(
             func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
             Match.id.desc(),
@@ -193,6 +195,7 @@ async def matches_page(
         "matches.html",
         {
             "request": request,
+            "status_filters": MATCHES_PAGE_STATUS_FILTERS,
             "now": datetime.utcnow(),
             "current_path": request.url.path,
         },
@@ -321,11 +324,9 @@ async def api_matches(
     )
 
     # --- Status filter ---
-    # Default: all finished match types
-    if status:
-        status_list = [s.strip() for s in status.split(",")]
-    else:
-        status_list = ["completed", "retired", "walkover", "default"]
+    # Default: historical result statuses (cancelled excluded unless explicit)
+    raw_statuses = status.split(",") if status else None
+    status_list = normalize_status_filter(raw_statuses, default_group="historical_default")
     query = query.filter(Match.status.in_(status_list))
 
     # --- Tour filter ---

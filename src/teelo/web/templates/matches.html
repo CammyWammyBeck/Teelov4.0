@@ -202,10 +202,9 @@
             <div>
                 <label class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-3 block">Status</label>
                 <div class="flex flex-wrap gap-2">
-                    <button class="filter-chip" data-filter="status" data-value="completed" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Completed</button>
-                    <button class="filter-chip" data-filter="status" data-value="retired" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Retired</button>
-                    <button class="filter-chip" data-filter="status" data-value="walkover" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Walkover</button>
-                    <button class="filter-chip" data-filter="status" data-value="default" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Default</button>
+                    {% for match_status in status_filters %}
+                    <button class="filter-chip" data-filter="status" data-value="{{ match_status }}" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">{{ match_status.replace('_', ' ').title() }}</button>
+                    {% endfor %}
                 </div>
             </div>
 

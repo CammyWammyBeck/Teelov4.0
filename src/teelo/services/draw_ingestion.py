@@ -55,6 +55,7 @@ from teelo.draw import (
     get_next_round,
     get_previous_round,
 )
+from teelo.match_statuses import get_status_group
 from teelo.players.identity import PlayerIdentityService
 from teelo.scrape.base import ScrapedDrawEntry
 from teelo.scrape.parsers.score import ScoreParseError, parse_score
@@ -255,7 +256,7 @@ def ingest_draw(
     existing_completed = session.query(Match).filter(
         Match.tournament_edition_id == edition.id,
         Match.draw_position.isnot(None),
-        Match.status.in_(["completed", "retired", "walkover", "default"]),
+        Match.status.in_(get_status_group("historical_default")),
         Match.winner_id.isnot(None),
     ).all()
 
@@ -399,8 +400,8 @@ def _upsert_draw_match(
     Returns:
         Match object (new or existing), or None if skipped
     """
-    pending_statuses = {"upcoming", "scheduled"}
-    terminal_statuses = {"completed", "retired", "walkover", "default"}
+    pending_statuses = set(get_status_group("pending"))
+    terminal_statuses = set(get_status_group("terminal"))
 
     # Check for existing match by draw position
     existing = session.query(Match).filter(
