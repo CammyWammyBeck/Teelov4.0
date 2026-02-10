@@ -9,15 +9,16 @@ the data into the database.
 Usage:
     python scripts/update_current_events.py
     python scripts/update_current_events.py --tours ATP,WTA
-    python scripts/update_current_events.py
+    python scripts/update_current_events.py --discover-only
+    python scripts/update_current_events.py --process-only --tasks-file current_tasks.json
 """
 
 import argparse
 import asyncio
+import json
 import sys
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 from pathlib import Path
-from typing import Optional
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -25,57 +26,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from teelo.scrape.atp import ATPScraper
 from teelo.scrape.base import VirtualDisplay
+from teelo.scrape.discovery import discover_tournament_tasks
 from teelo.scrape.itf import ITFScraper
-from teelo.scrape.pipeline import build_task_params, execute_task
+from teelo.scrape.pipeline import TaskParams, TournamentTask, execute_task
 from teelo.scrape.utils import TOUR_TYPES
 from teelo.scrape.wta import WTAScraper
 from teelo.config import settings
 from teelo.db.session import SessionLocal
 from teelo.players.identity import PlayerIdentityService
-
-
-def _parse_date(value: Optional[str]) -> Optional[date]:
-    if not value:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except Exception:
-        return None
-
-
-def _is_tournament_current(
-    tournament: dict,
-    window_start: date,
-    window_end: date,
-) -> bool:
-    start_date = _parse_date(tournament.get("start_date"))
-    end_date = _parse_date(tournament.get("end_date"))
-
-    if start_date and end_date:
-        return start_date <= window_end and end_date >= window_start
-    if start_date:
-        est_end = start_date + timedelta(days=7)
-        return start_date <= window_end and est_end >= window_start
-    return False
-
-
-async def _discover_tournaments_with_scraper(
-    scraper,
-    tour_key: str,
-    year: int,
-) -> list[dict]:
-    config = TOUR_TYPES[tour_key]
-    if config["scraper"] == "atp":
-        tournaments = await scraper.get_tournament_list(year, tour_type=config["tour_type"])
-    elif config["scraper"] == "wta":
-        tournaments = await scraper.get_tournament_list(year, tour_type=config["tour_type"])
-    else:
-        tournaments = await scraper.get_tournament_list(year, gender=config["gender"])
-
-    for tournament in tournaments:
-        tournament["tour_key"] = tour_key
-        tournament.setdefault("year", year)
-    return tournaments
 
 
 def _get_scraper_class(tour_key: str):
@@ -89,24 +47,38 @@ def _get_scraper_class(tour_key: str):
     raise ValueError(f"Unknown scraper type for {tour_key}")
 
 
-async def process_tournament(
+def _serialize_tasks(tasks: list[TournamentTask]) -> list[dict]:
+    return [
+        {"task_type": task.task_type, "params": task.params.to_dict()}
+        for task in tasks
+    ]
+
+
+def _load_tasks(path: Path) -> list[TournamentTask]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    tasks: list[TournamentTask] = []
+    for item in payload:
+        params = TaskParams.from_dict(item["params"])
+        tasks.append(TournamentTask(task_type=item["task_type"], params=params))
+    return tasks
+
+
+def _save_tasks(path: Path, tasks: list[TournamentTask]) -> None:
+    payload = _serialize_tasks(tasks)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+async def process_task(
     scraper,
-    tournament: dict,
+    task_params: TaskParams,
     session,
     identity_service: PlayerIdentityService,
-    today: date,
 ):
     """Run pipeline for a single tournament using a shared scraper/session."""
-    window_start = today - timedelta(days=7)
-    window_end = today + timedelta(days=7)
-    if not _is_tournament_current(tournament, window_start, window_end):
-        return
-
-    tour_key = tournament["tour_key"]
-    tournament_name = tournament.get("name", tournament["id"])
+    tour_key = task_params.tour_key
+    tournament_name = task_params.tournament_name or task_params.tournament_id
     print(f"Processing {tournament_name} ({tour_key})...")
 
-    task_params = build_task_params(tournament, tour_key)
     await execute_task(
         task_params,
         scraper=scraper,
@@ -116,19 +88,19 @@ async def process_tournament(
     )
 
 
-async def process_tour(
+async def discover_tour_tasks(
     tour_key: str,
     year: int,
     today: date,
     headless: bool,
     semaphore: asyncio.Semaphore,
-) -> int:
-    """Discover and process current tournaments for one tour with shared resources."""
+) -> list[TournamentTask]:
+    """Discover current tournaments for one tour."""
     scraper_cls = _get_scraper_class(tour_key)
     window_start = today - timedelta(days=7)
     window_end = today + timedelta(days=7)
 
-    print(f"\n[{tour_key}] Starting tour worker...")
+    print(f"\n[{tour_key}] Starting tour discovery...")
 
     async with semaphore:
         async with scraper_cls(headless=headless) as scraper:
@@ -136,33 +108,57 @@ async def process_tour(
                 f"[{tour_key}] Discovering tournaments for {year} "
                 f"(Window: {window_start} to {window_end})..."
             )
-            tournaments = await _discover_tournaments_with_scraper(scraper, tour_key, year)
-            current = [t for t in tournaments if _is_tournament_current(t, window_start, window_end)]
-            print(f"[{tour_key}] Found {len(tournaments)} total, {len(current)} current.")
+            tasks = await discover_tournament_tasks(
+                tour_key,
+                year,
+                task_type="current_tournament",
+                scraper=scraper,
+                window=(window_start, window_end),
+            )
+            print(f"[{tour_key}] Found {len(tasks)} current tournaments.")
+            return tasks
 
-            if not current:
+
+async def process_tour_tasks(
+    tour_key: str,
+    headless: bool,
+    semaphore: asyncio.Semaphore,
+    tasks: list[TournamentTask],
+) -> int:
+    """Process current tournaments for one tour with shared resources."""
+    scraper_cls = _get_scraper_class(tour_key)
+
+    print(f"\n[{tour_key}] Starting tour worker...")
+
+    async with semaphore:
+        async with scraper_cls(headless=headless) as scraper:
+            if not tasks:
                 return 0
 
             # Process in chronological order so immediate tournaments are updated first.
-            current.sort(key=lambda t: (t.get("start_date") or "9999-12-31", t.get("name") or ""))
+            tasks.sort(
+                key=lambda task: (
+                    task.params.start_date or "9999-12-31",
+                    task.params.tournament_name or "",
+                )
+            )
 
             session = SessionLocal()
             identity_service = PlayerIdentityService(session)
             processed = 0
             try:
-                for tournament in current:
+                for task in tasks:
                     try:
-                        await process_tournament(
+                        await process_task(
                             scraper=scraper,
-                            tournament=tournament,
+                            task_params=task.params,
                             session=session,
                             identity_service=identity_service,
-                            today=today,
                         )
                         processed += 1
                     except Exception as e:
                         session.rollback()
-                        name = tournament.get("name", tournament.get("id", "unknown"))
+                        name = task.params.tournament_name or task.params.tournament_id
                         print(f"[{tour_key}] Tournament failed ({name}): {e}")
                 return processed
             finally:
@@ -175,8 +171,14 @@ async def main():
     parser.add_argument("--year", type=int, default=date.today().year, help="Season year to scan")
     parser.add_argument("--max-parallel-tours", type=int, default=3, help="Max tour workers to run concurrently")
     parser.add_argument("--headed", action="store_true", help="Force headed browser mode (slower)")
+    parser.add_argument("--discover-only", action="store_true", help="Discover current tournaments only")
+    parser.add_argument("--process-only", action="store_true", help="Process from tasks file only (skip discovery)")
+    parser.add_argument("--tasks-file", type=str, default="current_tasks.json", help="Path to tasks JSON file")
     args = parser.parse_args()
-    
+
+    if args.discover_only and args.process_only:
+        raise SystemExit("Error: --discover-only cannot be combined with --process-only.")
+
     tours = [t.strip().upper() for t in args.tours.split(",")]
     
     # Validate tours
@@ -202,8 +204,55 @@ async def main():
 
     semaphore = asyncio.Semaphore(max(1, args.max_parallel_tours))
     today = date.today()
+    tasks_file = Path(args.tasks_file)
+    tasks_by_tour: dict[str, list[TournamentTask]] = {tour: [] for tour in tours}
+
+    if args.process_only:
+        if not tasks_file.exists():
+            raise SystemExit(f"Tasks file not found: {tasks_file}")
+        loaded_tasks = _load_tasks(tasks_file)
+        for task in loaded_tasks:
+            if task.params.tour_key in tasks_by_tour:
+                tasks_by_tour[task.params.tour_key].append(task)
+    else:
+        discovered = await asyncio.gather(
+            *(
+                discover_tour_tasks(
+                    tour_key=t,
+                    year=args.year,
+                    today=today,
+                    headless=headless,
+                    semaphore=semaphore,
+                )
+                for t in tours
+            ),
+            return_exceptions=True,
+        )
+        all_tasks: list[TournamentTask] = []
+        for tour_key, result in zip(tours, discovered):
+            if isinstance(result, Exception):
+                print(f"[{tour_key}] Discovery failed: {result}")
+                continue
+            tasks_by_tour[tour_key] = result
+            all_tasks.extend(result)
+
+        _save_tasks(tasks_file, all_tasks)
+        print(f"\nSaved {len(all_tasks)} tasks to {tasks_file}")
+
+        if args.discover_only:
+            print("\nDiscovery complete (--discover-only).")
+            return
+
     results = await asyncio.gather(
-        *(process_tour(tour_key=t, year=args.year, today=today, headless=headless, semaphore=semaphore) for t in tours),
+        *(
+            process_tour_tasks(
+                tour_key=t,
+                headless=headless,
+                semaphore=semaphore,
+                tasks=tasks_by_tour.get(t, []),
+            )
+            for t in tours
+        ),
         return_exceptions=True,
     )
 
