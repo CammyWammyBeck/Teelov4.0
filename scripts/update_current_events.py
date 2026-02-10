@@ -24,17 +24,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from teelo.scrape.atp import ATPScraper
-from teelo.scrape.wta import WTAScraper
-from teelo.scrape.itf import ITFScraper
 from teelo.scrape.base import VirtualDisplay
+from teelo.scrape.itf import ITFScraper
+from teelo.scrape.pipeline import build_task_params, execute_task
 from teelo.scrape.utils import TOUR_TYPES
+from teelo.scrape.wta import WTAScraper
 from teelo.config import settings
 from teelo.db.session import SessionLocal
 from teelo.players.identity import PlayerIdentityService
-from teelo.services.draw_ingestion import ingest_draw
-from teelo.services.schedule_ingestion import ingest_schedule
-from teelo.services.results_ingestion import ingest_results
-from backfill_historical import get_or_create_edition
 
 
 def _parse_date(value: Optional[str]) -> Optional[date]:
@@ -62,17 +59,6 @@ def _is_tournament_current(
     return False
 
 
-def _get_scraper_class(tour_key: str):
-    scraper_type = TOUR_TYPES[tour_key]["scraper"]
-    if scraper_type == "atp":
-        return ATPScraper
-    if scraper_type == "wta":
-        return WTAScraper
-    if scraper_type == "itf":
-        return ITFScraper
-    raise ValueError(f"Unknown scraper type for {tour_key}")
-
-
 async def _discover_tournaments_with_scraper(
     scraper,
     tour_key: str,
@@ -88,21 +74,19 @@ async def _discover_tournaments_with_scraper(
 
     for tournament in tournaments:
         tournament["tour_key"] = tour_key
+        tournament.setdefault("year", year)
     return tournaments
 
 
-def _should_scrape_schedule(tournament: dict, today: date) -> bool:
-    end_date = _parse_date(tournament.get("end_date"))
-    if end_date and end_date < (today - timedelta(days=1)):
-        return False
-    return True
-
-
-def _should_scrape_results(tournament: dict, today: date) -> bool:
-    start_date = _parse_date(tournament.get("start_date"))
-    if start_date and start_date > (today + timedelta(days=1)):
-        return False
-    return True
+def _get_scraper_class(tour_key: str):
+    scraper_type = TOUR_TYPES[tour_key]["scraper"]
+    if scraper_type == "atp":
+        return ATPScraper
+    if scraper_type == "wta":
+        return WTAScraper
+    if scraper_type == "itf":
+        return ITFScraper
+    raise ValueError(f"Unknown scraper type for {tour_key}")
 
 
 async def process_tournament(
@@ -119,114 +103,17 @@ async def process_tournament(
         return
 
     tour_key = tournament["tour_key"]
-    tour_config = TOUR_TYPES[tour_key]
-
     tournament_name = tournament.get("name", tournament["id"])
     print(f"Processing {tournament_name} ({tour_key})...")
 
-    # Create or fetch tournament edition
-    task_params = {
-        "tournament_id": tournament["id"],
-        "year": tournament["year"],
-        "tour_key": tour_key,
-        "tournament_name": tournament.get("name"),
-        "tournament_level": tournament.get("level"),
-        "tournament_surface": tournament.get("surface"),
-        "tournament_location": tournament.get("location"),
-        "start_date": tournament.get("start_date"),
-        "end_date": tournament.get("end_date"),
-    }
-    if tournament.get("number"):
-        task_params["tournament_number"] = tournament.get("number")
-    if tournament.get("url"):
-        task_params["tournament_url"] = tournament.get("url")
-
-    edition = await get_or_create_edition(session, task_params, tour_key)
-
-    # 1. DRAW
-    try:
-        print("  Scraping Draw...")
-        draw_kwargs = {
-            "tournament_id": tournament["id"],
-            "year": tournament["year"],
-        }
-        if tour_key in ["ATP", "CHALLENGER"]:
-            draw_kwargs["tournament_number"] = tournament.get("number")
-            draw_kwargs["tour_type"] = tour_config["tour_type"]
-        elif tour_key in ["WTA", "WTA_125"]:
-            draw_kwargs["tournament_number"] = tournament.get("number")
-        elif tour_key.startswith("ITF"):
-            draw_kwargs = {
-                "tournament_url": tournament.get("url"),
-                "tournament_info": tournament,
-            }
-
-        entries = await scraper.scrape_tournament_draw(**draw_kwargs)
-        stats = ingest_draw(session, entries, edition, identity_service)
-        print(f"  Draw: {stats.summary()}")
-    except Exception as e:
-        print(f"  Draw Error: {e}")
-        session.rollback()
-        edition = await get_or_create_edition(session, task_params, tour_key)
-
-    # 2. SCHEDULE
-    if _should_scrape_schedule(tournament, today):
-        try:
-            print("  Scraping Schedule...")
-            sched_kwargs = {}
-            if tour_key.startswith("ITF"):
-                sched_kwargs["tournament_url"] = tournament.get("url")
-            elif tour_key in ["ATP", "CHALLENGER", "WTA", "WTA_125"]:
-                sched_kwargs = {
-                    "tournament_id": tournament["id"],
-                    "tournament_number": tournament.get("number"),
-                }
-                if tour_key in ["WTA", "WTA_125"]:
-                    sched_kwargs["year"] = tournament["year"]
-
-            fixtures = []
-            async for fixture in scraper.scrape_fixtures(**sched_kwargs):
-                fixtures.append(fixture)
-            stats = ingest_schedule(session, fixtures, edition, identity_service)
-            print(f"  Schedule: {stats.summary()}")
-        except Exception as e:
-            print(f"  Schedule Error: {e}")
-            session.rollback()
-            edition = await get_or_create_edition(session, task_params, tour_key)
-    else:
-        print("  Skipping Schedule (tournament appears fully completed).")
-
-    # 3. RESULTS
-    if _should_scrape_results(tournament, today):
-        try:
-            print("  Scraping Results...")
-            res_kwargs = {
-                "tournament_id": tournament["id"],
-                "year": tournament["year"],
-            }
-            if tour_key in ["ATP", "CHALLENGER"]:
-                res_kwargs["tournament_number"] = tournament.get("number")
-                res_kwargs["tour_type"] = tour_config["tour_type"]
-            elif tour_key in ["WTA", "WTA_125"]:
-                res_kwargs["tournament_number"] = tournament.get("number")
-            elif tour_key.startswith("ITF"):
-                res_kwargs = {
-                    "tournament_url": tournament.get("url"),
-                    "tournament_info": tournament,
-                }
-
-            matches = []
-            async for match in scraper.scrape_tournament_results(**res_kwargs):
-                matches.append(match)
-            stats = ingest_results(session, matches, edition, identity_service)
-            print(f"  Results: {stats.summary()}")
-        except Exception as e:
-            print(f"  Results Error: {e}")
-            session.rollback()
-    else:
-        print("  Skipping Results (tournament has not started yet).")
-
-    session.commit()
+    task_params = build_task_params(tournament, tour_key)
+    await execute_task(
+        task_params,
+        scraper=scraper,
+        session=session,
+        identity_service=identity_service,
+        mode="current",
+    )
 
 
 async def process_tour(
