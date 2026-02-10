@@ -1,17 +1,25 @@
-{% macro tour_bg(tour) %}
-{% if tour == 'ATP' %}bg-[#002865]{% elif tour in ['WTA', 'WTA 125', 'WTA_125'] %}bg-[#E30066]{% elif tour in ['CHALLENGER', 'Challenger'] %}bg-[#006B3F]{% else %}bg-gray-600{% endif %}
+{% macro circuit_bg(tour, level) %}
+{% if level == 'Grand Slam' %}bg-[#D4AF37]{% elif tour in ['ATP'] %}bg-[#002865]{% elif tour in ['WTA'] %}bg-[#E30066]{% elif tour in ['CHALLENGER', 'Challenger'] %}bg-[#006B3F]{% elif tour in ['WTA 125', 'WTA_125'] or level in ['WTA 125', 'WTA_125'] %}bg-[#9D174D]{% elif tour == 'ITF' or (level and 'ITF' in level) %}bg-[#4B5563]{% else %}bg-gray-600{% endif %}
 {% endmacro %}
 
-{% macro tour_label(tour) %}
-{% if tour in ['CHALLENGER', 'Challenger'] %}CHL{% elif tour in ['WTA 125', 'WTA_125'] %}125{% else %}{{ tour or '?' }}{% endif %}
+{% macro circuit_label(tour, level) %}
+{% if level == 'Grand Slam' %}GSL{% elif tour in ['CHALLENGER', 'Challenger'] %}CHL{% elif tour in ['WTA 125', 'WTA_125'] or level in ['WTA 125', 'WTA_125'] %}125{% elif tour == 'ITF' or (level and 'ITF' in level) %}ITF{% elif tour == 'WTA' %}WTA{% elif tour == 'ATP' %}ATP{% else %}UNK{% endif %}
+{% endmacro %}
+
+{% macro gender_label(gender, tour) %}
+{% if gender == 'women' %}Women{% elif gender == 'men' %}Men{% elif tour in ['WTA', 'WTA 125', 'WTA_125'] %}Women{% elif tour in ['ATP', 'CHALLENGER', 'Challenger'] %}Men{% else %}Unknown{% endif %}
+{% endmacro %}
+
+{% macro gender_dot_cls(gender, tour) %}
+{% if gender == 'women' or tour in ['WTA', 'WTA 125', 'WTA_125'] %}bg-pink-500{% elif gender == 'men' or tour in ['ATP', 'CHALLENGER', 'Challenger'] %}bg-blue-500{% else %}bg-gray-400{% endif %}
+{% endmacro %}
+
+{% macro level_context(gender, tour, level) %}
+{{ gender_label(gender, tour) }} • {{ level or 'Unknown' }}
 {% endmacro %}
 
 {% macro surface_cls(surface) %}
 {% if surface == 'Hard' %}text-[#3B82F6]{% elif surface == 'Clay' %}text-[#EA580C]{% elif surface == 'Grass' %}text-green-600{% endif %}
-{% endmacro %}
-
-{% macro level_badge_bg(level) %}
-{% if level == 'Grand Slam' %}bg-amber-500 text-white{% elif level in ['Masters 1000', 'WTA 1000'] %}bg-purple-600 text-white{% elif level in ['ATP 500', 'WTA 500'] %}bg-blue-600 text-white{% elif level in ['ATP 250', 'WTA 250'] %}bg-sky-600 text-white{% elif level in ['Challenger', 'ATP Challenger'] %}bg-emerald-700 text-white{% elif level in ['WTA 125', 'WTA_125'] %}bg-pink-600 text-white{% elif level in ['ATP Finals', 'WTA Finals'] %}bg-gray-800 text-white{% else %}bg-gray-200 text-gray-700{% endif %}
 {% endmacro %}
 
 {% macro render_table_rows(matches) %}
@@ -22,13 +30,16 @@
 <tr class="hover:bg-gray-50/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime">
     <td class="px-5 py-3">
         <div class="flex items-center gap-2">
-            <span class="{{ tour_bg(m.tour) }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ tour_label(m.tour) }}</span>
+            <span class="{{ circuit_bg(m.tour, m.tournament_level) }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ circuit_label(m.tour, m.tournament_level) }}</span>
             <div class="min-w-0">
                 <span class="text-sm font-semibold text-teelo-dark truncate block" title="{{ m.tournament_name or 'Unknown' }}">{{ m.tournament_name or 'Unknown' }}</span>
                 <span class="text-xs text-gray-400 inline-flex items-center gap-1.5 flex-wrap">
                     <span>{{ m.round or '' }}</span>
                     <span>·</span>
-                    <span class="{{ level_badge_bg(m.tournament_level) }} text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-tight">{{ m.tournament_level or 'Unknown' }}</span>
+                    <span class="inline-flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full {{ gender_dot_cls(m.gender, m.tour) }}"></span>
+                        <span class="text-gray-500 font-medium">{{ level_context(m.gender, m.tour, m.tournament_level) }}</span>
+                    </span>
                     <span>·</span>
                     <span class="{{ surface_cls(m.surface) }}">{{ m.surface or '' }}</span>
                 </span>
@@ -69,7 +80,7 @@
 <div class="px-4 py-3 hover:bg-gray-50/50 transition-colors">
     <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2 min-w-0">
-            <span class="{{ tour_bg(m.tour) }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ tour_label(m.tour) }}</span>
+            <span class="{{ circuit_bg(m.tour, m.tournament_level) }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ circuit_label(m.tour, m.tournament_level) }}</span>
             <span class="text-sm font-semibold text-teelo-dark truncate">{{ m.tournament_name or 'Unknown' }}</span>
         </div>
         <span class="text-xs text-gray-400 flex-shrink-0 ml-2">{{ m.match_date_display or '' }}</span>
@@ -77,7 +88,10 @@
     <div class="text-xs text-gray-400 mb-2.5 pl-[42px] inline-flex items-center gap-1.5 flex-wrap">
         <span>{{ m.round or '' }}</span>
         <span>·</span>
-        <span class="{{ level_badge_bg(m.tournament_level) }} text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-tight">{{ m.tournament_level or 'Unknown' }}</span>
+        <span class="inline-flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full {{ gender_dot_cls(m.gender, m.tour) }}"></span>
+            <span class="text-gray-500 font-medium">{{ level_context(m.gender, m.tour, m.tournament_level) }}</span>
+        </span>
         <span>·</span>
         <span class="{{ surface_cls(m.surface) }}">{{ m.surface or '' }}</span>
     </div>
