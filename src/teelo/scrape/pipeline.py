@@ -405,6 +405,7 @@ async def _execute_historical_task(
     # Preload existing external_ids for this tournament edition to avoid per-match DB checks
     # and track new ones in-memory to prevent duplicates within this run.
     known_external_ids: set[str] = set()
+    existing_matches_by_external_id: dict[str, Match] = {}
     player_cache_by_external_id: dict[tuple[str, str], int] = {}
     player_cache_by_name: dict[tuple[str, str], int] = {}
 
@@ -412,17 +413,22 @@ async def _execute_historical_task(
     edition = await get_or_create_edition(session, task_params, tour_key)
 
     # Preload existing matches for this edition (single DB call)
-    existing_ids = (
-        session.query(Match.external_id)
+    existing_matches = (
+        session.query(Match)
         .filter(Match.tournament_edition_id == edition.id)
         .all()
     )
-    known_external_ids.update([eid for (eid,) in existing_ids if eid])
+    existing_matches_by_external_id = {
+        match.external_id: match for match in existing_matches if match.external_id
+    }
+    known_external_ids.update(existing_matches_by_external_id.keys())
 
     # Flag to update tournament metadata once we have real data
     metadata_updated = False
 
     scraper_ctx = _scraper_context(tour_key, scraper)
+    pending_matches: list[Match] = []
+    batch_size = 200
 
     async with scraper_ctx as active_scraper:
         if tour_config["scraper"] == "atp":
@@ -437,18 +443,24 @@ async def _execute_historical_task(
                     metadata_updated = True
 
                 result["matches_scraped"] += 1
-                match_result = await process_scraped_match(
+                match_result, created = await process_scraped_match(
                     session,
                     scraped_match,
                     edition,
                     identity_service,
                     known_external_ids,
+                    existing_matches_by_external_id,
                     player_cache_by_external_id,
                     player_cache_by_name,
                     overwrite=overwrite,
                 )
-                if match_result:
+                if match_result and created:
+                    pending_matches.append(match_result)
                     result["matches_created"] += 1
+                    if len(pending_matches) >= batch_size:
+                        session.add_all(pending_matches)
+                        session.flush()
+                        pending_matches.clear()
 
         elif tour_config["scraper"] == "itf":
             if not task_params.tournament_url:
@@ -460,18 +472,24 @@ async def _execute_historical_task(
                 task_params.tournament_url, tournament_info
             ):
                 result["matches_scraped"] += 1
-                match_result = await process_scraped_match(
+                match_result, created = await process_scraped_match(
                     session,
                     scraped_match,
                     edition,
                     identity_service,
                     known_external_ids,
+                    existing_matches_by_external_id,
                     player_cache_by_external_id,
                     player_cache_by_name,
                     overwrite=overwrite,
                 )
-                if match_result:
+                if match_result and created:
+                    pending_matches.append(match_result)
                     result["matches_created"] += 1
+                    if len(pending_matches) >= batch_size:
+                        session.add_all(pending_matches)
+                        session.flush()
+                        pending_matches.clear()
 
         elif tour_config["scraper"] == "wta":
             async for scraped_match in active_scraper.scrape_tournament_results(
@@ -480,19 +498,30 @@ async def _execute_historical_task(
                 tournament_number=task_params.tournament_number,
             ):
                 result["matches_scraped"] += 1
-                match_result = await process_scraped_match(
+                match_result, created = await process_scraped_match(
                     session,
                     scraped_match,
                     edition,
                     identity_service,
                     known_external_ids,
+                    existing_matches_by_external_id,
                     player_cache_by_external_id,
                     player_cache_by_name,
                     overwrite=overwrite,
                 )
-                if match_result:
+                if match_result and created:
+                    pending_matches.append(match_result)
                     result["matches_created"] += 1
+                    if len(pending_matches) >= batch_size:
+                        session.add_all(pending_matches)
+                        session.flush()
+                        pending_matches.clear()
 
+    if pending_matches:
+        session.add_all(pending_matches)
+        session.flush()
+
+    session.commit()
     return result
 
 
@@ -599,10 +628,11 @@ async def process_scraped_match(
     edition: TournamentEdition,
     identity_service: PlayerIdentityService,
     known_external_ids: set[str] = None,
+    existing_matches_by_external_id: dict[str, Match] | None = None,
     player_cache_by_external_id: dict[tuple[str, str], int] | None = None,
     player_cache_by_name: dict[tuple[str, str], int] | None = None,
     overwrite: bool = False,
-) -> Optional[Match]:
+) -> tuple[Optional[Match], bool]:
     """
     Process a scraped match and store in database.
 
@@ -622,7 +652,7 @@ async def process_scraped_match(
     # This catches duplicates that haven't been committed yet
     if known_external_ids is not None:
         if scraped_match.external_id in known_external_ids and not overwrite:
-            return None  # Skip duplicate
+            return None, False  # Skip duplicate
 
     # Find or create player A (with cache)
     player_a_id = None
@@ -648,7 +678,7 @@ async def process_scraped_match(
         )
 
     if not player_a_id:
-        return None
+        return None, False
 
     # Find or create player B (with cache)
     player_b_id = None
@@ -674,7 +704,7 @@ async def process_scraped_match(
         )
 
     if not player_b_id:
-        return None
+        return None, False
 
     # Cache matched players
     if player_cache_by_external_id is not None:
@@ -687,11 +717,11 @@ async def process_scraped_match(
         player_cache_by_name[(scraped_match.source, normalize_name(scraped_match.player_b_name))] = player_b_id
 
     existing = None
-    if known_external_ids is not None and scraped_match.external_id in known_external_ids:
-        existing = session.query(Match).filter(Match.external_id == scraped_match.external_id).first()
+    if existing_matches_by_external_id is not None and scraped_match.external_id:
+        existing = existing_matches_by_external_id.get(scraped_match.external_id)
 
     if existing and not overwrite:
-        return existing
+        return existing, False
 
     # Parse score
     score_structured = None
@@ -741,7 +771,7 @@ async def process_scraped_match(
             tournament_end=edition.end_date,
         )
 
-        return existing
+        return existing, False
 
     # Create new match
     match = Match(
@@ -767,7 +797,8 @@ async def process_scraped_match(
         tournament_end=edition.end_date,
     )
 
-    session.add(match)
     if known_external_ids is not None:
         known_external_ids.add(scraped_match.external_id)
-    return match
+    if existing_matches_by_external_id is not None and scraped_match.external_id:
+        existing_matches_by_external_id[scraped_match.external_id] = match
+    return match, True
