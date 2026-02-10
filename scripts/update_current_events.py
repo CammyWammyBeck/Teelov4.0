@@ -15,10 +15,12 @@ Usage:
 
 import argparse
 import asyncio
+import json
 import multiprocessing
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from time import perf_counter
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -53,7 +55,7 @@ async def discover_tour_tasks(
     today: date,
     headless: bool,
     semaphore: asyncio.Semaphore,
-) -> list:
+) -> tuple[list, float]:
     """Discover current tournaments for one tour."""
     scraper_cls = _get_scraper_class(tour_key)
     window_start = today - timedelta(days=7)
@@ -67,6 +69,7 @@ async def discover_tour_tasks(
                 f"[{tour_key}] Discovering tournaments for {year} "
                 f"(Window: {window_start} to {window_end})..."
             )
+            discovery_start = perf_counter()
             tasks = await discover_tournament_tasks(
                 tour_key,
                 year,
@@ -74,8 +77,9 @@ async def discover_tour_tasks(
                 scraper=scraper,
                 window=(window_start, window_end),
             )
-            print(f"[{tour_key}] Found {len(tasks)} current tournaments.")
-            return tasks
+            discovery_elapsed = perf_counter() - discovery_start
+            print(f"[{tour_key}] Found {len(tasks)} current tournaments in {discovery_elapsed:.2f}s.")
+            return tasks, discovery_elapsed
 
 
 def enqueue_current_tasks(
@@ -115,7 +119,16 @@ async def process_queue(
         "tasks_completed": 0,
         "tasks_failed": 0,
         "current_tasks_completed": 0,
+        "timings": {
+            "scraping": 0.0,
+            "ingestion": 0.0,
+            "db_commit": 0.0,
+            "total": 0.0,
+        },
+        "task_timings": [],
     }
+    if worker_id is not None:
+        stats["worker_id"] = worker_id
 
     def log(message: str) -> None:
         if worker_id is None:
@@ -166,7 +179,7 @@ async def process_queue(
                 scraper = await ensure_scraper(tour_key)
 
                 if task_type == "current_tournament":
-                    await execute_task(
+                    result = await execute_task(
                         task_params,
                         scraper=scraper,
                         session=session,
@@ -175,7 +188,7 @@ async def process_queue(
                     )
                     stats["current_tasks_completed"] += 1
                 elif task_type == "historical_tournament":
-                    await execute_task(
+                    result = await execute_task(
                         task_params,
                         scraper=scraper,
                         session=session,
@@ -184,6 +197,30 @@ async def process_queue(
                     )
                 else:
                     raise ValueError(f"Unsupported task type: {task_type}")
+
+                task_timings = result.get("timings", {})
+                if task_timings:
+                    stats["timings"]["scraping"] += task_timings.get("scraping", 0.0)
+                    stats["timings"]["ingestion"] += task_timings.get("ingestion", 0.0)
+                    stats["timings"]["db_commit"] += task_timings.get("db_commit", 0.0)
+                    stats["timings"]["total"] += task_timings.get("total", 0.0)
+                    stats["task_timings"].append(
+                        {
+                            "task_id": task.id,
+                            "task_type": task_type,
+                            "tour_key": tour_key,
+                            "tournament_id": task_params.tournament_id,
+                            "year": task_params.year,
+                            "timings": task_timings,
+                        }
+                    )
+                    log(
+                        "  Timings: "
+                        f"scrape={task_timings.get('scraping', 0.0):.2f}s, "
+                        f"ingest={task_timings.get('ingestion', 0.0):.2f}s, "
+                        f"commit={task_timings.get('db_commit', 0.0):.2f}s, "
+                        f"total={task_timings.get('total', 0.0):.2f}s"
+                    )
 
                 session.commit()
                 queue_manager.mark_completed(task.id)
@@ -203,6 +240,14 @@ async def process_queue(
     finally:
         if active_ctx is not None:
             await active_ctx.__aexit__(None, None, None)
+
+    log(
+        "Timing totals: "
+        f"scrape={stats['timings']['scraping']:.2f}s, "
+        f"ingest={stats['timings']['ingestion']:.2f}s, "
+        f"commit={stats['timings']['db_commit']:.2f}s, "
+        f"total={stats['timings']['total']:.2f}s"
+    )
 
     return stats
 
@@ -236,6 +281,12 @@ async def main():
     parser.add_argument("--headed", action="store_true", help="Force headed browser mode (slower)")
     parser.add_argument("--discover-only", action="store_true", help="Discover current tournaments only")
     parser.add_argument("--process-only", action="store_true", help="Process from queue only (skip discovery)")
+    parser.add_argument(
+        "--metrics-json",
+        type=str,
+        default=None,
+        help="Write benchmark metrics JSON to the specified path",
+    )
     parser.add_argument(
         "--workers",
         type=int,
@@ -273,6 +324,14 @@ async def main():
     semaphore = asyncio.Semaphore(max(1, args.max_parallel_tours))
     today = date.today()
 
+    metrics_payload = {
+        "script": "update_current_events",
+        "started_at": datetime.utcnow().isoformat(),
+        "discovery": [],
+        "workers": [],
+        "aggregate": {},
+    }
+
     if not args.process_only:
         discovered = await asyncio.gather(
             *(
@@ -292,7 +351,15 @@ async def main():
             if isinstance(result, Exception):
                 print(f"[{tour_key}] Discovery failed: {result}")
                 continue
-            all_tasks.extend(result)
+            tasks, discovery_elapsed = result
+            metrics_payload["discovery"].append(
+                {
+                    "tour_key": tour_key,
+                    "duration_s": discovery_elapsed,
+                    "tasks_found": len(tasks),
+                }
+            )
+            all_tasks.extend(tasks)
 
         with get_session() as session:
             queue_manager = ScrapeQueueManager(session)
@@ -325,6 +392,13 @@ async def main():
             "tasks_completed": 0,
             "tasks_failed": 0,
             "current_tasks_completed": 0,
+            "timings": {
+                "scraping": 0.0,
+                "ingestion": 0.0,
+                "db_commit": 0.0,
+                "total": 0.0,
+            },
+            "task_timings": [],
         }
 
         stats_received = 0
@@ -333,14 +407,24 @@ async def main():
                 worker_stats = stats_queue.get_nowait()
             except Exception:
                 break
+            metrics_payload["workers"].append(worker_stats)
             for key in aggregated:
-                aggregated[key] += worker_stats.get(key, 0)
+                if key == "timings":
+                    for timing_key, timing_value in worker_stats.get("timings", {}).items():
+                        aggregated["timings"][timing_key] += timing_value
+                elif key == "task_timings":
+                    aggregated["task_timings"].extend(worker_stats.get("task_timings", []))
+                else:
+                    aggregated[key] += worker_stats.get(key, 0)
             stats_received += 1
 
         stats = aggregated
     else:
         with get_session() as session:
             stats = await process_queue(session, headless=headless)
+        metrics_payload["workers"].append(stats)
+
+    metrics_payload["aggregate"] = stats
 
     print("\n" + "=" * 60)
     print("Current Events Update Complete")
@@ -350,6 +434,19 @@ async def main():
     print(f"  Tasks failed: {stats['tasks_failed']}")
     if stats.get("current_tasks_completed"):
         print(f"  Current tournaments updated: {stats['current_tasks_completed']}")
+    print(
+        "  Timing totals: "
+        f"scrape={stats['timings']['scraping']:.2f}s, "
+        f"ingest={stats['timings']['ingestion']:.2f}s, "
+        f"commit={stats['timings']['db_commit']:.2f}s, "
+        f"total={stats['timings']['total']:.2f}s"
+    )
+
+    if args.metrics_json:
+        metrics_path = Path(args.metrics_json)
+        metrics_path.parent.mkdir(parents=True, exist_ok=True)
+        metrics_path.write_text(json.dumps(metrics_payload, indent=2))
+        print(f"\nMetrics written to {metrics_path}")
 
 
 if __name__ == "__main__":

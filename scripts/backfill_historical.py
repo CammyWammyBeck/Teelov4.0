@@ -45,10 +45,12 @@ Examples:
 
 import argparse
 import asyncio
+import json
 import multiprocessing
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from time import perf_counter
 from typing import Optional
 
 # Add src to path for imports
@@ -147,7 +149,7 @@ async def populate_queue(
     queue_manager: ScrapeQueueManager,
     years: list[int],
     tours: list[str],
-) -> int:
+) -> tuple[int, list[dict[str, float | int | str]]]:
     """
     Populate the scrape queue with tournament tasks.
 
@@ -164,6 +166,7 @@ async def populate_queue(
         Number of tasks added to queue
     """
     tasks_added = 0
+    discovery_metrics: list[dict[str, float | int | str]] = []
     
     # Current date for filtering future tournaments
     today = datetime.now().date()
@@ -203,10 +206,20 @@ async def populate_queue(
                     if tid
                 )
 
+                discovery_start = perf_counter()
                 tasks = await discover_tournament_tasks(
                     tour_key,
                     year,
                     task_type="historical_tournament",
+                )
+                discovery_elapsed = perf_counter() - discovery_start
+                discovery_metrics.append(
+                    {
+                        "tour_key": tour_key,
+                        "year": year,
+                        "duration_s": discovery_elapsed,
+                        "tasks_found": len(tasks),
+                    }
                 )
 
                 for task in tasks:
@@ -252,7 +265,7 @@ async def populate_queue(
             # Commit after each tour
             session.commit()
 
-    return tasks_added
+    return tasks_added, discovery_metrics
 
 
 async def process_queue(
@@ -287,7 +300,16 @@ async def process_queue(
         "matches_created": 0,
         "players_created": 0,
         "current_tasks_completed": 0,
+        "timings": {
+            "scraping": 0.0,
+            "ingestion": 0.0,
+            "db_commit": 0.0,
+            "total": 0.0,
+        },
+        "task_timings": [],
     }
+    if worker_id is not None:
+        stats["worker_id"] = worker_id
 
     def log(message: str) -> None:
         if worker_id is None:
@@ -359,8 +381,9 @@ async def process_queue(
                     stats["matches_scraped"] += matches_result["matches_scraped"]
                     stats["matches_created"] += matches_result["matches_created"]
                     stats["players_created"] += matches_result["players_created"]
+                    task_result = matches_result
                 elif task_type == "current_tournament":
-                    await execute_task(
+                    task_result = await execute_task(
                         task_params,
                         scraper=scraper,
                         session=session,
@@ -370,6 +393,30 @@ async def process_queue(
                     stats["current_tasks_completed"] += 1
                 else:
                     raise ValueError(f"Unsupported task type: {task_type}")
+
+                task_timings = task_result.get("timings", {})
+                if task_timings:
+                    stats["timings"]["scraping"] += task_timings.get("scraping", 0.0)
+                    stats["timings"]["ingestion"] += task_timings.get("ingestion", 0.0)
+                    stats["timings"]["db_commit"] += task_timings.get("db_commit", 0.0)
+                    stats["timings"]["total"] += task_timings.get("total", 0.0)
+                    stats["task_timings"].append(
+                        {
+                            "task_id": task.id,
+                            "task_type": task_type,
+                            "tour_key": tour_key,
+                            "tournament_id": task_params.tournament_id,
+                            "year": task_params.year,
+                            "timings": task_timings,
+                        }
+                    )
+                    log(
+                        "  Timings: "
+                        f"scrape={task_timings.get('scraping', 0.0):.2f}s, "
+                        f"ingest={task_timings.get('ingestion', 0.0):.2f}s, "
+                        f"commit={task_timings.get('db_commit', 0.0):.2f}s, "
+                        f"total={task_timings.get('total', 0.0):.2f}s"
+                    )
 
                 # Commit the matches, then mark completed
                 session.commit()
@@ -402,6 +449,14 @@ async def process_queue(
     finally:
         if active_ctx is not None:
             await active_ctx.__aexit__(None, None, None)
+
+    log(
+        "Timing totals: "
+        f"scrape={stats['timings']['scraping']:.2f}s, "
+        f"ingest={stats['timings']['ingestion']:.2f}s, "
+        f"commit={stats['timings']['db_commit']:.2f}s, "
+        f"total={stats['timings']['total']:.2f}s"
+    )
 
     return stats
 
@@ -559,6 +614,12 @@ Examples:
         help="Clear all pending/retry/in_progress tasks from the queue before adding new ones. "
              "Use this to remove stale tasks from previous runs.",
     )
+    parser.add_argument(
+        "--metrics-json",
+        type=str,
+        default=None,
+        help="Write benchmark metrics JSON to the specified path",
+    )
 
     args = parser.parse_args()
 
@@ -580,6 +641,14 @@ Examples:
         if args.stats:
             show_queue_stats(session)
             return
+
+        metrics_payload = {
+            "script": "backfill_historical",
+            "started_at": datetime.utcnow().isoformat(),
+            "discovery": [],
+            "workers": [],
+            "aggregate": {},
+        }
 
         # Parse arguments
         years = parse_year_range(args.years)
@@ -629,7 +698,8 @@ Examples:
                 return
 
             print("\nPopulating queue with tournament tasks...")
-            tasks_added = await populate_queue(session, queue_manager, years, tours)
+            tasks_added, discovery_metrics = await populate_queue(session, queue_manager, years, tours)
+            metrics_payload["discovery"].extend(discovery_metrics)
             print(f"\nAdded {tasks_added} tasks to queue")
             session.commit()
 
@@ -662,6 +732,13 @@ Examples:
                 "matches_created": 0,
                 "players_created": 0,
                 "current_tasks_completed": 0,
+                "timings": {
+                    "scraping": 0.0,
+                    "ingestion": 0.0,
+                    "db_commit": 0.0,
+                    "total": 0.0,
+                },
+                "task_timings": [],
             }
 
             stats_received = 0
@@ -670,8 +747,15 @@ Examples:
                     worker_stats = stats_queue.get_nowait()
                 except Exception:
                     break
+                metrics_payload["workers"].append(worker_stats)
                 for key in aggregated:
-                    aggregated[key] += worker_stats.get(key, 0)
+                    if key == "timings":
+                        for timing_key, timing_value in worker_stats.get("timings", {}).items():
+                            aggregated["timings"][timing_key] += timing_value
+                    elif key == "task_timings":
+                        aggregated["task_timings"].extend(worker_stats.get("task_timings", []))
+                    else:
+                        aggregated[key] += worker_stats.get(key, 0)
                 stats_received += 1
 
             stats = aggregated
@@ -681,6 +765,9 @@ Examples:
                 overwrite=args.overwrite,
                 headless=headless,
             )
+            metrics_payload["workers"].append(stats)
+
+        metrics_payload["aggregate"] = stats
 
         # Final summary
         print("\n" + "=" * 60)
@@ -693,12 +780,25 @@ Examples:
         print(f"  Matches created: {stats['matches_created']}")
         if stats.get("current_tasks_completed"):
             print(f"  Current tournaments updated: {stats['current_tasks_completed']}")
+        print(
+            "  Timing totals: "
+            f"scrape={stats['timings']['scraping']:.2f}s, "
+            f"ingest={stats['timings']['ingestion']:.2f}s, "
+            f"commit={stats['timings']['db_commit']:.2f}s, "
+            f"total={stats['timings']['total']:.2f}s"
+        )
 
         # Show remaining queue
         remaining = queue_manager.pending_count()
         if remaining > 0:
             print(f"\n  Remaining in queue: {remaining}")
             print("  Run with --resume to continue")
+
+        if args.metrics_json:
+            metrics_path = Path(args.metrics_json)
+            metrics_path.parent.mkdir(parents=True, exist_ok=True)
+            metrics_path.write_text(json.dumps(metrics_payload, indent=2))
+            print(f"\nMetrics written to {metrics_path}")
 
 
 if __name__ == "__main__":
