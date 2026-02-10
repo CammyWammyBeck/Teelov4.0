@@ -10,6 +10,10 @@
 {% if surface == 'Hard' %}text-[#3B82F6]{% elif surface == 'Clay' %}text-[#EA580C]{% elif surface == 'Grass' %}text-green-600{% endif %}
 {% endmacro %}
 
+{% macro level_badge_bg(level) %}
+{% if level == 'Grand Slam' %}bg-amber-500 text-white{% elif level in ['Masters 1000', 'WTA 1000'] %}bg-purple-600 text-white{% elif level in ['ATP 500', 'WTA 500'] %}bg-blue-600 text-white{% elif level in ['ATP 250', 'WTA 250'] %}bg-sky-600 text-white{% elif level in ['Challenger', 'ATP Challenger'] %}bg-emerald-700 text-white{% elif level in ['WTA 125', 'WTA_125'] %}bg-pink-600 text-white{% elif level in ['ATP Finals', 'WTA Finals'] %}bg-gray-800 text-white{% else %}bg-gray-200 text-gray-700{% endif %}
+{% endmacro %}
+
 {% macro render_table_rows(matches) %}
 {% for m in matches %}
 {% set is_winner_a = m.winner_id == m.player_a.id %}
@@ -21,7 +25,13 @@
             <span class="{{ tour_bg(m.tour) }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ tour_label(m.tour) }}</span>
             <div class="min-w-0">
                 <span class="text-sm font-semibold text-teelo-dark truncate block" title="{{ m.tournament_name or 'Unknown' }}">{{ m.tournament_name or 'Unknown' }}</span>
-                <span class="text-xs text-gray-400">{{ m.round or '' }} · {{ m.tournament_level or '' }} · <span class="{{ surface_cls(m.surface) }}">{{ m.surface or '' }}</span></span>
+                <span class="text-xs text-gray-400 inline-flex items-center gap-1.5 flex-wrap">
+                    <span>{{ m.round or '' }}</span>
+                    <span>·</span>
+                    <span class="{{ level_badge_bg(m.tournament_level) }} text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-tight">{{ m.tournament_level or 'Unknown' }}</span>
+                    <span>·</span>
+                    <span class="{{ surface_cls(m.surface) }}">{{ m.surface or '' }}</span>
+                </span>
             </div>
         </div>
     </td>
@@ -64,7 +74,13 @@
         </div>
         <span class="text-xs text-gray-400 flex-shrink-0 ml-2">{{ m.match_date_display or '' }}</span>
     </div>
-    <div class="text-xs text-gray-400 mb-2.5 pl-[42px]">{{ m.round or '' }} · {{ m.tournament_level or '' }} · <span class="{{ surface_cls(m.surface) }}">{{ m.surface or '' }}</span></div>
+    <div class="text-xs text-gray-400 mb-2.5 pl-[42px] inline-flex items-center gap-1.5 flex-wrap">
+        <span>{{ m.round or '' }}</span>
+        <span>·</span>
+        <span class="{{ level_badge_bg(m.tournament_level) }} text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-tight">{{ m.tournament_level or 'Unknown' }}</span>
+        <span>·</span>
+        <span class="{{ surface_cls(m.surface) }}">{{ m.surface or '' }}</span>
+    </div>
     <div class="flex items-center gap-3 pl-[42px]">
         <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5 {% if is_winner_a %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %} text-sm">
