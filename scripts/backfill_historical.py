@@ -23,6 +23,9 @@ Usage:
     # Resume interrupted backfill (processes existing queue)
     python scripts/backfill_historical.py --resume
 
+    # Discover tournaments only (no processing)
+    python scripts/backfill_historical.py --discover-only
+
     # Process queue only (no new tasks added)
     python scripts/backfill_historical.py --process-only
 
@@ -56,9 +59,10 @@ from sqlalchemy import func, cast, Integer
 from teelo.config import settings
 from teelo.db import get_session
 from teelo.db.models import ScrapeQueue
-from teelo.scrape.pipeline import TaskParams, build_task_params, execute_task
+from teelo.scrape.discovery import discover_tournament_tasks
+from teelo.scrape.pipeline import TaskParams, execute_task
 from teelo.scrape.queue import ScrapeQueueManager
-from teelo.scrape.utils import TOUR_TYPES, get_tournaments_for_tour
+from teelo.scrape.utils import TOUR_TYPES
 from teelo.players.identity import PlayerIdentityService
 
 
@@ -184,11 +188,15 @@ async def populate_queue(
                     if tid
                 )
 
-                tournaments = await get_tournaments_for_tour(tour_key, year)
-                
-                for tournament in tournaments:
+                tasks = await discover_tournament_tasks(
+                    tour_key,
+                    year,
+                    task_type="historical_tournament",
+                )
+
+                for task in tasks:
                     # Skip tournaments that are too far in the future
-                    start_date_str = tournament.get("start_date")
+                    start_date_str = task.params.start_date
                     if start_date_str:
                         try:
                             start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
@@ -198,18 +206,15 @@ async def populate_queue(
                         except (ValueError, TypeError):
                             pass
 
-                    tournament_with_year = {**tournament, "year": year}
-                    task_params = build_task_params(tournament_with_year, tour_key)
-
                     # Skip if already queued
-                    if tournament["id"] in existing_tournament_ids:
+                    if task.params.tournament_id in existing_tournament_ids:
                         continue
 
                     # Enqueue task (bulk later)
                     tasks_to_add.append(
                         ScrapeQueue(
                             task_type="historical_tournament",
-                            task_params=task_params.to_dict(),
+                            task_params=task.params.to_dict(),
                             priority=base_priority,
                             max_attempts=3,
                             status="pending",
@@ -218,7 +223,7 @@ async def populate_queue(
                     year_tasks_added += 1
                     tasks_added += 1
                 
-                msg = f"\n  {year}: Found {len(tournaments)} tournaments, added {year_tasks_added} to queue"
+                msg = f"\n  {year}: Found {len(tasks)} tournaments, added {year_tasks_added} to queue"
                 if skipped_future > 0:
                     msg += f" ({skipped_future} skipped as too far in future)"
                 print(msg)
@@ -449,6 +454,12 @@ Examples:
     )
 
     parser.add_argument(
+        "--discover-only",
+        action="store_true",
+        help="Only discover tournaments and populate the queue (no processing)",
+    )
+
+    parser.add_argument(
         "--workers",
         type=int,
         default=1,
@@ -533,6 +544,10 @@ Examples:
             session.commit()
             print(f"\n  Cleared {cleared} tasks from queue")
 
+        if args.discover_only and (args.resume or args.process_only):
+            print("Error: --discover-only cannot be combined with --resume or --process-only.")
+            return
+
         # Check for resume mode
         if args.resume or args.process_only:
             pending = queue_manager.pending_count()
@@ -553,6 +568,10 @@ Examples:
             tasks_added = await populate_queue(session, queue_manager, years, tours)
             print(f"\nAdded {tasks_added} tasks to queue")
             session.commit()
+
+            if args.discover_only:
+                print("\nDiscovery complete (--discover-only).")
+                return
 
         # Process the queue
         if args.workers > 1:
