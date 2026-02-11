@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 from teelo.db.models import Match, Player, TournamentEdition
 from teelo.scrape.base import ScrapedFixture
 from teelo.players.identity import PlayerIdentityService
+from teelo.elo.live import LiveEloUpdater
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,7 @@ def ingest_schedule(
         ScheduleIngestionStats with counts of what happened
     """
     stats = ScheduleIngestionStats(total_fixtures=len(fixtures))
+    elo_updater = LiveEloUpdater.from_session(session)
 
     for fixture in fixtures:
         try:
@@ -174,6 +176,7 @@ def ingest_schedule(
             updated = _update_match_schedule(match, fixture)
 
             if updated:
+                elo_updater.ensure_pre_match_snapshot(session, match, force=True)
                 stats.matches_updated += 1
                 logger.info(
                     "Updated schedule for %s vs %s: %s %s on %s",

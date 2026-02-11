@@ -552,6 +552,28 @@ class Match(Base):
     prediction_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # ==========================================================================
+    # ELO snapshots and processing metadata
+    # ==========================================================================
+
+    # Pre-match ELO snapshots (set for upcoming/scheduled and reused at completion)
+    elo_pre_player_a: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
+    elo_pre_player_b: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
+
+    # Post-match ELO values (set for completed/retired results)
+    elo_post_player_a: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
+    elo_post_player_b: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2), nullable=True)
+
+    # ELO processing metadata
+    elo_params_version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    elo_processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    elo_needs_recompute: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+
+    # ==========================================================================
     # Result fields (populated once match is completed)
     # ==========================================================================
 
@@ -766,6 +788,7 @@ class EloRating(Base):
     __table_args__ = (
         Index("idx_elo_ratings_player_date", "player_id", "rating_date"),
         Index("idx_elo_ratings_match", "match_id"),
+        UniqueConstraint("player_id", "match_id", "surface", name="uq_elo_ratings_player_match_surface"),
     )
 
     @property
@@ -775,6 +798,46 @@ class EloRating(Base):
 
     def __repr__(self) -> str:
         return f"<EloRating(player_id={self.player_id}, {self.rating_before} -> {self.rating_after})>"
+
+
+class PlayerEloState(Base):
+    """Current ELO state per player for incremental inline updates."""
+
+    __tablename__ = "player_elo_states"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), nullable=False, unique=True)
+    rating: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False, default=Decimal("1500.00"))
+    match_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_match_date: Mapped[Optional[datetime]] = mapped_column(Date, nullable=True)
+    last_temporal_order: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    career_peak: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False, default=Decimal("1500.00"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    player: Mapped["Player"] = relationship()
+
+    def __repr__(self) -> str:
+        return f"<PlayerEloState(player_id={self.player_id}, rating={self.rating})>"
+
+
+class EloParameterSet(Base):
+    """Persisted ELO parameter sets (defaults and optimized variants)."""
+
+    __tablename__ = "elo_parameter_sets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    params: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    source: Mapped[str] = mapped_column(String(30), nullable=False, default="manual")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_elo_parameter_sets_active", "is_active"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<EloParameterSet(name='{self.name}', active={self.is_active})>"
 
 
 # =============================================================================

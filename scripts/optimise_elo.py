@@ -18,12 +18,13 @@ Usage:
 import argparse
 import math
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import optuna
 
 from teelo.db.session import get_session
 from teelo.elo.pipeline import EloPipeline, EloParams, load_matches_for_elo
+from teelo.elo.params_store import persist_elo_params
 
 
 def compute_log_loss(probs: list[float]) -> float:
@@ -108,6 +109,7 @@ def main():
     parser = argparse.ArgumentParser(description="Optimize ELO parameters with Optuna")
     parser.add_argument("--n-trials", type=int, default=200, help="Number of Optuna trials")
     parser.add_argument("--write-db", action="store_true", help="Write final ratings to DB with best params")
+    parser.add_argument("--activate-best", action="store_true", help="Persist and activate best params for inline ELO updates")
     parser.add_argument("--test-months", type=int, default=3, help="Months of data for test set")
     args = parser.parse_args()
 
@@ -192,6 +194,19 @@ def main():
             print(f"  {key}: {value:.4f}")
         else:
             print(f"  {key}: {value}")
+
+
+    if args.activate_best:
+        best_params = create_params_from_trial_values(best.params)
+        with get_session() as session:
+            record = persist_elo_params(
+                session=session,
+                name=f"optuna-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}",
+                params=best_params,
+                source="optuna",
+                activate=True,
+            )
+            print(f"Activated ELO params set: {record.name}")
 
     # Optionally write final ratings to DB
     if args.write_db:

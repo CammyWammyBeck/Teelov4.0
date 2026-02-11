@@ -49,6 +49,8 @@ from teelo.db.models import (
     compute_temporal_order,
     estimate_match_date_from_round,
 )
+from teelo.elo.constants import get_level_code
+from teelo.elo.live import LiveEloUpdater
 from teelo.draw import (
     get_feeder_positions,
     get_next_draw_position,
@@ -157,6 +159,8 @@ def ingest_draw(
         DrawIngestionStats with counts of what happened
     """
     stats = DrawIngestionStats(total_entries=len(entries))
+    elo_updater = LiveEloUpdater.from_session(session)
+    level_code = get_level_code(edition.tournament.level, edition.tournament.tour)
 
     # Track which draw positions have completed results (for propagation)
     # Key: (round, draw_position), Value: winner player_id
@@ -219,6 +223,8 @@ def ingest_draw(
                 player_b_id,
                 overwrite,
                 seen_external_ids,
+                elo_updater,
+                level_code,
             )
 
             if match is None:
@@ -266,7 +272,7 @@ def ingest_draw(
             all_decided[key] = m.winner_id
 
     # Try to propagate each decided position
-    propagated = _propagate_all(session, edition, all_decided)
+    propagated = _propagate_all(session, edition, all_decided, elo_updater)
     stats.propagations_created = propagated
 
     logger.info(stats.summary())
@@ -382,6 +388,8 @@ def _upsert_draw_match(
     player_b_id: int,
     overwrite: bool,
     seen_external_ids: set[str],
+    elo_updater: LiveEloUpdater,
+    level_code: str,
 ) -> Optional[Match]:
     """
     Create or update a Match row from a draw entry.
@@ -537,6 +545,10 @@ def _upsert_draw_match(
             if not conflict:
                 existing.external_id = external_id
                 updated = True
+        if updated and existing.status in pending_statuses:
+            elo_updater.ensure_pre_match_snapshot(session, existing)
+        elif updated and existing.status in terminal_statuses:
+            elo_updater.apply_completed_match(session, existing, level_code=level_code)
         return existing if updated else None
 
     # Estimate match date from tournament dates + round
@@ -571,6 +583,10 @@ def _upsert_draw_match(
             tournament_start=edition.start_date,
             tournament_end=edition.end_date,
         )
+        if existing.status in pending_statuses:
+            elo_updater.ensure_pre_match_snapshot(session, existing, force=True)
+        elif existing.status in terminal_statuses:
+            elo_updater.apply_completed_match(session, existing, level_code=level_code)
         return existing
 
     # Create new match
@@ -599,6 +615,10 @@ def _upsert_draw_match(
     )
 
     session.add(match)
+    if match.status in pending_statuses:
+        elo_updater.ensure_pre_match_snapshot(session, match)
+    elif match.status in terminal_statuses:
+        elo_updater.apply_completed_match(session, match, level_code=level_code)
     return match
 
 
@@ -610,6 +630,7 @@ def _propagate_all(
     session: Session,
     edition: TournamentEdition,
     decided: dict[tuple[str, int], int],
+    elo_updater: LiveEloUpdater,
 ) -> int:
     """
     Try to create next-round matches from all decided positions.
@@ -700,6 +721,7 @@ def _propagate_all(
         )
 
         session.add(match)
+        elo_updater.ensure_pre_match_snapshot(session, match)
         created += 1
         logger.info(
             "Propagated: %s #%d created (players %d vs %d)",

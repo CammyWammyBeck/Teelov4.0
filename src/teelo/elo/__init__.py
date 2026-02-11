@@ -14,6 +14,8 @@ from teelo.elo.constants import ELO_CONSTANTS
 from teelo.elo.decay import apply_inactivity_decay
 from teelo.elo.boost import calculate_k_boost
 from teelo.elo.pipeline import EloPipeline, EloParams, load_matches_for_elo
+from teelo.elo.live import LiveEloUpdater
+from teelo.elo.params_store import get_active_elo_params, persist_elo_params
 
 __all__ = [
     "EloCalculator",
@@ -25,4 +27,7 @@ __all__ = [
     "EloPipeline",
     "EloParams",
     "load_matches_for_elo",
+    "LiveEloUpdater",
+    "get_active_elo_params",
+    "persist_elo_params",
 ]
