@@ -43,6 +43,8 @@ from teelo.db.models import (
     estimate_match_date_from_round,
 )
 from teelo.players.identity import PlayerIdentityService
+from teelo.elo.constants import get_level_code
+from teelo.elo.live import LiveEloUpdater
 from teelo.scrape.base import ScrapedMatch
 from teelo.scrape.parsers.score import ScoreParseError, parse_score
 
@@ -59,7 +61,7 @@ class ResultsIngestionStats:
     skipped_no_player_match: int = 0
     errors: list[str] = field(default_factory=list)
 
-    def summary(self) -> str:
+    def summary(self) -> tuple[str, Optional[Match]]:
         """Return a human-readable summary of ingestion results."""
         lines = [
             f"Results ingestion complete:",
@@ -106,13 +108,15 @@ def ingest_results(
         ResultsIngestionStats with counts of what happened
     """
     stats = ResultsIngestionStats(total_matches=len(scraped_matches))
+    elo_updater = LiveEloUpdater.from_session(session)
+    level_code = get_level_code(edition.tournament.level, edition.tournament.tour)
 
     # Track external_ids seen in this batch to avoid in-batch duplicates
     seen_external_ids: set[str] = set()
 
     for scraped in scraped_matches:
         try:
-            result = _process_single_result(
+            result, match = _process_single_result(
                 session=session,
                 scraped=scraped,
                 edition=edition,
@@ -120,6 +124,9 @@ def ingest_results(
                 seen_external_ids=seen_external_ids,
                 update_existing=update_existing,
             )
+
+            if result in {"created", "updated"} and match is not None:
+                elo_updater.apply_completed_match(session, match, level_code=level_code)
 
             if result == "created":
                 stats.matches_created += 1
@@ -146,7 +153,7 @@ def _process_single_result(
     identity_service: PlayerIdentityService,
     seen_external_ids: set[str],
     update_existing: bool,
-) -> str:
+) -> tuple[str, Optional[Match]]:
     """
     Process a single scraped match result.
 
@@ -168,7 +175,7 @@ def _process_single_result(
     )
     if not player_a_id:
         logger.warning("Could not resolve player A: %s", scraped.player_a_name)
-        return "no_player"
+        return "no_player", None
 
     player_b_id = _resolve_player(
         session, scraped.player_b_name, scraped.player_b_external_id,
@@ -176,7 +183,7 @@ def _process_single_result(
     )
     if not player_b_id:
         logger.warning("Could not resolve player B: %s", scraped.player_b_name)
-        return "no_player"
+        return "no_player", None
 
     external_id = _make_external_id_from_players(
         session=session,
@@ -200,7 +207,7 @@ def _process_single_result(
         external_id=external_id,
     )
     if dedupe_key in seen_external_ids:
-        return "duplicate"
+        return "duplicate", None
     seen_external_ids.add(dedupe_key)
 
     # Parse score
@@ -261,9 +268,9 @@ def _process_single_result(
             )
             if external_id and (not existing.external_id or existing.external_id.startswith("draw_")):
                 existing.external_id = external_id
-            return "updated"
+            return "updated", existing
         else:
-            return "duplicate"
+            return "duplicate", None
 
     # Create new match
     match = Match(
@@ -293,7 +300,7 @@ def _process_single_result(
     )
 
     session.add(match)
-    return "created"
+    return "created", match
 
 
 def _resolve_player(
@@ -447,7 +454,7 @@ def _make_dedupe_key(
     player_b_id: int,
     match_date: Optional[str],
     external_id: Optional[str],
-) -> str:
+) -> tuple[str, Optional[Match]]:
     if external_id:
         return f"external:{external_id}"
 
