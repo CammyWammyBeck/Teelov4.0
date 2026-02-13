@@ -6,9 +6,10 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from teelo.db.models import EloRating, Match, PlayerEloState
+from teelo.db.models import Match, PlayerEloState
 from teelo.elo.boost import calculate_k_boost
 from teelo.elo.calculator import calculate_fast
 from teelo.elo.decay import apply_inactivity_decay
@@ -31,6 +32,8 @@ class LiveEloUpdater:
     def __init__(self, params: EloParams, params_version: str):
         self.params = params
         self.params_version = params_version
+        self._state_cache: dict[int, PlayerEloState] = {}
+        self._locked_state_ids: set[int] = set()
 
     @classmethod
     def from_session(cls, session: Session) -> "LiveEloUpdater":
@@ -56,16 +59,8 @@ class LiveEloUpdater:
         if match.status not in TERMINAL_STATUSES or not match.winner_id or not match.temporal_order:
             return False
 
-        player_ids = sorted([match.player_a_id, match.player_b_id])
-        states = (
-            session.query(PlayerEloState)
-            .filter(PlayerEloState.player_id.in_(player_ids))
-            .with_for_update()
-            .all()
-        )
-        state_by_player = {s.player_id: s for s in states}
-        state_a = state_by_player.get(match.player_a_id) or self._create_state(session, match.player_a_id)
-        state_b = state_by_player.get(match.player_b_id) or self._create_state(session, match.player_b_id)
+        state_a = self._get_or_create_state(session, match.player_a_id, for_update=True)
+        state_b = self._get_or_create_state(session, match.player_b_id, for_update=True)
 
         if self._is_out_of_order(match, state_a, state_b):
             match.elo_needs_recompute = True
@@ -132,9 +127,6 @@ class LiveEloUpdater:
         state_a.career_peak = Decimal(str(max(float(state_a.career_peak), new_a)))
         state_b.career_peak = Decimal(str(max(float(state_b.career_peak), new_b)))
 
-        self._upsert_elo_rating(session, match, match.player_a_id, rating_a, new_a, match_date)
-        self._upsert_elo_rating(session, match, match.player_b_id, rating_b, new_b, match_date)
-
         match.elo_pre_player_a = Decimal(str(round(rating_a, 2)))
         match.elo_pre_player_b = Decimal(str(round(rating_b, 2)))
         match.elo_post_player_a = Decimal(str(new_a))
@@ -168,52 +160,64 @@ class LiveEloUpdater:
             return None
         return (current_date - last_date).days
 
-    def _get_or_create_state(self, session: Session, player_id: int) -> PlayerEloState:
-        state = session.query(PlayerEloState).filter(PlayerEloState.player_id == player_id).first()
-        if state:
+    def _get_or_create_state(
+        self,
+        session: Session,
+        player_id: int,
+        *,
+        for_update: bool = False,
+    ) -> PlayerEloState:
+        state = self._state_cache.get(player_id)
+        if state is None:
+            query = session.query(PlayerEloState).filter(PlayerEloState.player_id == player_id)
+            if for_update:
+                query = query.with_for_update()
+            state = query.first()
+            if state is None:
+                state = self._create_state(session, player_id)
+            self._state_cache[player_id] = state
+            if for_update:
+                self._locked_state_ids.add(player_id)
             return state
-        return self._create_state(session, player_id)
 
-    @staticmethod
-    def _create_state(session: Session, player_id: int) -> PlayerEloState:
-        state = PlayerEloState(player_id=player_id, rating=Decimal("1500.00"), career_peak=Decimal("1500.00"))
-        session.add(state)
-        session.flush()
+        if for_update and player_id not in self._locked_state_ids:
+            state = (
+                session.query(PlayerEloState)
+                .filter(PlayerEloState.player_id == player_id)
+                .with_for_update()
+                .first()
+            ) or state
+            self._state_cache[player_id] = state
+            self._locked_state_ids.add(player_id)
+
         return state
 
     @staticmethod
-    def _upsert_elo_rating(
-        session: Session,
-        match: Match,
-        player_id: int,
-        rating_before: float,
-        rating_after: float,
-        rating_date: date | None,
-    ) -> None:
-        if match.id is None:
-            session.flush()
-        existing = session.query(EloRating).filter(
-            EloRating.player_id == player_id,
-            EloRating.match_id == match.id,
-            EloRating.surface.is_(None),
-        ).first()
-        is_peak = rating_after >= rating_before
-        payload = {
-            "rating_before": Decimal(str(round(rating_before, 2))),
-            "rating_after": Decimal(str(round(rating_after, 2))),
-            "rating_date": rating_date or date(9999, 12, 31),
-            "is_career_peak": is_peak,
-            "surface": None,
-        }
-        if existing:
-            for key, value in payload.items():
-                setattr(existing, key, value)
-            return
-
-        session.add(
-            EloRating(
+    def _create_state(session: Session, player_id: int) -> PlayerEloState:
+        # Concurrency-safe lazy init: insert default state unless another worker
+        # already inserted the same player_id.
+        stmt = (
+            insert(PlayerEloState)
+            .values(
                 player_id=player_id,
-                match_id=match.id,
-                **payload,
+                rating=Decimal("1500.00"),
+                career_peak=Decimal("1500.00"),
             )
+            .on_conflict_do_nothing(index_elements=[PlayerEloState.player_id])
+            .returning(PlayerEloState.id)
         )
+        inserted_id = session.execute(stmt).scalar_one_or_none()
+        if inserted_id is not None:
+            state = session.get(PlayerEloState, inserted_id)
+            if state is not None:
+                return state
+
+        existing = (
+            session.query(PlayerEloState)
+            .filter(PlayerEloState.player_id == player_id)
+            .first()
+        )
+        if existing is not None:
+            return existing
+
+        raise RuntimeError(f"Could not create/load PlayerEloState for player_id={player_id}")

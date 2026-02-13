@@ -39,6 +39,7 @@ Usage:
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from time import perf_counter
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -102,6 +103,16 @@ class DrawIngestionStats:
     skipped_tbd: int = 0          # Entries with missing player(s)
     skipped_no_player_match: int = 0  # Players couldn't be matched/created
     propagations_created: int = 0  # Next-round matches created from completed feeders
+    timings: dict[str, float] = field(
+        default_factory=lambda: {
+            "preload_matches": 0.0,
+            "preload_players": 0.0,
+            "resolve_players": 0.0,
+            "upsert_matches": 0.0,
+            "propagation": 0.0,
+            "total": 0.0,
+        }
+    )
     errors: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
@@ -116,6 +127,13 @@ class DrawIngestionStats:
             f"  Skipped (TBD players):   {self.skipped_tbd}",
             f"  Skipped (no ID match):   {self.skipped_no_player_match}",
             f"  Propagations created:    {self.propagations_created}",
+            "  Timings: "
+            f"preload_matches={self.timings['preload_matches']:.2f}s, "
+            f"preload_players={self.timings['preload_players']:.2f}s, "
+            f"resolve={self.timings['resolve_players']:.2f}s, "
+            f"upsert={self.timings['upsert_matches']:.2f}s, "
+            f"propagation={self.timings['propagation']:.2f}s, "
+            f"total={self.timings['total']:.2f}s",
         ]
         if self.errors:
             lines.append(f"  Errors: {len(self.errors)}")
@@ -124,6 +142,14 @@ class DrawIngestionStats:
             if len(self.errors) > 5:
                 lines.append(f"    ... and {len(self.errors) - 5} more")
         return "\n".join(lines)
+
+
+@dataclass
+class DrawIngestionContext:
+    matches_by_slot: dict[tuple[str, int], Match]
+    matches_by_external_id: dict[str, Match]
+    player_resolution_cache: dict[tuple[str, str, Optional[str]], Optional[int]]
+    player_external_id_cache: dict[tuple[int, str], Optional[str]]
 
 
 # =============================================================================
@@ -158,9 +184,13 @@ def ingest_draw(
     Returns:
         DrawIngestionStats with counts of what happened
     """
+    started_at = perf_counter()
     stats = DrawIngestionStats(total_entries=len(entries))
     elo_updater = LiveEloUpdater.from_session(session)
     level_code = get_level_code(edition.tournament.level, edition.tournament.tour)
+    context, preload_timings = _build_ingestion_context(session, entries, edition, identity_service)
+    stats.timings["preload_matches"] = preload_timings["preload_matches"]
+    stats.timings["preload_players"] = preload_timings["preload_players"]
 
     # Track which draw positions have completed results (for propagation)
     # Key: (round, draw_position), Value: winner player_id
@@ -170,7 +200,7 @@ def ingest_draw(
     # Key: (round, draw_position), Value: player_id who got the bye
     bye_positions: dict[tuple[str, int], int] = {}
 
-    # Track external_ids seen in this batch to avoid duplicates in-session
+    # Track external_ids seen in this batch to avoid duplicates in-session.
     seen_external_ids: set[str] = set()
 
     # -------------------------------------------------------------------------
@@ -181,7 +211,7 @@ def ingest_draw(
             if entry.is_bye:
                 # Resolve the bye player so we can track their advancement
                 bye_player_id = _resolve_bye_player(
-                    session, entry, identity_service
+                    session, entry, identity_service, context
                 )
                 if bye_player_id:
                     bye_positions[(entry.round, entry.draw_position)] = bye_player_id
@@ -196,14 +226,16 @@ def ingest_draw(
                 continue
 
             # Resolve player IDs
+            resolve_start = perf_counter()
             player_a_id = _resolve_player(
                 session, entry.player_a_name, entry.player_a_external_id,
-                entry.source, identity_service,
+                entry.source, identity_service, context.player_resolution_cache,
             )
             player_b_id = _resolve_player(
                 session, entry.player_b_name, entry.player_b_external_id,
-                entry.source, identity_service,
+                entry.source, identity_service, context.player_resolution_cache,
             )
+            stats.timings["resolve_players"] += perf_counter() - resolve_start
 
             if not player_a_id or not player_b_id:
                 stats.skipped_no_player_match += 1
@@ -215,6 +247,7 @@ def ingest_draw(
                 continue
 
             # Create or update the match
+            upsert_start = perf_counter()
             match = _upsert_draw_match(
                 session,
                 entry,
@@ -225,7 +258,9 @@ def ingest_draw(
                 seen_external_ids,
                 elo_updater,
                 level_code,
+                context,
             )
+            stats.timings["upsert_matches"] += perf_counter() - upsert_start
 
             if match is None:
                 stats.matches_skipped_existing += 1
@@ -272,8 +307,11 @@ def ingest_draw(
             all_decided[key] = m.winner_id
 
     # Try to propagate each decided position
+    propagation_start = perf_counter()
     propagated = _propagate_all(session, edition, all_decided, elo_updater)
+    stats.timings["propagation"] = perf_counter() - propagation_start
     stats.propagations_created = propagated
+    stats.timings["total"] = perf_counter() - started_at
 
     logger.info(stats.summary())
     return stats
@@ -283,12 +321,83 @@ def ingest_draw(
 # Helper functions
 # =============================================================================
 
+def _build_ingestion_context(
+    session: Session,
+    entries: list[ScrapedDrawEntry],
+    edition: TournamentEdition,
+    identity_service: PlayerIdentityService,
+) -> tuple[DrawIngestionContext, dict[str, float]]:
+    preload_matches_start = perf_counter()
+    existing_matches = session.query(Match).filter(
+        Match.tournament_edition_id == edition.id
+    ).all()
+    matches_by_slot: dict[tuple[str, int], Match] = {}
+    matches_by_external_id: dict[str, Match] = {}
+    for match in existing_matches:
+        if match.round and match.draw_position is not None:
+            matches_by_slot[(match.round, match.draw_position)] = match
+        if match.external_id:
+            matches_by_external_id[match.external_id] = match
+    preload_matches_elapsed = perf_counter() - preload_matches_start
+
+    preload_players_start = perf_counter()
+    player_resolution_cache: dict[tuple[str, str, Optional[str]], Optional[int]] = {}
+    unique_players: list[tuple[str, str, Optional[str]]] = []
+    for entry in entries:
+        if entry.is_bye:
+            if entry.player_a_name and entry.player_a_name.lower() != "bye":
+                key = (entry.player_a_name, entry.source, entry.player_a_external_id)
+                if key not in player_resolution_cache:
+                    player_resolution_cache[key] = None
+                    unique_players.append(key)
+            elif entry.player_b_name and entry.player_b_name.lower() != "bye":
+                key = (entry.player_b_name, entry.source, entry.player_b_external_id)
+                if key not in player_resolution_cache:
+                    player_resolution_cache[key] = None
+                    unique_players.append(key)
+            continue
+
+        if entry.player_a_name:
+            key_a = (entry.player_a_name, entry.source, entry.player_a_external_id)
+            if key_a not in player_resolution_cache:
+                player_resolution_cache[key_a] = None
+                unique_players.append(key_a)
+        if entry.player_b_name:
+            key_b = (entry.player_b_name, entry.source, entry.player_b_external_id)
+            if key_b not in player_resolution_cache:
+                player_resolution_cache[key_b] = None
+                unique_players.append(key_b)
+
+    for name, source, external_id in unique_players:
+        _resolve_player(
+            session=session,
+            name=name,
+            external_id=external_id,
+            source=source,
+            identity_service=identity_service,
+            resolution_cache=player_resolution_cache,
+        )
+    preload_players_elapsed = perf_counter() - preload_players_start
+
+    context = DrawIngestionContext(
+        matches_by_slot=matches_by_slot,
+        matches_by_external_id=matches_by_external_id,
+        player_resolution_cache=player_resolution_cache,
+        player_external_id_cache={},
+    )
+    return context, {
+        "preload_matches": preload_matches_elapsed,
+        "preload_players": preload_players_elapsed,
+    }
+
+
 def _resolve_player(
     session: Session,
     name: str,
     external_id: Optional[str],
     source: str,
     identity_service: PlayerIdentityService,
+    resolution_cache: Optional[dict[tuple[str, str, Optional[str]], Optional[int]]] = None,
 ) -> Optional[int]:
     """
     Resolve a player name/ID to a canonical player_id.
@@ -307,6 +416,12 @@ def _resolve_player(
     Returns:
         Canonical player_id or None if unresolvable
     """
+    cache_key: Optional[tuple[str, str, Optional[str]]] = None
+    if resolution_cache is not None:
+        cache_key = (name, source, external_id)
+        if cache_key in resolution_cache:
+            return resolution_cache[cache_key]
+
     player_id, _ = identity_service.find_or_queue_player(
         name=name,
         source=source,
@@ -321,6 +436,8 @@ def _resolve_player(
             external_id=external_id,
         )
 
+    if resolution_cache is not None and cache_key is not None:
+        resolution_cache[cache_key] = player_id
     return player_id
 
 
@@ -328,26 +445,41 @@ def _get_player_external_id(
     session: Session,
     player_id: int,
     source: str,
+    player_external_id_cache: Optional[dict[tuple[int, str], Optional[str]]] = None,
 ) -> Optional[str]:
+    if player_external_id_cache is not None:
+        cache_key = (player_id, source)
+        if cache_key in player_external_id_cache:
+            return player_external_id_cache[cache_key]
+
     from teelo.db.models import Player
 
     player = session.query(Player).filter(Player.id == player_id).first()
     if not player:
+        if player_external_id_cache is not None:
+            player_external_id_cache[(player_id, source)] = None
         return None
 
+    result: Optional[str]
     if source == "atp":
-        return player.atp_id
-    if source == "wta":
-        return player.wta_id
-    if source == "itf":
-        return player.itf_id
-    return None
+        result = player.atp_id
+    elif source == "wta":
+        result = player.wta_id
+    elif source == "itf":
+        result = player.itf_id
+    else:
+        result = None
+
+    if player_external_id_cache is not None:
+        player_external_id_cache[(player_id, source)] = result
+    return result
 
 
 def _resolve_bye_player(
     session: Session,
     entry: ScrapedDrawEntry,
     identity_service: PlayerIdentityService,
+    context: Optional[DrawIngestionContext] = None,
 ) -> Optional[int]:
     """
     Resolve the player who received a bye.
@@ -368,6 +500,7 @@ def _resolve_bye_player(
         return _resolve_player(
             session, entry.player_a_name, entry.player_a_external_id,
             entry.source, identity_service,
+            resolution_cache=(context.player_resolution_cache if context else None),
         )
 
     # Edge case: player_b has the real player (shouldn't happen with our parser)
@@ -375,6 +508,7 @@ def _resolve_bye_player(
         return _resolve_player(
             session, entry.player_b_name, entry.player_b_external_id,
             entry.source, identity_service,
+            resolution_cache=(context.player_resolution_cache if context else None),
         )
 
     return None
@@ -390,6 +524,7 @@ def _upsert_draw_match(
     seen_external_ids: set[str],
     elo_updater: LiveEloUpdater,
     level_code: str,
+    context: DrawIngestionContext,
 ) -> Optional[Match]:
     """
     Create or update a Match row from a draw entry.
@@ -411,12 +546,7 @@ def _upsert_draw_match(
     pending_statuses = set(get_status_group("pending"))
     terminal_statuses = set(get_status_group("terminal"))
 
-    # Check for existing match by draw position
-    existing = session.query(Match).filter(
-        Match.tournament_edition_id == edition.id,
-        Match.round == entry.round,
-        Match.draw_position == entry.draw_position,
-    ).first()
+    existing = context.matches_by_slot.get((entry.round, entry.draw_position))
 
     # Reconcile pairings for this draw slot every ingest run.
     # If a pending fixture changed players, keep the old row for audit by
@@ -493,10 +623,10 @@ def _upsert_draw_match(
     # Generate an external_id for deduplication
     # Uses player-ID-based format when possible (compatible with results scraper)
     player_a_ext_id = entry.player_a_external_id or _get_player_external_id(
-        session, player_a_id, entry.source
+        session, player_a_id, entry.source, context.player_external_id_cache
     )
     player_b_ext_id = entry.player_b_external_id or _get_player_external_id(
-        session, player_b_id, entry.source
+        session, player_b_id, entry.source, context.player_external_id_cache
     )
 
     external_id = _make_external_id(
@@ -514,14 +644,7 @@ def _upsert_draw_match(
             return None
         seen_external_ids.add(external_id)
 
-        # Check pending matches in the current session
-        for pending in session.new:
-            if isinstance(pending, Match) and pending.external_id == external_id:
-                return None
-
-        existing_by_external = session.query(Match).filter(
-            Match.external_id == external_id
-        ).first()
+        existing_by_external = context.matches_by_external_id.get(external_id)
         if existing_by_external:
             existing = existing_by_external
 
@@ -537,19 +660,25 @@ def _upsert_draw_match(
             existing.player_b_seed = entry.player_b_seed
             updated = True
         if external_id and not existing.external_id:
-            # Only set if not already used by another match
-            conflict = session.query(Match.id).filter(
-                Match.external_id == external_id,
-                Match.id != existing.id,
-            ).first()
-            if not conflict:
+            conflict = context.matches_by_external_id.get(external_id)
+            if conflict is None or conflict.id == existing.id:
                 existing.external_id = external_id
+                context.matches_by_external_id[external_id] = existing
                 updated = True
+        if existing.draw_position is None:
+            existing.draw_position = entry.draw_position
+            context.matches_by_slot[(entry.round, entry.draw_position)] = existing
+            updated = True
+
+        # No-op update skip.
+        if not updated:
+            return None
+
         if updated and existing.status in pending_statuses:
             elo_updater.ensure_pre_match_snapshot(session, existing)
         elif updated and existing.status in terminal_statuses:
             elo_updater.apply_completed_match(session, existing, level_code=level_code)
-        return existing if updated else None
+        return existing
 
     # Estimate match date from tournament dates + round
     match_date = None
@@ -564,21 +693,37 @@ def _upsert_draw_match(
             match_date_estimated = True
 
     if existing and overwrite:
-        # Update existing match
-        existing.player_a_id = player_a_id
-        existing.player_b_id = player_b_id
-        existing.player_a_seed = entry.player_a_seed
-        existing.player_b_seed = entry.player_b_seed
-        existing.winner_id = winner_id
-        existing.score = entry.score_raw
-        existing.score_structured = score_structured
-        existing.status = status
-        existing.match_date = match_date
-        existing.match_date_estimated = match_date_estimated
-        if external_id:
-            existing.external_id = external_id
+        changed = False
+        updates = {
+            "player_a_id": player_a_id,
+            "player_b_id": player_b_id,
+            "player_a_seed": entry.player_a_seed,
+            "player_b_seed": entry.player_b_seed,
+            "winner_id": winner_id,
+            "score": entry.score_raw,
+            "score_structured": score_structured,
+            "status": status,
+            "match_date": match_date,
+            "match_date_estimated": match_date_estimated,
+        }
+        for attr, value in updates.items():
+            if getattr(existing, attr) != value:
+                setattr(existing, attr, value)
+                changed = True
+        if external_id and existing.external_id != external_id:
+            conflict = context.matches_by_external_id.get(external_id)
+            if conflict is None or conflict.id == existing.id:
+                existing.external_id = external_id
+                context.matches_by_external_id[external_id] = existing
+                changed = True
         if existing.draw_position is None:
             existing.draw_position = entry.draw_position
+            changed = True
+
+        if not changed:
+            return None
+
+        context.matches_by_slot[(entry.round, entry.draw_position)] = existing
         existing.update_temporal_order(
             tournament_start=edition.start_date,
             tournament_end=edition.end_date,
@@ -615,6 +760,9 @@ def _upsert_draw_match(
     )
 
     session.add(match)
+    context.matches_by_slot[(entry.round, entry.draw_position)] = match
+    if external_id:
+        context.matches_by_external_id[external_id] = match
     if match.status in pending_statuses:
         elo_updater.ensure_pre_match_snapshot(session, match)
     elif match.status in terminal_statuses:

@@ -385,7 +385,7 @@ class PlayerIdentityService:
         Merge two player records into one.
 
         Use this when you discover two records refer to the same person.
-        All references (matches, ELO ratings, aliases) are moved to keep_id.
+        All references (matches and aliases) are moved to keep_id.
 
         Args:
             keep_id: Player ID to keep
@@ -394,7 +394,7 @@ class PlayerIdentityService:
         Raises:
             ValueError: If either player doesn't exist
         """
-        from teelo.db.models import Match, EloRating
+        from teelo.db.models import Match
 
         keep_player = self.db.query(Player).filter(Player.id == keep_id).first()
         merge_player = self.db.query(Player).filter(Player.id == merge_id).first()
@@ -428,11 +428,6 @@ class PlayerIdentityService:
             ).first()
             if not existing:
                 alias.player_id = keep_id
-
-        # Move ELO ratings
-        self.db.query(EloRating).filter(EloRating.player_id == merge_id).update(
-            {"player_id": keep_id}
-        )
 
         # Copy external IDs if keep_player doesn't have them
         if merge_player.atp_id and not keep_player.atp_id:

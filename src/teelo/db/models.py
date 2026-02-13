@@ -20,7 +20,6 @@ Tables:
 - tournaments: Tournament master data
 - tournament_editions: Yearly tournament instances
 - matches: All matches (scheduled, in progress, and completed)
-- elo_ratings: Historical ELO ratings per match
 - feature_sets: ML feature definitions (versioned)
 - match_features: Computed features per match
 - scrape_queue: Pending/failed scrape tasks
@@ -618,7 +617,6 @@ class Match(Base):
     player_a: Mapped["Player"] = relationship(foreign_keys=[player_a_id])
     player_b: Mapped["Player"] = relationship(foreign_keys=[player_b_id])
     winner: Mapped[Optional["Player"]] = relationship(foreign_keys=[winner_id])
-    elo_ratings: Mapped[list["EloRating"]] = relationship(back_populates="match")
     features: Mapped[list["MatchFeatures"]] = relationship(back_populates="match")
 
     __table_args__ = (
@@ -744,60 +742,6 @@ class Match(Base):
 
     def __repr__(self) -> str:
         return f"<Match(id={self.id}, status='{self.status}', external_id='{self.external_id}')>"
-
-
-# =============================================================================
-# ELO Models
-# =============================================================================
-
-class EloRating(Base):
-    """
-    Historical ELO rating change for a player after a match.
-
-    We store the rating before and after each match, allowing us to
-    reconstruct a player's rating at any point in history. This is
-    essential for computing features that need "ELO at time of match."
-
-    The surface column allows for surface-specific ELO (optional feature).
-    When surface is NULL, this is the overall ELO rating.
-    """
-    __tablename__ = "elo_ratings"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), nullable=False)
-    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id"), nullable=False)
-
-    # Rating before and after this match
-    rating_before: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
-    rating_after: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
-
-    # Surface for surface-specific ELO (NULL = overall rating)
-    surface: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-
-    # Track career peaks for features
-    is_career_peak: Mapped[bool] = mapped_column(Boolean, default=False)
-
-    # When this rating was recorded
-    rating_date: Mapped[datetime] = mapped_column(Date, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    player: Mapped["Player"] = relationship()
-    match: Mapped["Match"] = relationship(back_populates="elo_ratings")
-
-    __table_args__ = (
-        Index("idx_elo_ratings_player_date", "player_id", "rating_date"),
-        Index("idx_elo_ratings_match", "match_id"),
-        UniqueConstraint("player_id", "match_id", "surface", name="uq_elo_ratings_player_match_surface"),
-    )
-
-    @property
-    def rating_change(self) -> Decimal:
-        """Calculate the rating change from this match."""
-        return self.rating_after - self.rating_before
-
-    def __repr__(self) -> str:
-        return f"<EloRating(player_id={self.player_id}, {self.rating_before} -> {self.rating_after})>"
 
 
 class PlayerEloState(Base):

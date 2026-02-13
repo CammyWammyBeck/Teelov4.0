@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from time import perf_counter
-from typing import Any, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional
 
 from teelo.db import Match, Tournament, TournamentEdition
 from teelo.db.models import estimate_match_date_from_round
@@ -228,6 +228,8 @@ async def execute_task(
     identity_service: PlayerIdentityService,
     mode: str,
     overwrite: bool = False,
+    progress_callback: Optional[Callable[[str], None]] = None,
+    verbose: bool = True,
 ) -> dict[str, Any]:
     normalized = _normalize_task_params(task_params)
     if mode == "historical":
@@ -244,6 +246,8 @@ async def execute_task(
             scraper,
             session,
             identity_service,
+            progress_callback=progress_callback,
+            verbose=verbose,
         )
     raise ValueError(f"Unknown execute_task mode: {mode}")
 
@@ -282,6 +286,8 @@ async def _execute_current_task(
     scraper,
     session,
     identity_service: PlayerIdentityService,
+    progress_callback: Optional[Callable[[str], None]] = None,
+    verbose: bool = True,
 ) -> dict[str, Any]:
     total_start = perf_counter()
     timings = {
@@ -306,12 +312,18 @@ async def _execute_current_task(
 
     results: dict[str, Any] = {"draw": None, "schedule": None, "results": None}
 
+    def report(message: str) -> None:
+        if progress_callback is not None:
+            progress_callback(message)
+        if verbose:
+            print(message)
+
     async with scraper_ctx as active_scraper:
         edition = await get_or_create_edition(session, task_params, tour_key)
 
         # 1. DRAW
         try:
-            print("  Scraping Draw...")
+            report("Scraping Draw")
             draw_kwargs = {
                 "tournament_id": task_params.tournament_id,
                 "year": task_params.year,
@@ -333,22 +345,25 @@ async def _execute_current_task(
             timings["phases"]["draw"]["scrape"] += draw_scrape_elapsed
             timings["scraping"] += draw_scrape_elapsed
 
+            report("Ingesting Draw")
             draw_ingest_start = perf_counter()
             stats = ingest_draw(session, entries, edition, identity_service)
             draw_ingest_elapsed = perf_counter() - draw_ingest_start
             timings["phases"]["draw"]["ingest"] += draw_ingest_elapsed
             timings["ingestion"] += draw_ingest_elapsed
             results["draw"] = stats.summary()
-            print(f"  Draw: {results['draw']}")
+            if verbose:
+                print(f"  Draw: {results['draw']}")
         except Exception as exc:
-            print(f"  Draw Error: {exc}")
+            if verbose:
+                print(f"  Draw Error: {exc}")
             session.rollback()
             edition = await get_or_create_edition(session, task_params, tour_key)
 
         # 2. SCHEDULE
         if _should_scrape_schedule(task_params, today):
             try:
-                print("  Scraping Schedule...")
+                report("Scraping Schedule")
                 sched_kwargs: dict[str, Any] = {}
                 if tour_key.startswith("ITF"):
                     sched_kwargs["tournament_url"] = task_params.tournament_url
@@ -368,24 +383,27 @@ async def _execute_current_task(
                 timings["phases"]["schedule"]["scrape"] += schedule_scrape_elapsed
                 timings["scraping"] += schedule_scrape_elapsed
 
+                report("Ingesting Schedule")
                 schedule_ingest_start = perf_counter()
                 stats = ingest_schedule(session, fixtures, edition, identity_service)
                 schedule_ingest_elapsed = perf_counter() - schedule_ingest_start
                 timings["phases"]["schedule"]["ingest"] += schedule_ingest_elapsed
                 timings["ingestion"] += schedule_ingest_elapsed
                 results["schedule"] = stats.summary()
-                print(f"  Schedule: {results['schedule']}")
+                if verbose:
+                    print(f"  Schedule: {results['schedule']}")
             except Exception as exc:
-                print(f"  Schedule Error: {exc}")
+                if verbose:
+                    print(f"  Schedule Error: {exc}")
                 session.rollback()
                 edition = await get_or_create_edition(session, task_params, tour_key)
         else:
-            print("  Skipping Schedule (tournament appears fully completed).")
+            report("Skipping Schedule (tournament appears fully completed)")
 
         # 3. RESULTS
         if _should_scrape_results(task_params, today):
             try:
-                print("  Scraping Results...")
+                report("Scraping Results")
                 res_kwargs = {
                     "tournament_id": task_params.tournament_id,
                     "year": task_params.year,
@@ -409,18 +427,21 @@ async def _execute_current_task(
                 timings["phases"]["results"]["scrape"] += results_scrape_elapsed
                 timings["scraping"] += results_scrape_elapsed
 
+                report("Ingesting Results")
                 results_ingest_start = perf_counter()
                 stats = ingest_results(session, matches, edition, identity_service)
                 results_ingest_elapsed = perf_counter() - results_ingest_start
                 timings["phases"]["results"]["ingest"] += results_ingest_elapsed
                 timings["ingestion"] += results_ingest_elapsed
                 results["results"] = stats.summary()
-                print(f"  Results: {results['results']}")
+                if verbose:
+                    print(f"  Results: {results['results']}")
             except Exception as exc:
-                print(f"  Results Error: {exc}")
+                if verbose:
+                    print(f"  Results Error: {exc}")
                 session.rollback()
         else:
-            print("  Skipping Results (tournament has not started yet).")
+            report("Skipping Results (tournament has not started yet)")
 
     commit_start = perf_counter()
     session.commit()

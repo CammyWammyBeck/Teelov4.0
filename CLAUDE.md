@@ -95,6 +95,10 @@ python scripts/test_ao_2024.py                      # Test ATP scraper with AO 2
 python scripts/backfill_historical.py --year 2024  # Backfill year
 python scripts/daily_update.py                      # Manual update cycle
 
+# ELO operations
+# See docs/elo-operations.md for optimize/activate/backfill command combos
+python3 scripts/optimise_elo.py --n-trials 200
+
 # Database (Cloud PostgreSQL)
 # Connect using DATABASE_URL from .env
 # Or use DBeaver GUI with cloud connection string
@@ -108,7 +112,7 @@ python scripts/daily_update.py                      # Manual update cycle
 - `tournaments` - Tournament master data
 - `tournament_editions` - Yearly tournament instances
 - `matches` - **Unified table**: scheduled, in-progress, and completed matches (includes odds, predictions, results)
-- `elo_ratings` - Historical ELO ratings
+- `player_elo_states` - Current ELO state per player for inline updates
 - `feature_sets` - ML feature definitions
 - `match_features` - Computed features per match
 - `scrape_queue` - Pending/failed scrape tasks

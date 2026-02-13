@@ -11,8 +11,14 @@ Usage:
     # Full optimization (200 trials)
     python scripts/optimise_elo.py --n-trials 200
 
-    # Optimize and write results to DB
-    python scripts/optimise_elo.py --n-trials 200 --write-db
+    # More aggressive exploration profile
+    python scripts/optimise_elo.py --n-trials 1000 --n-startup-trials 200 --n-ei-candidates 128
+
+    # Use all history for ELO warmup, score on last 5 years (80/20 split)
+    python scripts/optimise_elo.py --split-mode recent_years_ratio --eval-years 5 --test-ratio 0.2
+
+    # Optimize and rebuild live inline ELO state/snapshots
+    python scripts/optimise_elo.py --n-trials 200 --rebuild-live-state --activate-best
 """
 
 import argparse
@@ -24,7 +30,7 @@ import optuna
 
 from teelo.db.session import get_session
 from teelo.elo.pipeline import EloPipeline, EloParams, load_matches_for_elo
-from teelo.elo.params_store import persist_elo_params
+from teelo.elo.params_store import get_active_elo_params, persist_elo_params
 
 
 def compute_log_loss(probs: list[float]) -> float:
@@ -105,18 +111,152 @@ def create_params_from_trial(trial: optuna.Trial) -> EloParams:
     )
 
 
+def rebuild_live_elo_state(params: EloParams, params_version: str) -> tuple[int, int, int]:
+    """
+    Rebuild live inline ELO artifacts from completed matches in temporal order.
+
+    This rebuilds:
+    - match-level pre/post ELO snapshots + metadata columns
+    - player_elo_states
+    """
+    from teelo.db.models import Match, PlayerEloState, TournamentEdition, Tournament
+    from teelo.elo.constants import get_level_code
+    from teelo.elo.live import LiveEloUpdater, TERMINAL_STATUSES
+
+    with get_session() as session:
+        session.query(PlayerEloState).delete()
+        session.query(Match).update(
+            {
+                Match.elo_pre_player_a: None,
+                Match.elo_pre_player_b: None,
+                Match.elo_post_player_a: None,
+                Match.elo_post_player_b: None,
+                Match.elo_params_version: None,
+                Match.elo_processed_at: None,
+                Match.elo_needs_recompute: False,
+            },
+            synchronize_session=False,
+        )
+        session.flush()
+
+        matches = (
+            session.query(Match)
+            .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+            .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+            .filter(
+                Match.status.in_(tuple(TERMINAL_STATUSES)),
+                Match.winner_id.isnot(None),
+                Match.temporal_order.isnot(None),
+            )
+            .order_by(Match.temporal_order.asc(), Match.id.asc())
+            .all()
+        )
+
+        updater = LiveEloUpdater(params=params, params_version=params_version)
+        processed = 0
+        flagged_recompute = 0
+        for match in matches:
+            level_code = get_level_code(
+                match.tournament_edition.tournament.level,
+                match.tournament_edition.tournament.tour,
+            )
+            updater.ensure_pre_match_snapshot(session, match, force=True)
+            if updater.apply_completed_match(session, match, level_code=level_code):
+                processed += 1
+            elif match.elo_needs_recompute:
+                flagged_recompute += 1
+
+        session.commit()
+        n_states = session.query(PlayerEloState).count()
+        return processed, flagged_recompute, n_states
+
+
 def main():
     parser = argparse.ArgumentParser(description="Optimize ELO parameters with Optuna")
     parser.add_argument("--n-trials", type=int, default=200, help="Number of Optuna trials")
-    parser.add_argument("--write-db", action="store_true", help="Write final ratings to DB with best params")
-    parser.add_argument("--activate-best", action="store_true", help="Persist and activate best params for inline ELO updates")
-    parser.add_argument("--test-months", type=int, default=3, help="Months of data for test set")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for Optuna sampler",
+    )
+    parser.add_argument(
+        "--n-startup-trials",
+        type=int,
+        default=120,
+        help="Number of random startup trials before TPE exploitation",
+    )
+    parser.add_argument(
+        "--n-ei-candidates",
+        type=int,
+        default=96,
+        help="Number of TPE candidate points per trial (higher explores more, slower per trial)",
+    )
+    parser.add_argument(
+        "--independent-tpe",
+        action="store_true",
+        help="Use independent (non-multivariate) TPE sampling",
+    )
+    parser.add_argument(
+        "--no-group-tpe",
+        action="store_true",
+        help="Disable grouped TPE dimensions (only applies with multivariate TPE)",
+    )
+    parser.add_argument(
+        "--rebuild-live-state",
+        action="store_true",
+        help="Rebuild inline ELO snapshots/player state from completed matches in temporal order",
+    )
+    parser.add_argument(
+        "--activate-best",
+        action="store_true",
+        help="Persist and activate best params for inline ELO updates",
+    )
+    parser.add_argument(
+        "--min-improvement",
+        type=float,
+        default=0.0,
+        help="Minimum log-loss improvement vs active params required to activate best params",
+    )
+    parser.add_argument(
+        "--split-mode",
+        choices=["match_date", "temporal_order", "recent_years_ratio"],
+        default="recent_years_ratio",
+        help="How to split train/test set",
+    )
+    parser.add_argument("--test-months", type=int, default=3, help="Months of data for test set when split-mode=match_date")
+    parser.add_argument(
+        "--eval-years",
+        type=int,
+        default=5,
+        help="Years in evaluation window when split-mode=recent_years_ratio",
+    )
+    parser.add_argument(
+        "--test-ratio",
+        type=float,
+        default=0.2,
+        help="Fraction of matches for test set tail when split-mode=temporal_order/recent_years_ratio",
+    )
     args = parser.parse_args()
+
+    if not (0 < args.test_ratio < 1):
+        print("ERROR: --test-ratio must be between 0 and 1.")
+        sys.exit(2)
+    if args.eval_years < 1:
+        print("ERROR: --eval-years must be >= 1.")
+        sys.exit(2)
+    if args.n_startup_trials < 0:
+        print("ERROR: --n-startup-trials must be >= 0.")
+        sys.exit(2)
+    if args.n_ei_candidates < 2:
+        print("ERROR: --n-ei-candidates must be >= 2.")
+        sys.exit(2)
 
     # Load all matches once
     print("Loading matches from database...")
     with get_session() as session:
         all_matches = load_matches_for_elo(session)
+        active_params, active_params_version = get_active_elo_params(session)
 
     if not all_matches:
         print("ERROR: No completed matches found in database.")
@@ -124,30 +264,67 @@ def main():
 
     print(f"Loaded {len(all_matches)} completed matches")
 
-    # Determine train/test split based on match dates
-    # Use the last N months as test set
-    dated_matches = [m for m in all_matches if m["match_date"] is not None]
-    if not dated_matches:
-        print("ERROR: No matches with dates found.")
-        sys.exit(1)
+    # Determine train/test split
+    if args.split_mode == "match_date":
+        dated_matches = [m for m in all_matches if m["match_date"] is not None]
+        if not dated_matches:
+            print("ERROR: No matches with dates found.")
+            sys.exit(1)
 
-    max_date = max(m["match_date"] for m in dated_matches)
-    split_date = max_date - timedelta(days=args.test_months * 30)
-    print(f"Date range: {min(m['match_date'] for m in dated_matches)} to {max_date}")
-    print(f"Test split date: {split_date}")
+        max_date = max(m["match_date"] for m in dated_matches)
+        split_date = max_date - timedelta(days=args.test_months * 30)
+        print(f"Date range: {min(m['match_date'] for m in dated_matches)} to {max_date}")
+        print(f"Test split date: {split_date}")
 
-    # Find the index where test set starts (matches are sorted by temporal_order)
-    # We need to process ALL matches through the pipeline (to build up ratings),
-    # but only evaluate log-loss on the test portion.
-    test_start_idx = len(all_matches)  # Default: all training
-    for i, m in enumerate(all_matches):
-        if m["match_date"] is not None and m["match_date"] >= split_date:
-            test_start_idx = i
-            break
+        # Matches are sorted by temporal_order
+        test_start_idx = len(all_matches)
+        for i, m in enumerate(all_matches):
+            if m["match_date"] is not None and m["match_date"] >= split_date:
+                test_start_idx = i
+                break
+        warmup_count = test_start_idx
+        eval_start_idx = test_start_idx
+    elif args.split_mode == "recent_years_ratio":
+        dated_matches = [m for m in all_matches if m["match_date"] is not None]
+        if not dated_matches:
+            print("ERROR: No matches with dates found.")
+            sys.exit(1)
 
-    n_train = test_start_idx
+        max_date = max(m["match_date"] for m in dated_matches)
+        eval_start_date = max_date - timedelta(days=args.eval_years * 365)
+        eval_start_idx = len(all_matches)
+        for i, m in enumerate(all_matches):
+            if m["match_date"] is not None and m["match_date"] >= eval_start_date:
+                eval_start_idx = i
+                break
+
+        if eval_start_idx >= len(all_matches):
+            print("ERROR: No matches found in recent evaluation window.")
+            sys.exit(1)
+
+        n_eval = len(all_matches) - eval_start_idx
+        if n_eval < 2:
+            print("ERROR: Not enough matches in recent evaluation window.")
+            sys.exit(1)
+
+        test_start_idx = eval_start_idx + int(n_eval * (1 - args.test_ratio))
+        test_start_idx = max(eval_start_idx + 1, min(test_start_idx, len(all_matches) - 1))
+        warmup_count = eval_start_idx
+        print(
+            f"Split mode: recent_years_ratio "
+            f"(window start: {eval_start_date}, eval matches: {n_eval}, test tail: {args.test_ratio:.0%})"
+        )
+    else:
+        test_start_idx = int(len(all_matches) * (1 - args.test_ratio))
+        test_start_idx = max(1, min(test_start_idx, len(all_matches) - 1))
+        warmup_count = test_start_idx
+        eval_start_idx = test_start_idx
+        print(f"Split mode: temporal_order ({args.test_ratio:.0%} test tail)")
+
+    n_train = test_start_idx - eval_start_idx
     n_test = len(all_matches) - test_start_idx
-    print(f"Train: {n_train} matches, Test: {n_test} matches")
+    print(f"Warmup (not scored): {warmup_count} matches")
+    print(f"Train (scored window): {n_train} matches, Test: {n_test} matches")
 
     if n_test < 50:
         print(f"WARNING: Only {n_test} test matches. Results may be unreliable.")
@@ -158,8 +335,15 @@ def main():
     baseline_probs = baseline_pipeline.run_fast(all_matches)
     baseline_test_probs = baseline_probs[test_start_idx:]
     baseline_loss = compute_log_loss(baseline_test_probs)
+
+    active_pipeline = EloPipeline(active_params)
+    active_probs = active_pipeline.run_fast(all_matches)
+    active_test_probs = active_probs[test_start_idx:]
+    active_loss = compute_log_loss(active_test_probs)
+
     print(f"Baseline log-loss (default params): {baseline_loss:.6f}")
-    print(f"Random baseline (log-loss 0.5): {-math.log(0.5):.6f}")
+    print(f"Baseline log-loss (active params: {active_params_version}): {active_loss:.6f}")
+    print(f"Random baseline: {-math.log(0.5):.6f}")
     print()
 
     # Run Optuna optimization
@@ -174,10 +358,27 @@ def main():
     # Suppress Optuna's per-trial logging (very verbose with all parameter values)
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+    multivariate_tpe = not args.independent_tpe
+    group_tpe = multivariate_tpe and (not args.no_group_tpe)
+    sampler = optuna.samplers.TPESampler(
+        seed=args.seed,
+        n_startup_trials=args.n_startup_trials,
+        n_ei_candidates=args.n_ei_candidates,
+        multivariate=multivariate_tpe,
+        group=group_tpe,
+    )
+    print("Sampler configuration:")
+    print(f"  seed={args.seed}")
+    print(f"  n_startup_trials={args.n_startup_trials}")
+    print(f"  n_ei_candidates={args.n_ei_candidates}")
+    print(f"  multivariate_tpe={multivariate_tpe}")
+    print(f"  group_tpe={group_tpe}")
+    print()
+
     print(f"Starting Optuna optimization with {args.n_trials} trials...")
     study = optuna.create_study(
         direction="minimize",
-        sampler=optuna.samplers.TPESampler(seed=42),
+        sampler=sampler,
     )
     study.optimize(objective, n_trials=args.n_trials, show_progress_bar=True)
 
@@ -185,8 +386,9 @@ def main():
     best = study.best_trial
     print()
     print("=" * 60)
-    print(f"Best log-loss: {best.value:.6f} (baseline: {baseline_loss:.6f})")
-    print(f"Improvement: {baseline_loss - best.value:.6f}")
+    print(f"Best log-loss: {best.value:.6f}")
+    print(f"Improvement vs default: {baseline_loss - best.value:.6f}")
+    print(f"Improvement vs active ({active_params_version}): {active_loss - best.value:.6f}")
     print()
     print("Best parameters:")
     for key, value in sorted(best.params.items()):
@@ -196,33 +398,50 @@ def main():
             print(f"  {key}: {value}")
 
 
+    best_params = create_params_from_trial_values(best.params)
+    improvement_vs_active = active_loss - best.value
+    activated_name = None
+
     if args.activate_best:
-        best_params = create_params_from_trial_values(best.params)
-        with get_session() as session:
-            record = persist_elo_params(
-                session=session,
-                name=f"optuna-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}",
-                params=best_params,
-                source="optuna",
-                activate=True,
+        if improvement_vs_active < args.min_improvement:
+            print(
+                f"Skipping activation: improvement vs active ({improvement_vs_active:.6f}) "
+                f"is below --min-improvement ({args.min_improvement:.6f})"
             )
-            print(f"Activated ELO params set: {record.name}")
+        else:
+            run_name = f"optuna-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+            with get_session() as session:
+                record = persist_elo_params(
+                    session=session,
+                    name=run_name,
+                    params=best_params,
+                    source="optuna",
+                    activate=True,
+                )
+                activated_name = record.name
+                print(f"Activated ELO params set: {record.name}")
 
-    # Optionally write final ratings to DB
-    if args.write_db:
+    if args.rebuild_live_state:
+        params_version = activated_name
+        if not params_version:
+            run_name = f"optuna-candidate-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+            with get_session() as session:
+                record = persist_elo_params(
+                    session=session,
+                    name=run_name,
+                    params=best_params,
+                    source="optuna",
+                    activate=False,
+                )
+                params_version = record.name
+                print(f"Persisted non-active ELO params set for rebuild: {record.name}")
+
         print()
-        print("Writing final ratings to database with best parameters...")
-        best_params = create_params_from_trial_values(best.params)
-        pipeline = EloPipeline(best_params)
-
-        with get_session() as session:
-            # Clear existing ELO ratings before rewriting
-            from teelo.db.models import EloRating
-            session.query(EloRating).delete()
-            session.flush()
-
-            n_records = pipeline.run_full(session)
-            print(f"Created {n_records} EloRating records")
+        print("Rebuilding live inline ELO state...")
+        processed, flagged, n_states = rebuild_live_elo_state(best_params, params_version=params_version)
+        print(f"Processed matches: {processed}")
+        print(f"Out-of-order flagged: {flagged}")
+        print(f"PlayerEloState rows: {n_states}")
 
     print("Done.")
 

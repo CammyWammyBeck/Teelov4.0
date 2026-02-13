@@ -3,7 +3,17 @@ services:
     build: .
     env_file:
       - .env
-    command: ["python", "scripts/update_current_events.py"]
+    command: ["python", "scripts/update_current_events.py", "--workers", "3"]
+    ports:
+      - "5900:5900"
+      - "6080:6080"
+    restart: "no"
+
+  update:
+    build: .
+    env_file:
+      - .env
+    command: ["python", "scripts/update_current_events.py", "--workers", "3"]
     ports:
       - "5900:5900"
       - "6080:6080"

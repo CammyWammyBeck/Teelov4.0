@@ -1,27 +1,18 @@
 """
 ELO pipeline — orchestrates rating computation across all matches.
 
-Two modes of operation:
-
-1. **run_fast()**: Float-only computation for Optuna optimization.
-   No database writes, returns expected probabilities for log-loss.
-
-2. **run_full()**: Full computation with database writes.
-   Stores EloRating records, marks career peaks, uses Decimal for final values.
-
-Both modes apply the same modifiers on top of standard ELO:
+The pipeline applies these modifiers on top of standard ELO:
 - Margin-of-victory scaling (bigger wins → bigger rating changes)
 - Inactivity decay (pulls inactive players toward 1500)
 - New/returning player K-boost (faster convergence for new players)
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
-from decimal import Decimal
+from datetime import date
 from typing import Optional
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from teelo.elo.boost import calculate_k_boost
 from teelo.elo.calculator import calculate_fast
@@ -136,9 +127,6 @@ class EloPipeline:
         probs = pipeline.run_fast(matches)
         # Compute log-loss from probs
 
-    Usage (final calculation):
-        pipeline = EloPipeline(best_params)
-        pipeline.run_full(session)
     """
 
     def __init__(self, params: EloParams):
@@ -265,165 +253,6 @@ class EloPipeline:
             probs.append(max(1e-7, min(1.0 - 1e-7, exp_winner_prob)))
 
         return probs
-
-    def run_full(self, session: Session) -> int:
-        """
-        Full ELO computation with database writes.
-
-        Same logic as run_fast but writes EloRating records in batches
-        and tracks career peaks.
-
-        Args:
-            session: SQLAlchemy session for DB operations.
-
-        Returns:
-            Number of EloRating records created.
-        """
-        from teelo.db.models import EloRating, Match
-
-        matches = load_matches_for_elo(session)
-        players: dict[int, _PlayerState] = {}
-        params = self.params
-        batch: list[EloRating] = []
-        batch_size = 1000
-        total_records = 0
-
-        for m in matches:
-            pid_a = m["player_a_id"]
-            pid_b = m["player_b_id"]
-            level_code = m["level_code"]
-            match_date = m["match_date"]
-            match_id = m["match_id"]
-            score_structured = m.get("score_structured")
-            winner_id = m["winner_id"]
-
-            if winner_id == pid_a:
-                winner = "A"
-            elif winner_id == pid_b:
-                winner = "B"
-            else:
-                continue
-
-            if pid_a not in players:
-                players[pid_a] = _PlayerState()
-            if pid_b not in players:
-                players[pid_b] = _PlayerState()
-
-            state_a = players[pid_a]
-            state_b = players[pid_b]
-
-            # Apply inactivity decay
-            if state_a.last_match_date is not None and match_date is not None:
-                days_a = (match_date - state_a.last_match_date).days
-                state_a.rating = apply_inactivity_decay(
-                    state_a.rating, days_a,
-                    decay_rate=params.decay_rate,
-                    decay_start_days=params.decay_start_days,
-                )
-            else:
-                days_a = None
-
-            if state_b.last_match_date is not None and match_date is not None:
-                days_b = (match_date - state_b.last_match_date).days
-                state_b.rating = apply_inactivity_decay(
-                    state_b.rating, days_b,
-                    decay_rate=params.decay_rate,
-                    decay_start_days=params.decay_start_days,
-                )
-            else:
-                days_b = None
-
-            # K-boost per player
-            boost_a = calculate_k_boost(
-                state_a.match_count,
-                float(days_a) if days_a is not None else None,
-                new_threshold=params.new_threshold,
-                new_boost=params.new_boost,
-                returning_days=params.returning_days,
-                returning_boost=params.returning_boost,
-            )
-            boost_b = calculate_k_boost(
-                state_b.match_count,
-                float(days_b) if days_b is not None else None,
-                new_threshold=params.new_threshold,
-                new_boost=params.new_boost,
-                returning_days=params.returning_days,
-                returning_boost=params.returning_boost,
-            )
-
-            base_k = params.get_k(level_code)
-            s = params.get_s(level_code)
-
-            if score_structured:
-                margin_result = calculate_margin_multiplier(
-                    score_structured, winner,
-                    margin_base=params.margin_base,
-                    margin_scale=params.margin_scale,
-                )
-                margin_mult = float(margin_result.multiplier)
-            else:
-                margin_mult = 1.0
-
-            k_a = base_k * margin_mult * boost_a
-            k_b = base_k * margin_mult * boost_b
-
-            # Store before-ratings for DB records
-            rating_before_a = state_a.rating
-            rating_before_b = state_b.rating
-
-            new_a, new_b, _ = calculate_fast(
-                state_a.rating, state_b.rating, winner, k_a, k_b, s,
-            )
-
-            state_a.rating = new_a
-            state_b.rating = new_b
-            state_a.match_count += 1
-            state_b.match_count += 1
-            if match_date is not None:
-                state_a.last_match_date = match_date
-                state_b.last_match_date = match_date
-
-            # Track career peaks
-            is_peak_a = new_a > state_a.career_peak
-            if is_peak_a:
-                state_a.career_peak = new_a
-            is_peak_b = new_b > state_b.career_peak
-            if is_peak_b:
-                state_b.career_peak = new_b
-
-            # Create EloRating records for both players
-            rating_date = match_date or date(9999, 12, 31)
-            batch.append(EloRating(
-                player_id=pid_a,
-                match_id=match_id,
-                rating_before=Decimal(str(round(rating_before_a, 2))),
-                rating_after=Decimal(str(round(new_a, 2))),
-                rating_date=rating_date,
-                is_career_peak=is_peak_a,
-            ))
-            batch.append(EloRating(
-                player_id=pid_b,
-                match_id=match_id,
-                rating_before=Decimal(str(round(rating_before_b, 2))),
-                rating_after=Decimal(str(round(new_b, 2))),
-                rating_date=rating_date,
-                is_career_peak=is_peak_b,
-            ))
-            total_records += 2
-
-            # Flush in batches
-            if len(batch) >= batch_size:
-                session.bulk_save_objects(batch)
-                session.flush()
-                batch.clear()
-
-        # Flush remaining
-        if batch:
-            session.bulk_save_objects(batch)
-            session.flush()
-
-        return total_records
-
 
 def load_matches_for_elo(session: Session) -> list[dict]:
     """

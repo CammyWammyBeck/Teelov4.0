@@ -49,6 +49,8 @@ from teelo.scrape.base import ScrapedMatch
 from teelo.scrape.parsers.score import ScoreParseError, parse_score
 
 logger = logging.getLogger(__name__)
+PlayerResolutionKey = tuple[str, str, Optional[str], Optional[str]]
+MatchPairKey = tuple[int, str, int, int]
 
 
 @dataclass
@@ -110,32 +112,42 @@ def ingest_results(
     stats = ResultsIngestionStats(total_matches=len(scraped_matches))
     elo_updater = LiveEloUpdater.from_session(session)
     level_code = get_level_code(edition.tournament.level, edition.tournament.tour)
+    player_resolution_cache = _preload_player_resolutions(scraped_matches, identity_service)
+    existing_by_external_id, existing_by_pair = _preload_existing_match_indexes(session, edition.id)
+    player_external_id_cache: dict[tuple[int, str], Optional[str]] = {}
 
     # Track external_ids seen in this batch to avoid in-batch duplicates
     seen_external_ids: set[str] = set()
 
     for scraped in scraped_matches:
         try:
-            result, match = _process_single_result(
-                session=session,
-                scraped=scraped,
-                edition=edition,
-                identity_service=identity_service,
-                seen_external_ids=seen_external_ids,
-                update_existing=update_existing,
-            )
+            # Isolate each match in a savepoint so one DB error does not leave the
+            # whole ingestion session in a failed transaction state.
+            with session.begin_nested():
+                result, match = _process_single_result(
+                    session=session,
+                    scraped=scraped,
+                    edition=edition,
+                    identity_service=identity_service,
+                    player_resolution_cache=player_resolution_cache,
+                    existing_by_external_id=existing_by_external_id,
+                    existing_by_pair=existing_by_pair,
+                    player_external_id_cache=player_external_id_cache,
+                    seen_external_ids=seen_external_ids,
+                    update_existing=update_existing,
+                )
 
-            if result in {"created", "updated"} and match is not None:
-                elo_updater.apply_completed_match(session, match, level_code=level_code)
+                if result in {"created", "updated"} and match is not None:
+                    elo_updater.apply_completed_match(session, match, level_code=level_code)
 
-            if result == "created":
-                stats.matches_created += 1
-            elif result == "updated":
-                stats.matches_updated += 1
-            elif result == "duplicate":
-                stats.matches_skipped_duplicate += 1
-            elif result == "no_player":
-                stats.skipped_no_player_match += 1
+                if result == "created":
+                    stats.matches_created += 1
+                elif result == "updated":
+                    stats.matches_updated += 1
+                elif result == "duplicate":
+                    stats.matches_skipped_duplicate += 1
+                elif result == "no_player":
+                    stats.skipped_no_player_match += 1
 
         except Exception as e:
             error_msg = f"{scraped.player_a_name} vs {scraped.player_b_name}: {e}"
@@ -151,6 +163,10 @@ def _process_single_result(
     scraped: ScrapedMatch,
     edition: TournamentEdition,
     identity_service: PlayerIdentityService,
+    player_resolution_cache: dict[PlayerResolutionKey, Optional[int]],
+    existing_by_external_id: dict[str, Match],
+    existing_by_pair: dict[MatchPairKey, Match],
+    player_external_id_cache: dict[tuple[int, str], Optional[str]],
     seen_external_ids: set[str],
     update_existing: bool,
 ) -> tuple[str, Optional[Match]]:
@@ -171,7 +187,7 @@ def _process_single_result(
     # Resolve external IDs from DB if missing (only save if we have player IDs)
     player_a_id = _resolve_player(
         session, scraped.player_a_name, scraped.player_a_external_id,
-        scraped.source, scraped.player_a_nationality, identity_service,
+        scraped.source, scraped.player_a_nationality, identity_service, player_resolution_cache,
     )
     if not player_a_id:
         logger.warning("Could not resolve player A: %s", scraped.player_a_name)
@@ -179,7 +195,7 @@ def _process_single_result(
 
     player_b_id = _resolve_player(
         session, scraped.player_b_name, scraped.player_b_external_id,
-        scraped.source, scraped.player_b_nationality, identity_service,
+        scraped.source, scraped.player_b_nationality, identity_service, player_resolution_cache,
     )
     if not player_b_id:
         logger.warning("Could not resolve player B: %s", scraped.player_b_name)
@@ -195,6 +211,7 @@ def _process_single_result(
         player_b_id=player_b_id,
         scraped_a_ext=scraped.player_a_external_id,
         scraped_b_ext=scraped.player_b_external_id,
+        player_external_id_cache=player_external_id_cache,
     )
 
     # Check for in-batch duplicate
@@ -239,20 +256,18 @@ def _process_single_result(
             match_date_estimated = True
 
     # Check for existing match
-    existing = None
+    existing: Optional[Match] = None
     if external_id:
-        existing = session.query(Match).filter(
-            Match.external_id == external_id
-        ).first()
+        existing = existing_by_external_id.get(external_id)
 
     if not existing:
-        existing = _find_match_by_players(
-            session=session,
+        pair_key = _make_pair_match_key(
             edition=edition,
             round_code=scraped.round,
             player_a_id=player_a_id,
             player_b_id=player_b_id,
         )
+        existing = existing_by_pair.get(pair_key)
 
     if existing:
         if update_existing:
@@ -267,7 +282,10 @@ def _process_single_result(
                 match_date_estimated=match_date_estimated,
             )
             if external_id and (not existing.external_id or existing.external_id.startswith("draw_")):
+                if existing.external_id:
+                    existing_by_external_id.pop(existing.external_id, None)
                 existing.external_id = external_id
+                existing_by_external_id[external_id] = existing
             return "updated", existing
         else:
             return "duplicate", None
@@ -300,7 +318,80 @@ def _process_single_result(
     )
 
     session.add(match)
+    existing_by_pair[_make_pair_match_key(edition, scraped.round, player_a_id, player_b_id)] = match
+    if external_id:
+        existing_by_external_id[external_id] = match
     return "created", match
+
+
+def _preload_player_resolutions(
+    scraped_matches: list[ScrapedMatch],
+    identity_service: PlayerIdentityService,
+) -> dict[PlayerResolutionKey, Optional[int]]:
+    """
+    Resolve each unique player tuple once per tournament ingestion run.
+    """
+    cache: dict[PlayerResolutionKey, Optional[int]] = {}
+    unique_players: list[PlayerResolutionKey] = []
+
+    for scraped in scraped_matches:
+        key_a: PlayerResolutionKey = (
+            scraped.player_a_name,
+            scraped.source,
+            scraped.player_a_external_id,
+            scraped.player_a_nationality,
+        )
+        key_b: PlayerResolutionKey = (
+            scraped.player_b_name,
+            scraped.source,
+            scraped.player_b_external_id,
+            scraped.player_b_nationality,
+        )
+        if key_a not in cache:
+            cache[key_a] = None
+            unique_players.append(key_a)
+        if key_b not in cache:
+            cache[key_b] = None
+            unique_players.append(key_b)
+
+    for name, source, external_id, nationality in unique_players:
+        _resolve_player(
+            session=identity_service.db,
+            name=name,
+            external_id=external_id,
+            source=source,
+            nationality=nationality,
+            identity_service=identity_service,
+            resolution_cache=cache,
+        )
+
+    return cache
+
+
+def _preload_existing_match_indexes(
+    session: Session,
+    edition_id: int,
+) -> tuple[dict[str, Match], dict[MatchPairKey, Match]]:
+    """
+    Load tournament matches once and index by both external_id and round+player pair.
+    """
+    matches = session.query(Match).filter(Match.tournament_edition_id == edition_id).all()
+    by_external_id: dict[str, Match] = {}
+    by_pair: dict[MatchPairKey, Match] = {}
+
+    for match in matches:
+        if match.external_id:
+            by_external_id[match.external_id] = match
+        if match.player_a_id and match.player_b_id:
+            key = _make_pair_match_key_from_values(
+                edition_id=edition_id,
+                round_code=match.round,
+                player_a_id=match.player_a_id,
+                player_b_id=match.player_b_id,
+            )
+            by_pair.setdefault(key, match)
+
+    return by_external_id, by_pair
 
 
 def _resolve_player(
@@ -310,6 +401,7 @@ def _resolve_player(
     source: str,
     nationality: Optional[str],
     identity_service: PlayerIdentityService,
+    resolution_cache: Optional[dict[PlayerResolutionKey, Optional[int]]] = None,
 ) -> Optional[int]:
     """
     Resolve a player name/ID to a canonical player_id.
@@ -325,6 +417,12 @@ def _resolve_player(
     Returns:
         Canonical player_id or None if unresolvable
     """
+    key: Optional[PlayerResolutionKey] = None
+    if resolution_cache is not None:
+        key = (name, source, external_id, nationality)
+        if key in resolution_cache:
+            return resolution_cache[key]
+
     player_id, _ = identity_service.find_or_queue_player(
         name=name,
         source=source,
@@ -340,6 +438,8 @@ def _resolve_player(
             nationality=nationality,
         )
 
+    if resolution_cache is not None and key is not None:
+        resolution_cache[key] = player_id
     return player_id
 
 
@@ -412,18 +512,32 @@ def _get_player_external_id(
     session: Session,
     player_id: int,
     source: str,
+    player_external_id_cache: Optional[dict[tuple[int, str], Optional[str]]] = None,
 ) -> Optional[str]:
+    if player_external_id_cache is not None:
+        cache_key = (player_id, source)
+        if cache_key in player_external_id_cache:
+            return player_external_id_cache[cache_key]
+
     player = session.query(Player).filter(Player.id == player_id).first()
     if not player:
+        if player_external_id_cache is not None:
+            player_external_id_cache[(player_id, source)] = None
         return None
 
+    result: Optional[str]
     if source == "atp":
-        return player.atp_id
-    if source == "wta":
-        return player.wta_id
-    if source == "itf":
-        return player.itf_id
-    return None
+        result = player.atp_id
+    elif source == "wta":
+        result = player.wta_id
+    elif source == "itf":
+        result = player.itf_id
+    else:
+        result = None
+
+    if player_external_id_cache is not None:
+        player_external_id_cache[(player_id, source)] = result
+    return result
 
 
 def _make_external_id_from_players(
@@ -436,9 +550,20 @@ def _make_external_id_from_players(
     player_b_id: int,
     scraped_a_ext: Optional[str],
     scraped_b_ext: Optional[str],
+    player_external_id_cache: Optional[dict[tuple[int, str], Optional[str]]] = None,
 ) -> Optional[str]:
-    ext_a = scraped_a_ext or _get_player_external_id(session, player_a_id, source)
-    ext_b = scraped_b_ext or _get_player_external_id(session, player_b_id, source)
+    ext_a = scraped_a_ext or _get_player_external_id(
+        session,
+        player_a_id,
+        source,
+        player_external_id_cache=player_external_id_cache,
+    )
+    ext_b = scraped_b_ext or _get_player_external_id(
+        session,
+        player_b_id,
+        source,
+        player_external_id_cache=player_external_id_cache,
+    )
 
     if not ext_a or not ext_b:
         return None
@@ -454,7 +579,7 @@ def _make_dedupe_key(
     player_b_id: int,
     match_date: Optional[str],
     external_id: Optional[str],
-) -> tuple[str, Optional[Match]]:
+) -> str:
     if external_id:
         return f"external:{external_id}"
 
@@ -463,21 +588,28 @@ def _make_dedupe_key(
     return f"fallback:{edition_id}:{round_code}:{a_id}:{b_id}:{date_part}"
 
 
-def _find_match_by_players(
-    session: Session,
+def _make_pair_match_key(
     edition: TournamentEdition,
-    round_code: str,
+    round_code: Optional[str],
     player_a_id: int,
     player_b_id: int,
-) -> Optional[Match]:
-    return session.query(Match).filter(
-        Match.tournament_edition_id == edition.id,
-        Match.round == round_code,
-        (
-            (Match.player_a_id == player_a_id) & (Match.player_b_id == player_b_id) |
-            (Match.player_a_id == player_b_id) & (Match.player_b_id == player_a_id)
-        )
-    ).first()
+) -> MatchPairKey:
+    return _make_pair_match_key_from_values(
+        edition_id=edition.id,
+        round_code=round_code,
+        player_a_id=player_a_id,
+        player_b_id=player_b_id,
+    )
+
+
+def _make_pair_match_key_from_values(
+    edition_id: int,
+    round_code: Optional[str],
+    player_a_id: int,
+    player_b_id: int,
+) -> MatchPairKey:
+    a_id, b_id = sorted([player_a_id, player_b_id])
+    return edition_id, (round_code or ""), a_id, b_id
 
 
 def ingest_single_result(

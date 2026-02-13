@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 Update Current Events Script.
 
@@ -15,8 +17,12 @@ Usage:
 
 import argparse
 import asyncio
+import contextlib
 import json
 import multiprocessing
+import os
+from queue import Empty
+import shutil
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -27,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from teelo.config import settings
 from teelo.db import get_session
+from teelo.db.models import ScrapeQueue
 from teelo.players.identity import PlayerIdentityService
 from teelo.scrape.atp import ATPScraper
 from teelo.scrape.base import VirtualDisplay
@@ -103,10 +110,126 @@ def enqueue_current_tasks(
     return len(queue_payload)
 
 
+def _queue_event(
+    event_queue: multiprocessing.Queue | None,
+    payload: dict,
+) -> None:
+    if event_queue is None:
+        return
+    message = dict(payload)
+    message["timestamp"] = datetime.utcnow().isoformat()
+    event_queue.put(message)
+
+
+def _status_line(event: dict) -> str:
+    worker_id = event.get("worker_id", "?")
+    state = event.get("state", "idle")
+    tournament_name = event.get("tournament_name")
+    tournament_id = event.get("tournament_id")
+    phase = event.get("phase")
+    error = event.get("error")
+    tour_key = event.get("tour_key")
+
+    if state == "idle":
+        return f"Worker {worker_id}: Idle - waiting for task"
+    if state == "done":
+        if tournament_name:
+            return f"Worker {worker_id}: Completed {tournament_name} ({tournament_id})"
+        return f"Worker {worker_id}: Completed task"
+    if state == "failed":
+        if tournament_name:
+            return f"Worker {worker_id}: Failed {tournament_name} ({tournament_id}) - {error}"
+        return f"Worker {worker_id}: Failed - {error}"
+
+    if tournament_name:
+        tour_label = TOUR_TYPES.get(tour_key, {}).get("description", tour_key)
+        return (
+            f"Worker {worker_id}: Processing {tour_label} "
+            f"{tournament_name} ({tournament_id}) - {phase or 'Processing'}"
+        )
+    return f"Worker {worker_id}: {phase or 'Processing'}"
+
+
+class LiveWorkerDashboard:
+    def __init__(self, worker_ids: list[int], enabled: bool):
+        self.worker_ids = worker_ids
+        self.enabled = enabled and sys.stdout.isatty()
+        self._initialized = False
+        self._status_by_worker = {
+            worker_id: f"Worker {worker_id}: Starting..."
+            for worker_id in worker_ids
+        }
+        self._last_rendered_by_worker = dict(self._status_by_worker)
+        self._summary_line = "Run: initializing..."
+
+    def _fit_line(self, line: str) -> str:
+        width = max(40, shutil.get_terminal_size(fallback=(120, 24)).columns - 1)
+        if len(line) <= width:
+            return line
+        return line[: max(0, width - 3)] + "..."
+
+    def update(self, event: dict) -> None:
+        worker_id = event.get("worker_id")
+        if worker_id not in self._status_by_worker:
+            return
+        next_line = self._fit_line(_status_line(event))
+        if self._status_by_worker.get(worker_id) == next_line:
+            return
+        self._status_by_worker[worker_id] = next_line
+        if self.enabled:
+            self.render()
+        else:
+            print(next_line)
+
+    def render(self) -> None:
+        lines = [self._fit_line(self._status_by_worker[worker_id]) for worker_id in self.worker_ids]
+        lines.append(self._fit_line(self._summary_line))
+        if not self._initialized:
+            for line in lines:
+                print(line)
+            self._last_rendered_by_worker = {
+                worker_id: line for worker_id, line in zip(self.worker_ids, lines[:-1])
+            }
+            self._initialized = True
+            return
+
+        if all(
+            self._last_rendered_by_worker.get(worker_id) == line
+            for worker_id, line in zip(self.worker_ids, lines[:-1])
+        ):
+            return
+
+        # Move cursor back up and repaint all worker lines in place.
+        sys.stdout.write(f"\x1b[{len(lines)}A")
+        for line in lines:
+            sys.stdout.write("\x1b[2K\r")
+            sys.stdout.write(line + "\n")
+        sys.stdout.flush()
+        self._last_rendered_by_worker = {
+            worker_id: line for worker_id, line in zip(self.worker_ids, lines[:-1])
+        }
+
+    def finish(self) -> None:
+        if self.enabled and self._initialized:
+            print("")
+
+    def set_summary(self, line: str) -> None:
+        next_line = self._fit_line(line)
+        if self._summary_line == next_line:
+            return
+        self._summary_line = next_line
+        if self.enabled:
+            self.render()
+        else:
+            print(next_line)
+
+
 async def process_queue(
     session,
     headless: bool,
     worker_id: int | None = None,
+    event_queue: multiprocessing.Queue | None = None,
+    show_logs: bool = True,
 ) -> dict:
     queue_manager = ScrapeQueueManager(session)
     identity_service = PlayerIdentityService(session)
@@ -131,10 +254,38 @@ async def process_queue(
         stats["worker_id"] = worker_id
 
     def log(message: str) -> None:
+        if not show_logs:
+            return
         if worker_id is None:
             print(message)
         else:
             print(f"[Worker {worker_id}] {message}")
+
+    def emit_status(
+        state: str,
+        *,
+        phase: str | None = None,
+        task_params: TaskParams | None = None,
+        task_type: str | None = None,
+        tour_key: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        if worker_id is None:
+            return
+        _queue_event(
+            event_queue,
+            {
+                "event": "worker_status",
+                "worker_id": worker_id,
+                "state": state,
+                "phase": phase,
+                "task_type": task_type,
+                "tour_key": tour_key,
+                "tournament_name": task_params.tournament_name if task_params else None,
+                "tournament_id": task_params.tournament_id if task_params else None,
+                "error": error,
+            },
+        )
 
     async def ensure_scraper(tour_key: str):
         nonlocal active_scraper, active_ctx, active_tour_key
@@ -152,16 +303,26 @@ async def process_queue(
     log("Processing scrape queue...")
     log("Press Ctrl+C to pause (progress is saved)")
     log("=" * 60)
+    emit_status("idle")
 
     try:
         while True:
             task = queue_manager.get_next_task(skip_locked=True)
             if not task:
                 log("\nQueue empty - all tasks processed!")
+                emit_status("idle")
                 break
 
             stats["tasks_processed"] += 1
             queue_manager.mark_in_progress(task.id)
+            _queue_event(
+                event_queue,
+                {
+                    "event": "task_started",
+                    "worker_id": worker_id,
+                    "task_id": task.id,
+                },
+            )
 
             task_params = TaskParams.from_dict(task.task_params)
             tour_key = task_params.tour_key
@@ -177,6 +338,22 @@ async def process_queue(
 
             try:
                 scraper = await ensure_scraper(tour_key)
+                emit_status(
+                    "running",
+                    phase="Preparing Task",
+                    task_params=task_params,
+                    task_type=task_type,
+                    tour_key=tour_key,
+                )
+
+                def on_phase(phase_message: str) -> None:
+                    emit_status(
+                        "running",
+                        phase=phase_message,
+                        task_params=task_params,
+                        task_type=task_type,
+                        tour_key=tour_key,
+                    )
 
                 if task_type == "current_tournament":
                     result = await execute_task(
@@ -185,6 +362,8 @@ async def process_queue(
                         session=session,
                         identity_service=identity_service,
                         mode="current",
+                        progress_callback=on_phase,
+                        verbose=show_logs,
                     )
                     stats["current_tasks_completed"] += 1
                 elif task_type == "historical_tournament":
@@ -194,6 +373,7 @@ async def process_queue(
                         session=session,
                         identity_service=identity_service,
                         mode="historical",
+                        verbose=show_logs,
                     )
                 else:
                     raise ValueError(f"Unsupported task type: {task_type}")
@@ -226,17 +406,51 @@ async def process_queue(
                 queue_manager.mark_completed(task.id)
                 stats["tasks_completed"] += 1
                 log("  Completed")
+                emit_status(
+                    "done",
+                    phase="Completed",
+                    task_params=task_params,
+                    task_type=task_type,
+                    tour_key=tour_key,
+                )
+                _queue_event(
+                    event_queue,
+                    {
+                        "event": "task_finished",
+                        "worker_id": worker_id,
+                        "task_id": task.id,
+                        "outcome": "completed",
+                    },
+                )
 
             except Exception as e:
                 session.rollback()
                 queue_manager.mark_failed(task.id, str(e))
                 stats["tasks_failed"] += 1
                 log(f"  Failed: {e}")
+                emit_status(
+                    "failed",
+                    phase="Failed",
+                    task_params=task_params,
+                    task_type=task_type,
+                    tour_key=tour_key,
+                    error=str(e),
+                )
+                _queue_event(
+                    event_queue,
+                    {
+                        "event": "task_finished",
+                        "worker_id": worker_id,
+                        "task_id": task.id,
+                        "outcome": "failed",
+                    },
+                )
 
             session.commit()
 
     except KeyboardInterrupt:
         log("\n\nPaused by user. Progress saved - run with --process-only to continue.")
+        emit_status("idle", phase="Paused")
     finally:
         if active_ctx is not None:
             await active_ctx.__aexit__(None, None, None)
@@ -255,18 +469,40 @@ async def process_queue(
 def run_worker(
     worker_id: int,
     headless: bool,
-    stats_queue: multiprocessing.Queue | None = None,
+    event_queue: multiprocessing.Queue | None = None,
+    quiet_worker_logs: bool = True,
 ) -> None:
     with get_session() as session:
-        stats = asyncio.run(
-            process_queue(
-                session,
-                headless=headless,
-                worker_id=worker_id,
+        if quiet_worker_logs:
+            with open(os.devnull, "w", encoding="utf-8") as devnull:
+                with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
+                    stats = asyncio.run(
+                        process_queue(
+                            session,
+                            headless=headless,
+                            worker_id=worker_id,
+                            event_queue=event_queue,
+                            show_logs=False,
+                        )
+                    )
+        else:
+            stats = asyncio.run(
+                process_queue(
+                    session,
+                    headless=headless,
+                    worker_id=worker_id,
+                    event_queue=event_queue,
+                    show_logs=True,
+                )
             )
-        )
-    if stats_queue is not None:
-        stats_queue.put(stats)
+    _queue_event(
+        event_queue,
+        {
+            "event": "worker_stats",
+            "worker_id": worker_id,
+            "stats": stats,
+        },
+    )
 
 
 async def main():
@@ -293,6 +529,43 @@ async def main():
         default=1,
         help="Number of parallel worker processes to spawn (default: 1)",
     )
+    parser.add_argument(
+        "--live-status",
+        dest="live_status",
+        action="store_true",
+        default=True,
+        help="Render per-worker live status rows in the terminal (default: enabled).",
+    )
+    parser.add_argument(
+        "--no-live-status",
+        dest="live_status",
+        action="store_false",
+        help="Disable live status rows.",
+    )
+    parser.add_argument(
+        "--quiet-worker-logs",
+        dest="quiet_worker_logs",
+        action="store_true",
+        default=True,
+        help="Suppress worker stdout logs and rely on parent live status rows (default: enabled).",
+    )
+    parser.add_argument(
+        "--no-quiet-worker-logs",
+        dest="quiet_worker_logs",
+        action="store_false",
+        help="Allow worker logs to print directly.",
+    )
+    parser.add_argument(
+        "--status-jsonl",
+        type=str,
+        default=None,
+        help="Write worker status events as JSONL (for external dashboards/web UI).",
+    )
+    parser.add_argument(
+        "--clear-queue",
+        action="store_true",
+        help="Clear pending/retry/in_progress queue tasks before starting.",
+    )
     args = parser.parse_args()
 
     if args.discover_only and args.process_only:
@@ -316,6 +589,16 @@ async def main():
     )
     print("=" * 60)
 
+    if args.clear_queue:
+        with get_session() as session:
+            cleared = (
+                session.query(ScrapeQueue)
+                .filter(ScrapeQueue.status.in_(["pending", "retry", "in_progress"]))
+                .delete(synchronize_session="fetch")
+            )
+            session.commit()
+        print(f"Cleared {cleared} queue tasks (pending/retry/in_progress).")
+
     # Explicitly ensure virtual display is running if configured
     if settings.scrape_virtual_display and not headless:
         print("Starting Virtual Display...")
@@ -330,6 +613,7 @@ async def main():
         "discovery": [],
         "workers": [],
         "aggregate": {},
+        "status_jsonl": args.status_jsonl,
     }
 
     if not args.process_only:
@@ -373,19 +657,87 @@ async def main():
 
     if args.workers > 1:
         ctx = multiprocessing.get_context("spawn")
-        stats_queue: multiprocessing.Queue = ctx.Queue()
+        event_queue: multiprocessing.Queue = ctx.Queue()
         processes = []
+        worker_ids = list(range(1, args.workers + 1))
+        dashboard = LiveWorkerDashboard(worker_ids, enabled=args.live_status)
+        worker_stats: dict[int, dict] = {}
+        with get_session() as session:
+            initial_pending_count = ScrapeQueueManager(session).pending_count()
+        tasks_started = 0
+        tasks_completed_live = 0
+        tasks_failed_live = 0
+        run_started_at = perf_counter()
+        status_jsonl_path = Path(args.status_jsonl) if args.status_jsonl else None
+        status_jsonl_file = None
+        if status_jsonl_path is not None:
+            status_jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+            status_jsonl_file = status_jsonl_path.open("a", encoding="utf-8")
 
-        for worker_id in range(1, args.workers + 1):
+        for worker_id in worker_ids:
             process = ctx.Process(
                 target=run_worker,
-                args=(worker_id, headless, stats_queue),
+                args=(worker_id, headless, event_queue, args.quiet_worker_logs),
             )
             process.start()
             processes.append(process)
 
+        def refresh_summary_line() -> None:
+            elapsed = perf_counter() - run_started_at
+            processed = tasks_completed_live + tasks_failed_live
+            remaining = max(initial_pending_count - processed, 0)
+            in_progress = max(tasks_started - processed, 0)
+            dashboard.set_summary(
+                "Run: "
+                f"queue_remaining={remaining} "
+                f"in_progress={in_progress} "
+                f"processed={processed} "
+                f"completed={tasks_completed_live} "
+                f"failed={tasks_failed_live} "
+                f"elapsed={elapsed:.1f}s"
+            )
+
+        def handle_event(event: dict) -> None:
+            nonlocal tasks_started, tasks_completed_live, tasks_failed_live
+            if status_jsonl_file is not None:
+                status_jsonl_file.write(json.dumps(event) + "\n")
+                status_jsonl_file.flush()
+            if event.get("event") == "worker_status":
+                dashboard.update(event)
+            elif event.get("event") == "worker_stats":
+                worker_id = event.get("worker_id")
+                stats_payload = event.get("stats")
+                if isinstance(worker_id, int) and isinstance(stats_payload, dict):
+                    worker_stats[worker_id] = stats_payload
+            elif event.get("event") == "task_started":
+                tasks_started += 1
+            elif event.get("event") == "task_finished":
+                if event.get("outcome") == "completed":
+                    tasks_completed_live += 1
+                elif event.get("outcome") == "failed":
+                    tasks_failed_live += 1
+            refresh_summary_line()
+
+        refresh_summary_line()
+
+        while any(process.is_alive() for process in processes):
+            try:
+                handle_event(event_queue.get(timeout=0.2))
+            except Empty:
+                continue
+
         for process in processes:
             process.join()
+
+        while True:
+            try:
+                handle_event(event_queue.get_nowait())
+            except Empty:
+                break
+
+        if status_jsonl_file is not None:
+            status_jsonl_file.close()
+        dashboard.finish()
 
         aggregated = {
             "tasks_processed": 0,
@@ -401,22 +753,19 @@ async def main():
             "task_timings": [],
         }
 
-        stats_received = 0
-        while stats_received < len(processes):
-            try:
-                worker_stats = stats_queue.get_nowait()
-            except Exception:
-                break
-            metrics_payload["workers"].append(worker_stats)
+        for worker_id in worker_ids:
+            stats_payload = worker_stats.get(worker_id)
+            if not stats_payload:
+                continue
+            metrics_payload["workers"].append(stats_payload)
             for key in aggregated:
                 if key == "timings":
-                    for timing_key, timing_value in worker_stats.get("timings", {}).items():
+                    for timing_key, timing_value in stats_payload.get("timings", {}).items():
                         aggregated["timings"][timing_key] += timing_value
                 elif key == "task_timings":
-                    aggregated["task_timings"].extend(worker_stats.get("task_timings", []))
+                    aggregated["task_timings"].extend(stats_payload.get("task_timings", []))
                 else:
-                    aggregated[key] += worker_stats.get(key, 0)
-            stats_received += 1
+                    aggregated[key] += stats_payload.get(key, 0)
 
         stats = aggregated
     else:
