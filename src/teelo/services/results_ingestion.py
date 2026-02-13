@@ -332,6 +332,10 @@ def _preload_player_resolutions(
     Resolve each unique player tuple once per tournament ingestion run.
     """
     cache: dict[PlayerResolutionKey, Optional[int]] = {}
+    # Use a separate set for deduplication — do NOT pre-populate the cache
+    # with None, because _resolve_player() short-circuits on any existing
+    # cache entry and would return the pre-populated None without resolving.
+    seen_keys: set[PlayerResolutionKey] = set()
     unique_players: list[PlayerResolutionKey] = []
 
     for scraped in scraped_matches:
@@ -347,11 +351,11 @@ def _preload_player_resolutions(
             scraped.player_b_external_id,
             scraped.player_b_nationality,
         )
-        if key_a not in cache:
-            cache[key_a] = None
+        if key_a not in seen_keys:
+            seen_keys.add(key_a)
             unique_players.append(key_a)
-        if key_b not in cache:
-            cache[key_b] = None
+        if key_b not in seen_keys:
+            seen_keys.add(key_b)
             unique_players.append(key_b)
 
     for name, source, external_id, nationality in unique_players:

@@ -342,30 +342,34 @@ def _build_ingestion_context(
 
     preload_players_start = perf_counter()
     player_resolution_cache: dict[tuple[str, str, Optional[str]], Optional[int]] = {}
+    # Use a separate set for deduplication — do NOT pre-populate the cache
+    # with None, because _resolve_player() short-circuits on any existing
+    # cache entry and would return the pre-populated None without resolving.
+    seen_player_keys: set[tuple[str, str, Optional[str]]] = set()
     unique_players: list[tuple[str, str, Optional[str]]] = []
     for entry in entries:
         if entry.is_bye:
             if entry.player_a_name and entry.player_a_name.lower() != "bye":
                 key = (entry.player_a_name, entry.source, entry.player_a_external_id)
-                if key not in player_resolution_cache:
-                    player_resolution_cache[key] = None
+                if key not in seen_player_keys:
+                    seen_player_keys.add(key)
                     unique_players.append(key)
             elif entry.player_b_name and entry.player_b_name.lower() != "bye":
                 key = (entry.player_b_name, entry.source, entry.player_b_external_id)
-                if key not in player_resolution_cache:
-                    player_resolution_cache[key] = None
+                if key not in seen_player_keys:
+                    seen_player_keys.add(key)
                     unique_players.append(key)
             continue
 
         if entry.player_a_name:
             key_a = (entry.player_a_name, entry.source, entry.player_a_external_id)
-            if key_a not in player_resolution_cache:
-                player_resolution_cache[key_a] = None
+            if key_a not in seen_player_keys:
+                seen_player_keys.add(key_a)
                 unique_players.append(key_a)
         if entry.player_b_name:
             key_b = (entry.player_b_name, entry.source, entry.player_b_external_id)
-            if key_b not in player_resolution_cache:
-                player_resolution_cache[key_b] = None
+            if key_b not in seen_player_keys:
+                seen_player_keys.add(key_b)
                 unique_players.append(key_b)
 
     for name, source, external_id in unique_players:
