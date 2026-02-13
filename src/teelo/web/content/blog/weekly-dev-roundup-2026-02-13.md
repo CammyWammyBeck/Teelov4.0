@@ -15,13 +15,13 @@ Right now the website is still in a very early stage, so most of this work is ab
 
 ## Faster updates in the background
 
-I spent a lot of time improving how Teelo collects and processes tennis data.
+I spent a lot of time improving how Teelo collects and processes data.
 
 What this is building toward:
 
 - faster updates as match and tournament results come in
-- better reliability during busy tournament periods
-- less chance of slowdowns as more features are added
+- better reliability when more data is required
+- more efficient data fetching to keep the website smooth
 
 I also added better performance tracking, so I can spot bottlenecks early and keep improving speed as Teelo grows.
 
@@ -35,7 +35,7 @@ I also improved how match states are tracked (for example, upcoming, in progress
 
 ## Progress on ratings and predictions
 
-I made an important improvement to the rating system that powers predictions.
+I made an important improvement to the rating system that will power predictions.
 
 Ratings can now be updated more directly as new matches are processed, with cleaner tracking of rating history in the database.
 
