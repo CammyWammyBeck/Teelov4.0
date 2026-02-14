@@ -15,7 +15,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from teelo.config import settings
-from teelo.db.models import Match, Player, PlayerAlias, Tournament, TournamentEdition
+from teelo.db.models import Match, Player, PlayerAlias, PlayerEloState, Tournament, TournamentEdition
 from teelo.db.session import get_db
 from teelo.match_statuses import get_status_group, normalize_status_filter
 
@@ -558,6 +558,117 @@ async def api_players_search(
             }
             for p in all_players[:limit]
         ]
+    })
+
+
+@app.get("/rankings", response_class=HTMLResponse)
+async def rankings_page(
+    request: Request,
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_rankings")),
+):
+    """
+    Rankings page showing men's and women's ELO rankings side by side.
+
+    The page is a shell — ranking data is loaded dynamically
+    via the /api/rankings JSON endpoint from JavaScript.
+    """
+    return templates.TemplateResponse(
+        "rankings.html",
+        {
+            "request": request,
+            "now": datetime.utcnow(),
+            "current_path": request.url.path,
+        },
+    )
+
+
+@app.get("/api/rankings")
+async def api_rankings(
+    db: Session = Depends(get_db),
+    gender: str = Query(..., description="Player gender: 'men' or 'women'"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(50, ge=1, le=100, description="Results per page"),
+    include_inactive: bool = Query(False, description="Include players with no match in the last 6 months"),
+):
+    """
+    Paginated ELO rankings as JSON.
+
+    Players are assigned to a gender based on the tournaments they've played in,
+    since the Player model doesn't have a gender field. Uses a subquery to find
+    all players who have appeared in tournaments of the requested gender.
+
+    By default, only "active" players (last match within 6 months) are shown.
+    Pass include_inactive=true to include all ranked players.
+    """
+    # Validate gender parameter
+    gender_param = gender.strip().lower()
+    if gender_param not in ("men", "women"):
+        return JSONResponse(
+            {"error": "gender must be 'men' or 'women'"},
+            status_code=400,
+        )
+
+    # Subquery: find all player IDs who have played in tournaments of this gender.
+    # A player can appear as player_a or player_b, so we union both.
+    players_as_a = (
+        db.query(Match.player_a_id.label("pid"))
+        .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .filter(Tournament.gender == gender_param)
+    )
+    players_as_b = (
+        db.query(Match.player_b_id.label("pid"))
+        .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .filter(Tournament.gender == gender_param)
+    )
+    gender_player_ids = players_as_a.union(players_as_b).subquery()
+
+    # Main query: join Player + PlayerEloState, filter by gender, rank by ELO
+    query = (
+        db.query(Player, PlayerEloState)
+        .join(PlayerEloState, PlayerEloState.player_id == Player.id)
+        .filter(Player.id.in_(db.query(gender_player_ids.c.pid)))
+    )
+
+    # By default, exclude inactive players (no match in the last 6 months)
+    if not include_inactive:
+        six_months_ago = date.today() - timedelta(days=183)
+        query = query.filter(PlayerEloState.last_match_date >= six_months_ago)
+
+    query = query.order_by(PlayerEloState.rating.desc(), Player.canonical_name.asc())
+
+    total = query.count()
+    offset = (page - 1) * per_page
+    results = query.offset(offset).limit(per_page).all()
+
+    # Serialize players with rank computed from offset
+    players_data = []
+    for i, (player, elo_state) in enumerate(results):
+        last_date = elo_state.last_match_date
+        players_data.append({
+            "rank": offset + i + 1,
+            "id": player.id,
+            "name": player.canonical_name,
+            "nationality": player.nationality_ioc,
+            "rating": int(elo_state.rating),
+            "match_count": elo_state.match_count,
+            "career_peak": int(elo_state.career_peak),
+            "last_match_date": last_date.isoformat() if last_date else None,
+            "last_match_display": last_date.strftime("%d %b %Y") if last_date else None,
+        })
+
+    # Pre-render table rows HTML using the ranking_rows partial
+    ranking_rows_template = templates.get_template("partials/ranking_rows.html")
+    table_rows_html = ranking_rows_template.module.render_ranking_rows(players_data)
+
+    return JSONResponse({
+        "players": players_data,
+        "table_rows_html": table_rows_html,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "has_more": (offset + per_page) < total,
     })
 
 

@@ -123,3 +123,32 @@
 .empty-state-icon {
     @apply w-12 h-12 text-gray-200 mx-auto;
 }
+
+/* ==========================================================================
+   Rankings page
+   ========================================================================== */
+
+/* Scrollable table container for each rankings column */
+.rankings-scroll-container {
+    max-height: 70vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #e5e7eb transparent;
+}
+.rankings-scroll-container::-webkit-scrollbar {
+    width: 6px;
+}
+.rankings-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+.rankings-scroll-container::-webkit-scrollbar-thumb {
+    background-color: #e5e7eb;
+    border-radius: 3px;
+}
+.rankings-scroll-container::-webkit-scrollbar-thumb:hover {
+    background-color: #d1d5db;
+}
+
+/* Mobile tab bar — active/inactive styles toggled via JS using Tailwind classes:
+   active:   bg-teelo-lime text-teelo-dark shadow-sm
+   inactive: text-gray-400 */

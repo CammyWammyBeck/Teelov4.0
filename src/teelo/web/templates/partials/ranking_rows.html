@@ -1,0 +1,17 @@
+{% macro render_ranking_rows(players) %}
+{% for p in players %}
+<tr class="border-b border-gray-50 hover:bg-[#CCFF00]/10 transition-colors duration-75">
+    <td class="px-4 py-2.5 text-sm text-gray-400 font-bold tabular-nums text-right w-12">{{ p.rank }}</td>
+    <td class="px-4 py-2.5">
+        <span class="text-sm font-medium text-teelo-dark">{{ p.name }}</span>
+        {% if p.nationality %}
+        <span class="text-xs text-gray-400 ml-1.5 font-mono">{{ p.nationality }}</span>
+        {% endif %}
+    </td>
+    <td class="px-4 py-2.5 text-right font-bold text-sm tabular-nums text-teelo-dark">{{ p.rating }}</td>
+    <td class="px-4 py-2.5 text-right text-sm text-gray-400 tabular-nums hidden lg:table-cell">{{ p.career_peak }}</td>
+    <td class="px-4 py-2.5 text-right text-sm text-gray-400 tabular-nums hidden lg:table-cell">{{ p.match_count }}</td>
+    <td class="px-4 py-2.5 text-right text-xs text-gray-400 whitespace-nowrap hidden xl:table-cell">{{ p.last_match_display or '—' }}</td>
+</tr>
+{% endfor %}
+{% endmacro %}

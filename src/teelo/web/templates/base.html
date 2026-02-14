@@ -73,7 +73,7 @@
                     {% endif %}
 
                     {% if features.enable_feature_rankings %}
-                    <a href="#" class="group relative px-4 py-2 rounded-lg text-sm font-medium text-gray-500 transition-all duration-200 hover:text-teelo-dark hover:bg-gray-100">
+                    <a href="/rankings" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-black/5' if current_path == '/rankings' else 'text-gray-500 hover:text-teelo-dark hover:bg-gray-100' }}">
                         <span class="relative z-10 flex items-center gap-2">
                             <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Rankings
                         </span>
@@ -135,7 +135,7 @@
                 </a>
                 {% endif %}
                 {% if features.enable_feature_rankings %}
-                <a href="#" class="px-4 py-3 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+                <a href="/rankings" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path == '/rankings' else 'text-gray-600 hover:bg-gray-50' }}">
                     <span class="flex items-center gap-3"><i data-lucide="bar-chart-2" class="w-4 h-4"></i> Rankings</span>
                 </a>
                 {% endif %}
