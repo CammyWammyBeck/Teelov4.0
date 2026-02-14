@@ -22,6 +22,10 @@
 {% if surface == 'Hard' %}text-[#3B82F6]{% elif surface == 'Clay' %}text-[#EA580C]{% elif surface == 'Grass' %}text-green-600{% endif %}
 {% endmacro %}
 
+{% macro elo_badge(player) %}
+{% if player.elo_pre is not none %}<span class="text-[11px] text-gray-400 font-normal">{{ player.elo_pre }}{% if player.elo_change is not none %} <span class="{% if player.elo_change > 0 %}text-green-600{% elif player.elo_change < 0 %}text-red-500{% else %}text-gray-400{% endif %}">{{ "+%d"|format(player.elo_change) if player.elo_change >= 0 else player.elo_change }}</span>{% endif %}</span>{% endif %}
+{% endmacro %}
+
 {% macro render_table_rows(matches) %}
 {% for m in matches %}
 {% set is_winner_a = m.winner_id == m.player_a.id %}
@@ -48,7 +52,10 @@
     </td>
     <td class="px-5 py-3 text-right">
         <div class="flex items-center justify-end gap-2">
-            <span class="text-sm {% if is_winner_a %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_a.name }}</span>
+            <div class="flex flex-col items-end">
+                <span class="text-sm {% if is_winner_a %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_a.name }}</span>
+                {{ elo_badge(m.player_a) }}
+            </div>
             {% if is_winner_a %}
             <i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>
             {% endif %}
@@ -62,7 +69,10 @@
             {% if is_winner_b %}
             <i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>
             {% endif %}
-            <span class="text-sm {% if is_winner_b %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_b.name }}</span>
+            <div class="flex flex-col">
+                <span class="text-sm {% if is_winner_b %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_b.name }}</span>
+                {{ elo_badge(m.player_b) }}
+            </div>
         </div>
     </td>
     <td class="px-5 py-3 text-right">
@@ -100,10 +110,12 @@
             <div class="flex items-center gap-1.5 {% if is_winner_a %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %} text-sm">
                 {% if is_winner_a %}<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>{% endif %}
                 <span class="truncate">{{ m.player_a.name }}</span>
+                {{ elo_badge(m.player_a) }}
             </div>
             <div class="flex items-center gap-1.5 {% if is_winner_b %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %} text-sm mt-0.5">
                 {% if is_winner_b %}<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>{% endif %}
                 <span class="truncate">{{ m.player_b.name }}</span>
+                {{ elo_badge(m.player_b) }}
             </div>
         </div>
         <span class="px-2.5 py-1 bg-gray-50 rounded-md text-xs font-mono text-teelo-dark font-semibold whitespace-nowrap flex-shrink-0">{{ score_display }}</span>

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Iterable
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -54,13 +55,20 @@ class LiveEloUpdater:
             match.elo_params_version = self.params_version
         return True
 
-    def apply_completed_match(self, session: Session, match: Match, level_code: str) -> bool:
+    def apply_completed_match(
+        self,
+        session: Session,
+        match: Match,
+        level_code: str,
+        *,
+        for_update: bool = True,
+    ) -> bool:
         """Apply ELO update for a completed match when in chronological order."""
         if match.status not in TERMINAL_STATUSES or not match.winner_id or not match.temporal_order:
             return False
 
-        state_a = self._get_or_create_state(session, match.player_a_id, for_update=True)
-        state_b = self._get_or_create_state(session, match.player_b_id, for_update=True)
+        state_a = self._get_or_create_state(session, match.player_a_id, for_update=for_update)
+        state_b = self._get_or_create_state(session, match.player_b_id, for_update=for_update)
 
         if self._is_out_of_order(match, state_a, state_b):
             match.elo_needs_recompute = True
@@ -160,6 +168,41 @@ class LiveEloUpdater:
             return None
         return (current_date - last_date).days
 
+    def prime_states(
+        self,
+        session: Session,
+        player_ids: Iterable[int],
+        *,
+        for_update: bool = False,
+    ) -> None:
+        """Preload all player states for a batch and lazily create missing ones."""
+        unique_ids = {int(player_id) for player_id in player_ids}
+        if not unique_ids:
+            return
+
+        missing_ids = [player_id for player_id in unique_ids if player_id not in self._state_cache]
+        if not missing_ids:
+            return
+
+        query = session.query(PlayerEloState).filter(PlayerEloState.player_id.in_(missing_ids))
+        if for_update:
+            query = query.with_for_update()
+        for state in query.all():
+            self._state_cache[state.player_id] = state
+            if for_update:
+                self._locked_state_ids.add(state.player_id)
+
+        unresolved = [player_id for player_id in missing_ids if player_id not in self._state_cache]
+        if unresolved:
+            self._bulk_create_states(session, unresolved)
+            query = session.query(PlayerEloState).filter(PlayerEloState.player_id.in_(unresolved))
+            if for_update:
+                query = query.with_for_update()
+            for state in query.all():
+                self._state_cache[state.player_id] = state
+                if for_update:
+                    self._locked_state_ids.add(state.player_id)
+
     def _get_or_create_state(
         self,
         session: Session,
@@ -221,3 +264,22 @@ class LiveEloUpdater:
             return existing
 
         raise RuntimeError(f"Could not create/load PlayerEloState for player_id={player_id}")
+
+    @staticmethod
+    def _bulk_create_states(session: Session, player_ids: list[int]) -> None:
+        if not player_ids:
+            return
+        rows = [
+            {
+                "player_id": int(player_id),
+                "rating": Decimal("1500.00"),
+                "career_peak": Decimal("1500.00"),
+            }
+            for player_id in player_ids
+        ]
+        stmt = (
+            insert(PlayerEloState)
+            .values(rows)
+            .on_conflict_do_nothing(index_elements=[PlayerEloState.player_id])
+        )
+        session.execute(stmt)

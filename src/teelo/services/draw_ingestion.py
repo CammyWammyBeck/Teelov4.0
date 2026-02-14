@@ -50,8 +50,6 @@ from teelo.db.models import (
     compute_temporal_order,
     estimate_match_date_from_round,
 )
-from teelo.elo.constants import get_level_code
-from teelo.elo.live import LiveEloUpdater
 from teelo.draw import (
     get_feeder_positions,
     get_next_draw_position,
@@ -186,8 +184,6 @@ def ingest_draw(
     """
     started_at = perf_counter()
     stats = DrawIngestionStats(total_entries=len(entries))
-    elo_updater = LiveEloUpdater.from_session(session)
-    level_code = get_level_code(edition.tournament.level, edition.tournament.tour)
     context, preload_timings = _build_ingestion_context(session, entries, edition, identity_service)
     stats.timings["preload_matches"] = preload_timings["preload_matches"]
     stats.timings["preload_players"] = preload_timings["preload_players"]
@@ -256,8 +252,6 @@ def ingest_draw(
                 player_b_id,
                 overwrite,
                 seen_external_ids,
-                elo_updater,
-                level_code,
                 context,
             )
             stats.timings["upsert_matches"] += perf_counter() - upsert_start
@@ -308,7 +302,7 @@ def ingest_draw(
 
     # Try to propagate each decided position
     propagation_start = perf_counter()
-    propagated = _propagate_all(session, edition, all_decided, elo_updater)
+    propagated = _propagate_all(session, edition, all_decided)
     stats.timings["propagation"] = perf_counter() - propagation_start
     stats.propagations_created = propagated
     stats.timings["total"] = perf_counter() - started_at
@@ -526,8 +520,6 @@ def _upsert_draw_match(
     player_b_id: int,
     overwrite: bool,
     seen_external_ids: set[str],
-    elo_updater: LiveEloUpdater,
-    level_code: str,
     context: DrawIngestionContext,
 ) -> Optional[Match]:
     """
@@ -678,10 +670,6 @@ def _upsert_draw_match(
         if not updated:
             return None
 
-        if updated and existing.status in pending_statuses:
-            elo_updater.ensure_pre_match_snapshot(session, existing)
-        elif updated and existing.status in terminal_statuses:
-            elo_updater.apply_completed_match(session, existing, level_code=level_code)
         return existing
 
     # Estimate match date from tournament dates + round
@@ -732,10 +720,6 @@ def _upsert_draw_match(
             tournament_start=edition.start_date,
             tournament_end=edition.end_date,
         )
-        if existing.status in pending_statuses:
-            elo_updater.ensure_pre_match_snapshot(session, existing, force=True)
-        elif existing.status in terminal_statuses:
-            elo_updater.apply_completed_match(session, existing, level_code=level_code)
         return existing
 
     # Create new match
@@ -767,10 +751,6 @@ def _upsert_draw_match(
     context.matches_by_slot[(entry.round, entry.draw_position)] = match
     if external_id:
         context.matches_by_external_id[external_id] = match
-    if match.status in pending_statuses:
-        elo_updater.ensure_pre_match_snapshot(session, match)
-    elif match.status in terminal_statuses:
-        elo_updater.apply_completed_match(session, match, level_code=level_code)
     return match
 
 
@@ -782,7 +762,6 @@ def _propagate_all(
     session: Session,
     edition: TournamentEdition,
     decided: dict[tuple[str, int], int],
-    elo_updater: LiveEloUpdater,
 ) -> int:
     """
     Try to create next-round matches from all decided positions.
@@ -800,10 +779,8 @@ def _propagate_all(
     Returns:
         Number of new next-round matches created
     """
-    created = 0
-
-    # Group decided positions by round
-    for (round_code, position), winner_id in decided.items():
+    candidates: dict[tuple[str, int], tuple[int, int]] = {}
+    for (round_code, position), _winner_id in decided.items():
         next_round = get_next_round(round_code)
         if not next_round:
             continue  # Finals — no next round
@@ -820,22 +797,35 @@ def _propagate_all(
         if other_winner is None:
             continue  # Other feeder hasn't decided yet
 
-        # Both feeders decided — check if next-round match already exists
-        existing = session.query(Match).filter(
-            Match.tournament_edition_id == edition.id,
-            Match.round == next_round,
-            Match.draw_position == next_position,
-        ).first()
-
-        if existing:
-            continue  # Already created (from a previous run or from the draw)
-
         # Determine player A (top feeder) and player B (bottom feeder)
         top_winner = decided.get((round_code, feeder_top))
         bottom_winner = decided.get((round_code, feeder_bottom))
 
         if not top_winner or not bottom_winner:
             continue  # Shouldn't happen, but be safe
+
+        candidates[(next_round, next_position)] = (top_winner, bottom_winner)
+
+    if not candidates:
+        return 0
+
+    rounds = {round_code for round_code, _ in candidates}
+    positions = {position for _, position in candidates}
+    existing_matches = session.query(Match).filter(
+        Match.tournament_edition_id == edition.id,
+        Match.round.in_(rounds),
+        Match.draw_position.in_(positions),
+    ).all()
+    existing_slots = {
+        (match.round, match.draw_position)
+        for match in existing_matches
+        if match.round is not None and match.draw_position is not None
+    }
+
+    to_insert: list[Match] = []
+    for (next_round, next_position), (top_winner, bottom_winner) in candidates.items():
+        if (next_round, next_position) in existing_slots:
+            continue
 
         # Generate external_id
         external_id = (
@@ -855,32 +845,32 @@ def _propagate_all(
             if match_date:
                 match_date_estimated = True
 
-        match = Match(
-            external_id=external_id,
-            source="atp",  # Draw-propagated matches inherit the source
-            tournament_edition_id=edition.id,
-            round=next_round,
-            draw_position=next_position,
-            player_a_id=top_winner,
-            player_b_id=bottom_winner,
-            status="upcoming",  # Known from draw, no schedule yet
-            match_date=match_date,
-            match_date_estimated=match_date_estimated,
+        to_insert.append(
+            Match(
+                external_id=external_id,
+                source="atp",  # Draw-propagated matches inherit the source
+                tournament_edition_id=edition.id,
+                round=next_round,
+                draw_position=next_position,
+                player_a_id=top_winner,
+                player_b_id=bottom_winner,
+                status="upcoming",  # Known from draw, no schedule yet
+                match_date=match_date,
+                match_date_estimated=match_date_estimated,
+            )
         )
-        match.update_temporal_order(
+        to_insert[-1].update_temporal_order(
             tournament_start=edition.start_date,
             tournament_end=edition.end_date,
         )
-
-        session.add(match)
-        elo_updater.ensure_pre_match_snapshot(session, match)
-        created += 1
         logger.info(
             "Propagated: %s #%d created (players %d vs %d)",
             next_round, next_position, top_winner, bottom_winner,
         )
 
-    return created
+    if to_insert:
+        session.add_all(to_insert)
+    return len(to_insert)
 
 
 def propagate_draw_result(

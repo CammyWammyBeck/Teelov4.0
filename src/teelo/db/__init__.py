@@ -24,6 +24,9 @@ from teelo.db.models import (
     MatchFeatures,
     ScrapeQueue,
     UpdateLog,
+    PipelineCheckpoint,
+    PipelineRun,
+    PipelineStageRun,
 )
 from teelo.db.session import get_session, get_engine, SessionLocal
 
@@ -43,6 +46,9 @@ __all__ = [
     "MatchFeatures",
     "ScrapeQueue",
     "UpdateLog",
+    "PipelineCheckpoint",
+    "PipelineRun",
+    "PipelineStageRun",
     # Session
     "get_session",
     "get_engine",

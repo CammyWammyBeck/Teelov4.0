@@ -24,7 +24,7 @@ import os
 from queue import Empty
 import shutil
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
 
@@ -54,6 +54,15 @@ def _get_scraper_class(tour_key: str):
     if scraper_type == "itf":
         return ITFScraper
     raise ValueError(f"Unknown scraper type for {tour_key}")
+
+
+def apply_fast_scrape_profile(enabled: bool) -> None:
+    if not enabled:
+        return
+    settings.scrape_delay_min = 0.1
+    settings.scrape_delay_max = 0.4
+    settings.scrape_timeout = min(settings.scrape_timeout, 10000)
+    settings.scrape_max_retries = min(settings.scrape_max_retries, 2)
 
 
 async def discover_tour_tasks(
@@ -117,7 +126,7 @@ def _queue_event(
     if event_queue is None:
         return
     message = dict(payload)
-    message["timestamp"] = datetime.utcnow().isoformat()
+    message["timestamp"] = datetime.now(timezone.utc).isoformat()
     event_queue.put(message)
 
 
@@ -227,6 +236,7 @@ class LiveWorkerDashboard:
 async def process_queue(
     session,
     headless: bool,
+    fast_mode: bool = True,
     worker_id: int | None = None,
     event_queue: multiprocessing.Queue | None = None,
     show_logs: bool = True,
@@ -362,6 +372,7 @@ async def process_queue(
                         session=session,
                         identity_service=identity_service,
                         mode="current",
+                        fast_mode=fast_mode,
                         progress_callback=on_phase,
                         verbose=show_logs,
                     )
@@ -469,6 +480,7 @@ async def process_queue(
 def run_worker(
     worker_id: int,
     headless: bool,
+    fast_mode: bool = True,
     event_queue: multiprocessing.Queue | None = None,
     quiet_worker_logs: bool = True,
 ) -> None:
@@ -480,6 +492,7 @@ def run_worker(
                         process_queue(
                             session,
                             headless=headless,
+                            fast_mode=fast_mode,
                             worker_id=worker_id,
                             event_queue=event_queue,
                             show_logs=False,
@@ -490,6 +503,7 @@ def run_worker(
                 process_queue(
                     session,
                     headless=headless,
+                    fast_mode=fast_mode,
                     worker_id=worker_id,
                     event_queue=event_queue,
                     show_logs=True,
@@ -515,6 +529,19 @@ async def main():
     parser.add_argument("--year", type=int, default=date.today().year, help="Season year to scan")
     parser.add_argument("--max-parallel-tours", type=int, default=3, help="Max tour workers to run concurrently")
     parser.add_argument("--headed", action="store_true", help="Force headed browser mode (slower)")
+    parser.add_argument(
+        "--fast",
+        dest="fast",
+        action="store_true",
+        default=True,
+        help="Enable fast profile for hourly retries (default: enabled).",
+    )
+    parser.add_argument(
+        "--no-fast",
+        dest="fast",
+        action="store_false",
+        help="Disable fast profile.",
+    )
     parser.add_argument("--discover-only", action="store_true", help="Discover current tournaments only")
     parser.add_argument("--process-only", action="store_true", help="Process from queue only (skip discovery)")
     parser.add_argument(
@@ -572,6 +599,7 @@ async def main():
         raise SystemExit("Error: --discover-only cannot be combined with --process-only.")
 
     tours = [t.strip().upper() for t in args.tours.split(",")]
+    apply_fast_scrape_profile(args.fast)
 
     # Validate tours
     tours = [t for t in tours if t in TOUR_TYPES]
@@ -583,6 +611,7 @@ async def main():
     print(
         "Settings: "
         f"headless={headless}, "
+        f"fast={args.fast}, "
         f"virtual_display={settings.scrape_virtual_display}, "
         f"timeout_ms={settings.scrape_timeout}, "
         f"delays={settings.scrape_delay_min}-{settings.scrape_delay_max}s"
@@ -609,7 +638,7 @@ async def main():
 
     metrics_payload = {
         "script": "update_current_events",
-        "started_at": datetime.utcnow().isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
         "discovery": [],
         "workers": [],
         "aggregate": {},
@@ -677,7 +706,7 @@ async def main():
         for worker_id in worker_ids:
             process = ctx.Process(
                 target=run_worker,
-                args=(worker_id, headless, event_queue, args.quiet_worker_logs),
+                args=(worker_id, headless, args.fast, event_queue, args.quiet_worker_logs),
             )
             process.start()
             processes.append(process)
@@ -770,7 +799,7 @@ async def main():
         stats = aggregated
     else:
         with get_session() as session:
-            stats = await process_queue(session, headless=headless)
+            stats = await process_queue(session, headless=headless, fast_mode=args.fast)
         metrics_payload["workers"].append(stats)
 
     metrics_payload["aggregate"] = stats

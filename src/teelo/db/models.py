@@ -44,6 +44,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -627,6 +628,23 @@ class Match(Base):
         Index("idx_matches_tournament", "tournament_edition_id"),
         Index("idx_matches_status", "status"),
         Index("idx_matches_draw", "tournament_edition_id", "round", "draw_position"),
+        # Partial index for the ELO incremental query: finds terminal matches
+        # that still need ELO processing. In steady state only a handful of
+        # matches satisfy this condition, so the index stays tiny and the query
+        # avoids a full table scan.
+        Index(
+            "idx_matches_elo_pending",
+            "temporal_order",
+            "id",
+            postgresql_where=text(
+                "status IN ('completed', 'retired', 'walkover', 'default') "
+                "AND winner_id IS NOT NULL "
+                "AND temporal_order IS NOT NULL "
+                "AND (elo_post_player_a IS NULL "
+                "OR elo_post_player_b IS NULL "
+                "OR elo_needs_recompute = true)"
+            ),
+        ),
     )
 
     @property
@@ -941,3 +959,73 @@ class UpdateLog(Base):
 
     def __repr__(self) -> str:
         return f"<UpdateLog(type='{self.update_type}', success={self.success})>"
+
+
+class PipelineCheckpoint(Base):
+    """Key/value checkpoint store for resumable pipeline stages."""
+
+    __tablename__ = "pipeline_checkpoints"
+
+    key: Mapped[str] = mapped_column(String(120), primary_key=True)
+    value_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<PipelineCheckpoint(key='{self.key}')>"
+
+
+class PipelineRun(Base):
+    """Top-level record of an hourly pipeline execution."""
+
+    __tablename__ = "pipeline_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    summary_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
+    stage_runs: Mapped[list["PipelineStageRun"]] = relationship(
+        back_populates="pipeline_run",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("idx_pipeline_runs_started_at", "started_at"),
+        Index("idx_pipeline_runs_status_started_at", "status", "started_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PipelineRun(run_id='{self.run_id}', status='{self.status}')>"
+
+
+class PipelineStageRun(Base):
+    """Per-stage execution record for each pipeline run."""
+
+    __tablename__ = "pipeline_stage_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("pipeline_runs.run_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    stage_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    metrics_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    error_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    pipeline_run: Mapped["PipelineRun"] = relationship(back_populates="stage_runs")
+
+    __table_args__ = (
+        Index("idx_pipeline_stage_runs_run_stage", "run_id", "stage_name"),
+        Index("idx_pipeline_stage_runs_stage_started_at", "stage_name", "started_at"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<PipelineStageRun(run_id='{self.run_id}', "
+            f"stage='{self.stage_name}', status='{self.status}')>"
+        )

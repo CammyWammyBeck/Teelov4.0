@@ -48,6 +48,13 @@ def get_engine():
         max_overflow=settings.db_max_overflow,
         pool_pre_ping=True,  # Verify connection is alive before using
         echo=settings.log_level == "DEBUG",  # Log SQL only in debug mode
+        # Use psycopg2's execute_batch() for executemany UPDATE/DELETE calls.
+        # This packs multiple statements into a single network message, avoiding
+        # per-row round-trips to the cloud DB (~200ms each). With page_size=500,
+        # a 2000-row update sends 4 messages instead of 2000 round-trips.
+        # Silently ignored by non-psycopg2 backends (e.g. SQLite in tests).
+        executemany_mode="values_plus_batch",
+        executemany_batch_page_size=500,
     )
 
     # Log connection events for debugging

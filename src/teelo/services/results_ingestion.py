@@ -32,6 +32,7 @@ Usage:
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from itertools import islice
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -43,8 +44,6 @@ from teelo.db.models import (
     estimate_match_date_from_round,
 )
 from teelo.players.identity import PlayerIdentityService
-from teelo.elo.constants import get_level_code
-from teelo.elo.live import LiveEloUpdater
 from teelo.scrape.base import ScrapedMatch
 from teelo.scrape.parsers.score import ScoreParseError, parse_score
 
@@ -110,8 +109,6 @@ def ingest_results(
         ResultsIngestionStats with counts of what happened
     """
     stats = ResultsIngestionStats(total_matches=len(scraped_matches))
-    elo_updater = LiveEloUpdater.from_session(session)
-    level_code = get_level_code(edition.tournament.level, edition.tournament.tour)
     player_resolution_cache = _preload_player_resolutions(scraped_matches, identity_service)
     existing_by_external_id, existing_by_pair = _preload_existing_match_indexes(session, edition.id)
     player_external_id_cache: dict[tuple[int, str], Optional[str]] = {}
@@ -119,12 +116,107 @@ def ingest_results(
     # Track external_ids seen in this batch to avoid in-batch duplicates
     seen_external_ids: set[str] = set()
 
-    for scraped in scraped_matches:
+    batch_size = 100
+    for batch in _chunked(scraped_matches, batch_size):
+        _process_results_batch(
+            session=session,
+            batch=batch,
+            stats=stats,
+            edition=edition,
+            identity_service=identity_service,
+            player_resolution_cache=player_resolution_cache,
+            existing_by_external_id=existing_by_external_id,
+            existing_by_pair=existing_by_pair,
+            player_external_id_cache=player_external_id_cache,
+            seen_external_ids=seen_external_ids,
+            update_existing=update_existing,
+        )
+
+    logger.info(stats.summary())
+    return stats
+
+
+def _chunked(items: list[ScrapedMatch], size: int) -> list[list[ScrapedMatch]]:
+    """Split a list into fixed-size chunks."""
+    if size <= 0:
+        return [items]
+    iterator = iter(items)
+    chunks: list[list[ScrapedMatch]] = []
+    while True:
+        chunk = list(islice(iterator, size))
+        if not chunk:
+            return chunks
+        chunks.append(chunk)
+
+
+def _increment_stats_for_result(stats: ResultsIngestionStats, result: str) -> None:
+    if result == "created":
+        stats.matches_created += 1
+    elif result == "updated":
+        stats.matches_updated += 1
+    elif result == "duplicate":
+        stats.matches_skipped_duplicate += 1
+    elif result == "no_player":
+        stats.skipped_no_player_match += 1
+
+
+def _process_results_batch(
+    session: Session,
+    batch: list[ScrapedMatch],
+    stats: ResultsIngestionStats,
+    edition: TournamentEdition,
+    identity_service: PlayerIdentityService,
+    player_resolution_cache: dict[PlayerResolutionKey, Optional[int]],
+    existing_by_external_id: dict[str, Match],
+    existing_by_pair: dict[MatchPairKey, Match],
+    player_external_id_cache: dict[tuple[int, str], Optional[str]],
+    seen_external_ids: set[str],
+    update_existing: bool,
+) -> None:
+    # Run the common path in one savepoint + flush to avoid per-row savepoint
+    # overhead. If it fails, fallback to row-level isolation for this batch.
+    batch_external = dict(existing_by_external_id)
+    batch_pairs = dict(existing_by_pair)
+    batch_seen = set(seen_external_ids)
+    batch_results: list[str] = []
+    try:
+        with session.begin_nested():
+            for scraped in batch:
+                result, _match = _process_single_result(
+                    session=session,
+                    scraped=scraped,
+                    edition=edition,
+                    identity_service=identity_service,
+                    player_resolution_cache=player_resolution_cache,
+                    existing_by_external_id=batch_external,
+                    existing_by_pair=batch_pairs,
+                    player_external_id_cache=player_external_id_cache,
+                    seen_external_ids=batch_seen,
+                    update_existing=update_existing,
+                )
+                batch_results.append(result)
+            session.flush()
+
+        existing_by_external_id.clear()
+        existing_by_external_id.update(batch_external)
+        existing_by_pair.clear()
+        existing_by_pair.update(batch_pairs)
+        seen_external_ids.clear()
+        seen_external_ids.update(batch_seen)
+        for result in batch_results:
+            _increment_stats_for_result(stats, result)
+        return
+    except Exception as batch_error:
+        logger.warning(
+            "Results batch failed; retrying row-by-row for %d matches: %s",
+            len(batch),
+            batch_error,
+        )
+
+    for scraped in batch:
         try:
-            # Isolate each match in a savepoint so one DB error does not leave the
-            # whole ingestion session in a failed transaction state.
             with session.begin_nested():
-                result, match = _process_single_result(
+                result, _match = _process_single_result(
                     session=session,
                     scraped=scraped,
                     edition=edition,
@@ -136,26 +228,12 @@ def ingest_results(
                     seen_external_ids=seen_external_ids,
                     update_existing=update_existing,
                 )
-
-                if result in {"created", "updated"} and match is not None:
-                    elo_updater.apply_completed_match(session, match, level_code=level_code)
-
-                if result == "created":
-                    stats.matches_created += 1
-                elif result == "updated":
-                    stats.matches_updated += 1
-                elif result == "duplicate":
-                    stats.matches_skipped_duplicate += 1
-                elif result == "no_player":
-                    stats.skipped_no_player_match += 1
-
+                session.flush()
+            _increment_stats_for_result(stats, result)
         except Exception as e:
             error_msg = f"{scraped.player_a_name} vs {scraped.player_b_name}: {e}"
             stats.errors.append(error_msg)
             logger.error("Error processing match: %s", error_msg)
-
-    logger.info(stats.summary())
-    return stats
 
 
 def _process_single_result(

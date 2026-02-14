@@ -4,12 +4,14 @@ Shared scraping pipeline helpers.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any, Callable, Mapping, Optional
 
-from teelo.db import Match, Tournament, TournamentEdition
+from teelo.db import Match, PipelineCheckpoint, Tournament, TournamentEdition
 from teelo.db.models import estimate_match_date_from_round
 from teelo.players.aliases import normalize_name
 from teelo.players.identity import PlayerIdentityService
@@ -228,6 +230,7 @@ async def execute_task(
     identity_service: PlayerIdentityService,
     mode: str,
     overwrite: bool = False,
+    fast_mode: bool = False,
     progress_callback: Optional[Callable[[str], None]] = None,
     verbose: bool = True,
 ) -> dict[str, Any]:
@@ -246,6 +249,7 @@ async def execute_task(
             scraper,
             session,
             identity_service,
+            fast_mode=fast_mode,
             progress_callback=progress_callback,
             verbose=verbose,
         )
@@ -267,17 +271,66 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
         return None
 
 
-def _should_scrape_schedule(task_params: TaskParams, today: date) -> bool:
+def _phase_checkpoint_key(task_params: TaskParams, phase: str) -> str:
+    return (
+        f"current_events:{task_params.tour_key}:{task_params.year}:"
+        f"{task_params.tournament_id}:{phase}"
+    )
+
+
+def _phase_fingerprint(items: list[tuple[Any, ...]]) -> str:
+    payload = json.dumps(sorted(items), separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+
+def _read_checkpoint_fingerprint(session, key: str) -> Optional[str]:
+    checkpoint = session.query(PipelineCheckpoint).filter(PipelineCheckpoint.key == key).first()
+    if not checkpoint:
+        return None
+    value = checkpoint.value_json or {}
+    fp = value.get("fingerprint")
+    if isinstance(fp, str):
+        return fp
+    return None
+
+
+def _write_checkpoint_fingerprint(
+    session,
+    key: str,
+    fingerprint: str,
+    item_count: int,
+) -> None:
+    checkpoint = session.query(PipelineCheckpoint).filter(PipelineCheckpoint.key == key).first()
+    value = {
+        "fingerprint": fingerprint,
+        "item_count": item_count,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if checkpoint is None:
+        session.add(PipelineCheckpoint(key=key, value_json=value))
+        return
+    checkpoint.value_json = value
+
+
+def _should_scrape_schedule(task_params: TaskParams, today: date, fast_mode: bool = False) -> bool:
     end_date = _parse_date(task_params.end_date)
     if end_date and end_date < (today - timedelta(days=1)):
         return False
+    if fast_mode:
+        start_date = _parse_date(task_params.start_date)
+        if start_date and end_date:
+            return (start_date - timedelta(days=1)) <= today <= (end_date + timedelta(days=1))
     return True
 
 
-def _should_scrape_results(task_params: TaskParams, today: date) -> bool:
+def _should_scrape_results(task_params: TaskParams, today: date, fast_mode: bool = False) -> bool:
     start_date = _parse_date(task_params.start_date)
     if start_date and start_date > (today + timedelta(days=1)):
         return False
+    if fast_mode:
+        end_date = _parse_date(task_params.end_date)
+        if end_date and end_date < (today - timedelta(days=1)):
+            return False
     return True
 
 
@@ -286,6 +339,7 @@ async def _execute_current_task(
     scraper,
     session,
     identity_service: PlayerIdentityService,
+    fast_mode: bool = False,
     progress_callback: Optional[Callable[[str], None]] = None,
     verbose: bool = True,
 ) -> dict[str, Any]:
@@ -345,15 +399,36 @@ async def _execute_current_task(
             timings["phases"]["draw"]["scrape"] += draw_scrape_elapsed
             timings["scraping"] += draw_scrape_elapsed
 
-            report("Ingesting Draw")
-            draw_ingest_start = perf_counter()
-            stats = ingest_draw(session, entries, edition, identity_service)
-            draw_ingest_elapsed = perf_counter() - draw_ingest_start
-            timings["phases"]["draw"]["ingest"] += draw_ingest_elapsed
-            timings["ingestion"] += draw_ingest_elapsed
-            results["draw"] = stats.summary()
-            if verbose:
-                print(f"  Draw: {results['draw']}")
+            draw_fp = _phase_fingerprint(
+                [
+                    (
+                        e.round,
+                        e.draw_position,
+                        e.player_a_external_id or e.player_a_name,
+                        e.player_b_external_id or e.player_b_name,
+                        e.winner_name,
+                        e.score_raw,
+                        e.is_bye,
+                    )
+                    for e in entries
+                ]
+            )
+            draw_key = _phase_checkpoint_key(task_params, "draw")
+            previous_draw_fp = _read_checkpoint_fingerprint(session, draw_key)
+            if fast_mode and previous_draw_fp == draw_fp:
+                report("Skipping Draw Ingest (unchanged)")
+                results["draw"] = "Draw unchanged; ingestion skipped."
+            else:
+                report("Ingesting Draw")
+                draw_ingest_start = perf_counter()
+                stats = ingest_draw(session, entries, edition, identity_service)
+                draw_ingest_elapsed = perf_counter() - draw_ingest_start
+                timings["phases"]["draw"]["ingest"] += draw_ingest_elapsed
+                timings["ingestion"] += draw_ingest_elapsed
+                results["draw"] = stats.summary()
+                _write_checkpoint_fingerprint(session, draw_key, draw_fp, len(entries))
+                if verbose:
+                    print(f"  Draw: {results['draw']}")
         except Exception as exc:
             if verbose:
                 print(f"  Draw Error: {exc}")
@@ -361,7 +436,7 @@ async def _execute_current_task(
             edition = await get_or_create_edition(session, task_params, tour_key)
 
         # 2. SCHEDULE
-        if _should_scrape_schedule(task_params, today):
+        if _should_scrape_schedule(task_params, today, fast_mode=fast_mode):
             try:
                 report("Scraping Schedule")
                 sched_kwargs: dict[str, Any] = {}
@@ -383,15 +458,35 @@ async def _execute_current_task(
                 timings["phases"]["schedule"]["scrape"] += schedule_scrape_elapsed
                 timings["scraping"] += schedule_scrape_elapsed
 
-                report("Ingesting Schedule")
-                schedule_ingest_start = perf_counter()
-                stats = ingest_schedule(session, fixtures, edition, identity_service)
-                schedule_ingest_elapsed = perf_counter() - schedule_ingest_start
-                timings["phases"]["schedule"]["ingest"] += schedule_ingest_elapsed
-                timings["ingestion"] += schedule_ingest_elapsed
-                results["schedule"] = stats.summary()
-                if verbose:
-                    print(f"  Schedule: {results['schedule']}")
+                schedule_fp = _phase_fingerprint(
+                    [
+                        (
+                            f.round,
+                            f.scheduled_date,
+                            f.scheduled_time,
+                            f.court,
+                            f.player_a_external_id or f.player_a_name,
+                            f.player_b_external_id or f.player_b_name,
+                        )
+                        for f in fixtures
+                    ]
+                )
+                schedule_key = _phase_checkpoint_key(task_params, "schedule")
+                previous_schedule_fp = _read_checkpoint_fingerprint(session, schedule_key)
+                if fast_mode and previous_schedule_fp == schedule_fp:
+                    report("Skipping Schedule Ingest (unchanged)")
+                    results["schedule"] = "Schedule unchanged; ingestion skipped."
+                else:
+                    report("Ingesting Schedule")
+                    schedule_ingest_start = perf_counter()
+                    stats = ingest_schedule(session, fixtures, edition, identity_service)
+                    schedule_ingest_elapsed = perf_counter() - schedule_ingest_start
+                    timings["phases"]["schedule"]["ingest"] += schedule_ingest_elapsed
+                    timings["ingestion"] += schedule_ingest_elapsed
+                    results["schedule"] = stats.summary()
+                    _write_checkpoint_fingerprint(session, schedule_key, schedule_fp, len(fixtures))
+                    if verbose:
+                        print(f"  Schedule: {results['schedule']}")
             except Exception as exc:
                 if verbose:
                     print(f"  Schedule Error: {exc}")
@@ -401,7 +496,7 @@ async def _execute_current_task(
             report("Skipping Schedule (tournament appears fully completed)")
 
         # 3. RESULTS
-        if _should_scrape_results(task_params, today):
+        if _should_scrape_results(task_params, today, fast_mode=fast_mode):
             try:
                 report("Scraping Results")
                 res_kwargs = {
@@ -427,15 +522,36 @@ async def _execute_current_task(
                 timings["phases"]["results"]["scrape"] += results_scrape_elapsed
                 timings["scraping"] += results_scrape_elapsed
 
-                report("Ingesting Results")
-                results_ingest_start = perf_counter()
-                stats = ingest_results(session, matches, edition, identity_service)
-                results_ingest_elapsed = perf_counter() - results_ingest_start
-                timings["phases"]["results"]["ingest"] += results_ingest_elapsed
-                timings["ingestion"] += results_ingest_elapsed
-                results["results"] = stats.summary()
-                if verbose:
-                    print(f"  Results: {results['results']}")
+                results_fp = _phase_fingerprint(
+                    [
+                        (
+                            m.round,
+                            m.player_a_external_id or m.player_a_name,
+                            m.player_b_external_id or m.player_b_name,
+                            m.winner_name,
+                            m.score_raw,
+                            m.status,
+                            m.match_date,
+                        )
+                        for m in matches
+                    ]
+                )
+                results_key = _phase_checkpoint_key(task_params, "results")
+                previous_results_fp = _read_checkpoint_fingerprint(session, results_key)
+                if fast_mode and previous_results_fp == results_fp:
+                    report("Skipping Results Ingest (unchanged)")
+                    results["results"] = "Results unchanged; ingestion skipped."
+                else:
+                    report("Ingesting Results")
+                    results_ingest_start = perf_counter()
+                    stats = ingest_results(session, matches, edition, identity_service)
+                    results_ingest_elapsed = perf_counter() - results_ingest_start
+                    timings["phases"]["results"]["ingest"] += results_ingest_elapsed
+                    timings["ingestion"] += results_ingest_elapsed
+                    results["results"] = stats.summary()
+                    _write_checkpoint_fingerprint(session, results_key, results_fp, len(matches))
+                    if verbose:
+                        print(f"  Results: {results['results']}")
             except Exception as exc:
                 if verbose:
                     print(f"  Results Error: {exc}")

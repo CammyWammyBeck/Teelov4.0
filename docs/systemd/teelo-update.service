@@ -6,7 +6,7 @@ After=network.target
 Type=oneshot
 WorkingDirectory=/opt/teelo
 EnvironmentFile=/opt/teelo/.env
-ExecStart=/opt/teelo/venv/bin/python /opt/teelo/scripts/update_current_events.py
+ExecStart=/opt/teelo/venv/bin/python /opt/teelo/scripts/run_hourly_update.py --workers 3
 User=teelo
 Group=teelo
 
