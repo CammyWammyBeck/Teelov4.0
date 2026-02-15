@@ -21,6 +21,8 @@ python-frontmatter>=1.0.0
 python-dotenv>=1.0.0
 structlog>=24.1.0
 tenacity>=8.2.0
+jellyfish>=1.0.0
+rapidfuzz>=3.6.0
 
 # Required by SQLAlchemy/Models even if we don't use full features
 # (These are small enough to keep)
