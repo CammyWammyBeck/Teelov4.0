@@ -6,7 +6,7 @@ avoids a full table scan on the matches table during incremental ELO
 updates, which is critical in steady state where only a few matches
 match the filter.
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: b8c9d0e1f2a3
 Revises: 9b4c1f7d3e2a
 Create Date: 2026-02-14 15:00:00.000000+00:00
 """
@@ -17,7 +17,7 @@ from alembic import op
 
 
 # Revision identifiers, used by Alembic.
-revision: str = "a1b2c3d4e5f6"
+revision: str = "b8c9d0e1f2a3"
 down_revision: Union[str, None] = "9b4c1f7d3e2a"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

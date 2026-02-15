@@ -45,6 +45,19 @@ def date_from_temporal_order(temporal_order: int) -> date | None:
         return None
 
 
+def initial_elo_for_level_code(params: "EloParams", level_code: str | None) -> float:
+    """Resolve start Elo from level code (women's codes start with 'W')."""
+    if level_code and str(level_code).startswith("W"):
+        return float(params.start_elo_women)
+    return float(params.start_elo_men)
+
+
+def initial_elo_for_tour_level(params: "EloParams", level: str, tour: str | None) -> float:
+    """Resolve start Elo from tournament level/tour labels."""
+    level_code = get_level_code(level, tour)
+    return initial_elo_for_level_code(params, level_code)
+
+
 @dataclass
 class EloParams:
     """
@@ -99,6 +112,10 @@ class EloParams:
     returning_days: float = BOOST_DEFAULTS["returning_days"]
     returning_boost: float = BOOST_DEFAULTS["returning_boost"]
 
+    # Start ratings by tour pool
+    start_elo_men: float = float(DEFAULT_ELO)
+    start_elo_women: float = float(DEFAULT_ELO)
+
     def get_k(self, level_code: str) -> float:
         """Get base K-factor for a tournament level code."""
         return getattr(self, f"K_{level_code}", self.K_A)
@@ -112,6 +129,7 @@ class EloParams:
 class _PlayerState:
     """Internal tracking of a player's current state during pipeline run."""
     rating: float = float(DEFAULT_ELO)
+    baseline_rating: float = float(DEFAULT_ELO)
     match_count: int = 0
     last_match_date: Optional[date] = None
     career_peak: float = float(DEFAULT_ELO)
@@ -131,6 +149,10 @@ class EloPipeline:
 
     def __init__(self, params: EloParams):
         self.params = params
+
+    def initial_elo_for_level(self, level_code: str) -> float:
+        """Return initial/baseline Elo for a level code."""
+        return initial_elo_for_level_code(self.params, level_code)
 
     def run_fast(self, matches: list[dict]) -> list[float]:
         """
@@ -170,9 +192,11 @@ class EloPipeline:
 
             # Initialize player states if first time seen
             if pid_a not in players:
-                players[pid_a] = _PlayerState()
+                start = self.initial_elo_for_level(level_code)
+                players[pid_a] = _PlayerState(rating=start, baseline_rating=start, career_peak=start)
             if pid_b not in players:
-                players[pid_b] = _PlayerState()
+                start = self.initial_elo_for_level(level_code)
+                players[pid_b] = _PlayerState(rating=start, baseline_rating=start, career_peak=start)
 
             state_a = players[pid_a]
             state_b = players[pid_b]
@@ -184,6 +208,7 @@ class EloPipeline:
                     state_a.rating, days_a,
                     decay_rate=params.decay_rate,
                     decay_start_days=params.decay_start_days,
+                    target_rating=state_a.baseline_rating,
                 )
             else:
                 days_a = None
@@ -194,6 +219,7 @@ class EloPipeline:
                     state_b.rating, days_b,
                     decay_rate=params.decay_rate,
                     decay_start_days=params.decay_start_days,
+                    target_rating=state_b.baseline_rating,
                 )
             else:
                 days_b = None

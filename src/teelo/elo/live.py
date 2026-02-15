@@ -16,7 +16,7 @@ from teelo.elo.calculator import calculate_fast
 from teelo.elo.decay import apply_inactivity_decay
 from teelo.elo.margin import calculate_margin_multiplier
 from teelo.elo.params_store import get_active_elo_params
-from teelo.elo.pipeline import EloParams, date_from_temporal_order
+from teelo.elo.pipeline import EloParams, date_from_temporal_order, initial_elo_for_level_code, initial_elo_for_tour_level
 
 TERMINAL_STATUSES = {"completed", "retired", "walkover", "default"}
 
@@ -46,8 +46,9 @@ class LiveEloUpdater:
         if not force and match.elo_pre_player_a is not None and match.elo_pre_player_b is not None:
             return False
 
-        state_a = self._get_or_create_state(session, match.player_a_id)
-        state_b = self._get_or_create_state(session, match.player_b_id)
+        initial_rating = self._infer_initial_rating_from_match(match)
+        state_a = self._get_or_create_state(session, match.player_a_id, initial_rating=initial_rating)
+        state_b = self._get_or_create_state(session, match.player_b_id, initial_rating=initial_rating)
 
         match.elo_pre_player_a = state_a.rating
         match.elo_pre_player_b = state_b.rating
@@ -67,8 +68,19 @@ class LiveEloUpdater:
         if match.status not in TERMINAL_STATUSES or not match.winner_id or not match.temporal_order:
             return False
 
-        state_a = self._get_or_create_state(session, match.player_a_id, for_update=for_update)
-        state_b = self._get_or_create_state(session, match.player_b_id, for_update=for_update)
+        initial_rating = self._initial_rating_for_level(level_code)
+        state_a = self._get_or_create_state(
+            session,
+            match.player_a_id,
+            for_update=for_update,
+            initial_rating=initial_rating,
+        )
+        state_b = self._get_or_create_state(
+            session,
+            match.player_b_id,
+            for_update=for_update,
+            initial_rating=initial_rating,
+        )
 
         if self._is_out_of_order(match, state_a, state_b):
             match.elo_needs_recompute = True
@@ -78,8 +90,8 @@ class LiveEloUpdater:
         before_a = float(match.elo_pre_player_a or state_a.rating)
         before_b = float(match.elo_pre_player_b or state_b.rating)
 
-        rating_a = self._apply_decay(before_a, state_a, match_date)
-        rating_b = self._apply_decay(before_b, state_b, match_date)
+        rating_a = self._apply_decay(before_a, state_a, match_date, initial_rating)
+        rating_b = self._apply_decay(before_b, state_b, match_date, initial_rating)
 
         days_a = self._days_since(state_a.last_match_date, match_date)
         days_b = self._days_since(state_b.last_match_date, match_date)
@@ -151,7 +163,13 @@ class LiveEloUpdater:
             return True
         return False
 
-    def _apply_decay(self, rating: float, state: PlayerEloState, match_date: date | None) -> float:
+    def _apply_decay(
+        self,
+        rating: float,
+        state: PlayerEloState,
+        match_date: date | None,
+        target_rating: float,
+    ) -> float:
         if state.last_match_date is None or match_date is None:
             return rating
         days = (match_date - state.last_match_date).days
@@ -160,6 +178,7 @@ class LiveEloUpdater:
             days,
             decay_rate=self.params.decay_rate,
             decay_start_days=self.params.decay_start_days,
+            target_rating=target_rating,
         )
 
     @staticmethod
@@ -209,6 +228,7 @@ class LiveEloUpdater:
         player_id: int,
         *,
         for_update: bool = False,
+        initial_rating: float | None = None,
     ) -> PlayerEloState:
         state = self._state_cache.get(player_id)
         if state is None:
@@ -217,7 +237,7 @@ class LiveEloUpdater:
                 query = query.with_for_update()
             state = query.first()
             if state is None:
-                state = self._create_state(session, player_id)
+                state = self._create_state(session, player_id, initial_rating=initial_rating)
             self._state_cache[player_id] = state
             if for_update:
                 self._locked_state_ids.add(player_id)
@@ -236,15 +256,21 @@ class LiveEloUpdater:
         return state
 
     @staticmethod
-    def _create_state(session: Session, player_id: int) -> PlayerEloState:
+    def _create_state(
+        session: Session,
+        player_id: int,
+        *,
+        initial_rating: float | None = None,
+    ) -> PlayerEloState:
         # Concurrency-safe lazy init: insert default state unless another worker
         # already inserted the same player_id.
+        initial = Decimal(str(round(initial_rating if initial_rating is not None else 1500.0, 2)))
         stmt = (
             insert(PlayerEloState)
             .values(
                 player_id=player_id,
-                rating=Decimal("1500.00"),
-                career_peak=Decimal("1500.00"),
+                rating=initial,
+                career_peak=initial,
             )
             .on_conflict_do_nothing(index_elements=[PlayerEloState.player_id])
             .returning(PlayerEloState.id)
@@ -264,6 +290,16 @@ class LiveEloUpdater:
             return existing
 
         raise RuntimeError(f"Could not create/load PlayerEloState for player_id={player_id}")
+
+    def _initial_rating_for_level(self, level_code: str | None) -> float:
+        return initial_elo_for_level_code(self.params, level_code)
+
+    def _infer_initial_rating_from_match(self, match: Match) -> float:
+        try:
+            tournament = match.tournament_edition.tournament
+            return initial_elo_for_tour_level(self.params, tournament.level, tournament.tour)
+        except Exception:
+            return float(self.params.start_elo_men)
 
     @staticmethod
     def _bulk_create_states(session: Session, player_ids: list[int]) -> None:

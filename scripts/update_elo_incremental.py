@@ -26,7 +26,7 @@ from teelo.elo.constants import get_level_code
 from teelo.elo.decay import apply_inactivity_decay
 from teelo.elo.margin import calculate_margin_multiplier
 from teelo.elo.params_store import get_active_elo_params
-from teelo.elo.pipeline import date_from_temporal_order
+from teelo.elo.pipeline import date_from_temporal_order, initial_elo_for_level_code
 from teelo.tasks import DBCheckpointStore
 
 
@@ -74,9 +74,10 @@ def _days_since(last_date: date | None, current_date: date | None) -> int | None
     return (current_date - last_date).days
 
 
-def _preload_player_states(session, player_ids: set[int]) -> dict[int, PlayerState]:
-    if not player_ids:
+def _preload_player_states(session, player_initial_ratings: dict[int, float]) -> dict[int, PlayerState]:
+    if not player_initial_ratings:
         return {}
+    player_ids = set(player_initial_ratings.keys())
     existing = (
         session.query(PlayerEloState)
         .filter(PlayerEloState.player_id.in_(player_ids))
@@ -95,13 +96,19 @@ def _preload_player_states(session, player_ids: set[int]) -> dict[int, PlayerSta
     }
     for player_id in player_ids:
         if player_id not in state_by_player:
-            state_by_player[player_id] = PlayerState(player_id=player_id)
+            start = float(player_initial_ratings.get(player_id, 1500.0))
+            state_by_player[player_id] = PlayerState(
+                player_id=player_id,
+                rating=start,
+                career_peak=start,
+            )
     return state_by_player
 
 
 def _refresh_pending_pre_snapshots(
     session,
     *,
+    params,
     params_version: str,
     touched_player_ids: set[int] | None,
     refresh_all_pending: bool,
@@ -113,10 +120,15 @@ def _refresh_pending_pre_snapshots(
     touched_ids = {int(player_id) for player_id in (touched_player_ids or set())}
 
     while True:
-        query = session.query(Match).filter(
-            Match.id > last_id,
-            Match.status.in_(("upcoming", "scheduled")),
-            Match.winner_id.is_(None),
+        query = (
+            session.query(Match, Tournament.level, Tournament.tour)
+            .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+            .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+            .filter(
+                Match.id > last_id,
+                Match.status.in_(("upcoming", "scheduled")),
+                Match.winner_id.is_(None),
+            )
         )
 
         if not refresh_all_pending:
@@ -133,13 +145,20 @@ def _refresh_pending_pre_snapshots(
                 )
             query = query.filter(or_(*pending_filters))
 
-        matches = query.order_by(Match.id.asc()).limit(batch_size).all()
+        rows = query.order_by(Match.id.asc()).limit(batch_size).all()
+        matches = [row[0] for row in rows]
         if not matches:
             break
 
-        player_ids = {int(match.player_a_id) for match in matches}
-        player_ids.update(int(match.player_b_id) for match in matches)
-        state_by_player = _preload_player_states(session, player_ids)
+        player_initial_ratings: dict[int, float] = {}
+        for match, tournament_level, tournament_tour in rows:
+            level_code = get_level_code(tournament_level, tournament_tour)
+            initial = initial_elo_for_level_code(params, level_code)
+            pid_a = int(match.player_a_id)
+            pid_b = int(match.player_b_id)
+            player_initial_ratings.setdefault(pid_a, initial)
+            player_initial_ratings.setdefault(pid_b, initial)
+        state_by_player = _preload_player_states(session, player_initial_ratings)
 
         updates: list[dict[str, Any]] = []
         for match in matches:
@@ -475,8 +494,15 @@ def main() -> int:
                 and args.checkpoint_every_batches > 0
                 and (batch_index % args.checkpoint_every_batches == 0)
             )
-            player_ids = {int(match.player_a_id) for match, _, _ in rows}
-            player_ids.update(int(match.player_b_id) for match, _, _ in rows)
+            player_initial_ratings: dict[int, float] = {}
+            for match, tournament_level, tournament_tour in rows:
+                level_code = get_level_code(tournament_level, tournament_tour)
+                initial = initial_elo_for_level_code(params, level_code)
+                pid_a = int(match.player_a_id)
+                pid_b = int(match.player_b_id)
+                player_initial_ratings.setdefault(pid_a, initial)
+                player_initial_ratings.setdefault(pid_b, initial)
+            player_ids = set(player_initial_ratings.keys())
             _append_jsonl(
                 status_path,
                 {
@@ -493,7 +519,7 @@ def main() -> int:
                 _format_summary_line(payload, overall_elapsed),
             )
             preload_start = perf_counter()
-            state_by_player = _preload_player_states(session, player_ids)
+            state_by_player = _preload_player_states(session, player_initial_ratings)
             preload_elapsed = perf_counter() - preload_start
             _append_jsonl(
                 status_path,
@@ -540,12 +566,15 @@ def main() -> int:
                     before_a = float(state_a.rating)
                     before_b = float(state_b.rating)
 
+                    initial_rating = initial_elo_for_level_code(params, level_code)
+
                     if state_a.last_match_date is not None and match_date is not None:
                         before_a = apply_inactivity_decay(
                             before_a,
                             (match_date - state_a.last_match_date).days,
                             decay_rate=params.decay_rate,
                             decay_start_days=params.decay_start_days,
+                            target_rating=initial_rating,
                         )
                     if state_b.last_match_date is not None and match_date is not None:
                         before_b = apply_inactivity_decay(
@@ -553,6 +582,7 @@ def main() -> int:
                             (match_date - state_b.last_match_date).days,
                             decay_rate=params.decay_rate,
                             decay_start_days=params.decay_start_days,
+                            target_rating=initial_rating,
                         )
 
                     days_a = _days_since(state_a.last_match_date, match_date)
@@ -841,6 +871,7 @@ def main() -> int:
             refresh_all_pending = args.rebuild or args.refresh_pending_all or payload["processed"] == 0
             pending_pre_updated = _refresh_pending_pre_snapshots(
                 session,
+                params=params,
                 params_version=params_version,
                 touched_player_ids=run_touched_player_ids,
                 refresh_all_pending=refresh_all_pending,

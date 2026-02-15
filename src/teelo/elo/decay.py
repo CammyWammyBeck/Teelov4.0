@@ -24,6 +24,7 @@ def apply_inactivity_decay(
     days_since_last_match: float,
     decay_rate: float | None = None,
     decay_start_days: float | None = None,
+    target_rating: float | None = None,
 ) -> float:
     """
     Apply inactivity decay to a player's rating, pulling toward DEFAULT_ELO.
@@ -54,6 +55,8 @@ def apply_inactivity_decay(
         decay_rate = DECAY_DEFAULTS["decay_rate"]
     if decay_start_days is None:
         decay_start_days = DECAY_DEFAULTS["decay_start_days"]
+    if target_rating is None:
+        target_rating = float(DEFAULT_ELO)
 
     # No decay if within grace period
     if days_since_last_match <= decay_start_days:
@@ -66,7 +69,6 @@ def apply_inactivity_decay(
     # Factor ranges from 1.0 (no decay) toward 0.0 (fully regressed)
     decay_factor = math.exp(-decay_rate * excess_days / 365.0)
 
-    default = float(DEFAULT_ELO)
-    new_rating = default + (current_rating - default) * decay_factor
+    new_rating = target_rating + (current_rating - target_rating) * decay_factor
 
     return new_rating
