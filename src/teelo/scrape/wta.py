@@ -199,18 +199,25 @@ class WTAScraper(BaseScraper):
             return None
 
         # Extract slug and year from the tournament link
-        # Link format: //www.wtatennis.com/tournaments/{number}/{slug}/{year}
+        # Standard format: //www.wtatennis.com/tournaments/{number}/{slug}/{year}
+        # Grand Slam format: //www.wtatennis.com/tournaments/{slug} (no number or year)
         link = card.select_one("a[href*='/tournaments/']")
         if not link:
             return None
 
         href = link.get("href", "")
         match = re.search(r'/tournaments/(\d+)/([^/]+)/(\d+)', href)
-        if not match:
-            return None
-
-        slug = match.group(2)
-        link_year = int(match.group(3))
+        if match:
+            slug = match.group(2)
+            link_year = int(match.group(3))
+        else:
+            # Fallback for Grand Slams which use short URLs like /tournaments/{slug}
+            # Use data-fav-id as the number and calendar_year as the year
+            short_match = re.search(r'/tournaments/([a-z][a-z0-9-]+)(?:/|$)', href)
+            if not short_match:
+                return None
+            slug = short_match.group(1)
+            link_year = calendar_year
 
         # Only include tournaments for the requested calendar year
         # (skip tournaments from adjacent years that appear on the page)
@@ -353,23 +360,87 @@ class WTAScraper(BaseScraper):
                     print(f"Warning: day button {day_idx} disappeared, skipping")
                     continue
 
-                await self._clear_onetrust_overlays(page)
-                await buttons[day_idx].click(force=True)
-                try:
-                    await page.wait_for_selector("div.tennis-match", timeout=4000)
-                except PlaywrightTimeout:
-                    pass
+                # Check if this day is already the active one (e.g. first day
+                # on initial page load). If so, skip clicking — content is ready.
+                is_already_active = await buttons[day_idx].evaluate(
+                    "btn => btn.classList.contains('is-active')"
+                )
 
-                # Parse the current page content for this day
-                html = await page.content()
+                if not is_already_active:
+                    # Snapshot the visible match classes BEFORE clicking so we can
+                    # detect when the DOM has actually swapped in new content.
+                    # The WTA page sets the button .is-active class instantly but
+                    # the match content takes longer to load via AJAX. Without
+                    # this fingerprint check we'd parse stale matches from the
+                    # previous day.
+                    old_fingerprint = await page.evaluate(
+                        """
+                        () => {
+                            const matches = document.querySelectorAll('[class*="tennis-match"]');
+                            const visible = [];
+                            for (const m of matches) {
+                                if (m.offsetParent === null) continue;
+                                visible.push(m.className);
+                            }
+                            return visible.sort().join('||');
+                        }
+                        """
+                    )
+
+                    await self._clear_onetrust_overlays(page)
+                    await buttons[day_idx].click(force=True)
+
+                    # Wait until visible match content differs from snapshot.
+                    # We also require at least one visible match to avoid
+                    # capturing the brief empty state during the transition.
+                    # If the day truly has 0 matches, we'll time out (acceptable).
+                    try:
+                        await page.wait_for_function(
+                            """(oldFp) => {
+                                const matches = document.querySelectorAll('[class*="tennis-match"]');
+                                const visible = [];
+                                for (const m of matches) {
+                                    if (m.offsetParent === null) continue;
+                                    visible.push(m.className);
+                                }
+                                const newFp = visible.sort().join('||');
+                                return newFp !== oldFp && visible.length > 0;
+                            }""",
+                            arg=old_fingerprint,
+                            timeout=4000,
+                        )
+                    except PlaywrightTimeout:
+                        pass
+
+                # Re-select singles tab — day navigation can reset the filter
+                await self._select_singles_tab(page)
+
+                # Extract only VISIBLE match elements for this day.
+                # The WTA scores page accumulates match elements in the DOM
+                # as you click through days, hiding previous days via CSS.
+                # Using page.content() would include hidden matches from other
+                # days (and the initial page load), causing wrong match dates.
+                visible_html = await page.evaluate(
+                    """
+                    () => {
+                        const matches = document.querySelectorAll('[class*="tennis-match"]');
+                        const parts = [];
+                        for (const m of matches) {
+                            if (m.offsetParent === null) continue;
+                            parts.push(m.outerHTML);
+                        }
+                        return '<html><body>' + parts.join('') + '</body></html>';
+                    }
+                    """
+                )
                 day_matches = self._parse_scores_day(
-                    html, tournament_id, tournament_number, year, date_str, match_number
+                    visible_html, tournament_id, tournament_number, year, date_str, match_number
                 )
 
                 day_count = 0
                 for scraped in day_matches:
-                    # The DOM accumulates matches from all days, so skip
-                    # any we've already yielded from a previous day
+                    # Skip any match we've already yielded from a previous day
+                    # (can happen if visibility filtering isn't perfect)
                     if scraped.external_id in seen_external_ids:
                         continue
                     seen_external_ids.add(scraped.external_id)
@@ -821,14 +892,34 @@ class WTAScraper(BaseScraper):
         name_a, seed_a = extract_seed_from_name(player_a["name"])
         name_b, seed_b = extract_seed_from_name(player_b["name"])
 
-        # Determine winner from table class
+        # Determine winner:
+        # 1) explicit table winner class (preferred)
+        # 2) per-set winner markers on score cells
+        # 3) parsed score fallback
+        winner_name = None
         if "match-table--winner-a" in table_classes:
             winner_name = name_a
         elif "match-table--winner-b" in table_classes:
             winner_name = name_b
         else:
-            # No winner indicated — match might be incomplete
-            winner_name = name_a
+            sets_won_a = sum(1 for s in scores_a if s.get("is_winner"))
+            sets_won_b = sum(1 for s in scores_b if s.get("is_winner"))
+            if sets_won_a > sets_won_b:
+                winner_name = name_a
+            elif sets_won_b > sets_won_a:
+                winner_name = name_b
+
+            # Some pages omit both table winner class and per-set is-winner classes.
+            # Fall back to score parsing when possible.
+            if not winner_name and score_raw:
+                try:
+                    parsed = parse_score(score_raw)
+                    if parsed.winner == "A":
+                        winner_name = name_a
+                    elif parsed.winner == "B":
+                        winner_name = name_b
+                except ScoreParseError:
+                    pass
 
         # Determine match status
         status = "completed"

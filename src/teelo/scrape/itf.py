@@ -468,6 +468,7 @@ class ITFScraper(BaseScraper):
     async def scrape_fixtures(
         self,
         tournament_url: str,
+        gender: Optional[str] = None,
     ) -> AsyncGenerator[ScrapedFixture, None]:
         """
         Scrape upcoming fixtures from the ITF Order of Play page.
@@ -538,6 +539,7 @@ class ITFScraper(BaseScraper):
                         widget,
                         court_name,
                         tournament_url,
+                        gender=gender,
                         date_str=effective_date,
                         time_str=effective_time,
                     )
@@ -556,6 +558,7 @@ class ITFScraper(BaseScraper):
         widget,
         court_name: str,
         tournament_url: str,
+        gender: Optional[str] = None,
         date_str: Optional[str] = None,
         time_str: Optional[str] = None,
     ) -> Optional[ScrapedFixture]:
@@ -632,7 +635,7 @@ class ITFScraper(BaseScraper):
             player_a_seed=seed_a,
             player_b_name=name_b,
             player_b_seed=seed_b,
-            source="itf",
+            source=_itf_source_from_gender(gender),
         )
 
     def _extract_oop_datetime(self, widget) -> dict:
@@ -677,6 +680,15 @@ class ITFScraper(BaseScraper):
 def _normalize_round(raw: str) -> str:
     """Normalize ITF round name to standard code (R32, R16, QF, SF, F)."""
     return ITF_ROUND_MAP.get(raw.lower().strip(), raw.upper())
+
+
+def _itf_source_from_gender(gender: Optional[str]) -> str:
+    g = (gender or "").strip().lower()
+    if g == "men":
+        return "itf_men"
+    if g == "women":
+        return "itf_women"
+    return "itf"
 
 
 def _parse_match_widget(
@@ -767,7 +779,7 @@ def _parse_match_widget(
 
     return ScrapedMatch(
         external_id=external_id,
-        source="itf",
+        source=_itf_source_from_gender(tournament_info.get("gender")),
         tournament_name=tournament_info["name"],
         tournament_id=tournament_info["id"],
         tournament_year=tournament_info["year"],
@@ -926,7 +938,7 @@ def _parse_draw_entry_widget(
         score_raw=score_raw,
         winner_name=winner_name,
         is_bye=is_bye,
-        source="itf",
+        source=_itf_source_from_gender(tournament_info.get("gender")),
         tournament_name=tournament_info["name"],
         tournament_id=tournament_info["id"],
         tournament_year=tournament_info["year"],
