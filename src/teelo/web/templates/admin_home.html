@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Admin | Teelo Ratings{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+    <div class="flex items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-teelo-dark">Admin Panel</h1>
+            <p class="text-sm text-gray-500 mt-1">Signed in as <span class="font-semibold">{{ admin.username }}</span></p>
+        </div>
+        <form method="post" action="/admin/logout">
+            <button type="submit"
+                    class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                Log out
+            </button>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a href="/admin/duplicates"
+           class="block bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition">
+            <div class="text-sm font-semibold text-gray-500">Player Duplicate Queue</div>
+            <div class="mt-2 text-3xl font-bold text-teelo-dark">{{ pending_count }}</div>
+            <div class="text-sm text-gray-500 mt-1">Pending review items</div>
+        </a>
+    </div>
+</section>
+{% endblock %}

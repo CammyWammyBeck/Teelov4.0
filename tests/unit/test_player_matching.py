@@ -6,15 +6,20 @@ critical for correctly identifying players across data sources.
 """
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from teelo.players.aliases import (
-    normalize_name,
     compare_names,
-    is_likely_same_player,
     extract_last_name,
-    extract_seed_from_name,
     generate_search_variants,
+    is_abbreviated_name,
+    is_likely_same_player,
+    normalize_name,
 )
+from teelo.players.identity import PlayerIdentityService
+from teelo.db.models import Player, PlayerAlias, PlayerReviewQueue
+from teelo.scrape.parsers.player import extract_seed_from_name
 
 
 class TestNormalizeName:
@@ -136,6 +141,18 @@ class TestExtractLastName:
         assert extract_last_name("Madonna") == "madonna"
 
 
+class TestIsAbbreviatedName:
+    """Tests for abbreviated-name detection."""
+
+    def test_abbreviated(self):
+        assert is_abbreviated_name("J. Pegula")
+        assert is_abbreviated_name("J Pegula")
+
+    def test_not_abbreviated(self):
+        assert not is_abbreviated_name("Jessica Pegula")
+        assert not is_abbreviated_name("Pegula")
+
+
 class TestExtractSeedFromName:
     """Tests for extracting seed numbers from names."""
 
@@ -194,3 +211,93 @@ class TestGenerateSearchVariants:
         """Test single name handling."""
         variants = generate_search_variants("Cher")
         assert "cher" in variants
+
+
+@pytest.fixture
+def identity_db_session():
+    """Create a sqlite DB with identity tables used by matching tests."""
+    engine = create_engine("sqlite:///:memory:")
+    Player.__table__.create(engine)
+    PlayerAlias.__table__.create(engine)
+    PlayerReviewQueue.__table__.create(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    yield session
+    session.close()
+
+
+class TestIdentityAbbreviatedMatching:
+    """Identity service tests for abbreviated cross-source names."""
+
+    def test_find_by_abbreviated_match(self, identity_db_session):
+        service = PlayerIdentityService(identity_db_session)
+        player_id = service.create_player("Juan Martin del Potro", "itf", external_id="ITF-DP")
+        matched = service._find_by_abbreviated_match(normalize_name("J. del Potro"))
+        assert matched is not None
+        assert matched.id == player_id
+
+    def test_find_or_queue_player_abbreviated_cross_source(self, identity_db_session):
+        service = PlayerIdentityService(identity_db_session)
+        existing_player_id = service.create_player("Jessica Pegula", "itf", external_id="ITF-PEGULA")
+
+        matched_player_id, status = service.find_or_queue_player(
+            name="J. Pegula",
+            source="wta",
+            external_id="WTA-PEGULA",
+        )
+
+        assert status == "matched"
+        assert matched_player_id == existing_player_id
+
+        player = identity_db_session.get(Player, existing_player_id)
+        assert player is not None
+        assert player.wta_id == "WTA-PEGULA"
+
+    def test_ambiguous_abbreviated_name_queues_review(self, identity_db_session):
+        service = PlayerIdentityService(identity_db_session)
+        p1 = service.create_player("Karolina Pliskova", "itf", external_id="ITF-KARO")
+        p2 = service.create_player("Kristyna Pliskova", "itf", external_id="ITF-KRIS")
+
+        player_id, status = service.find_or_queue_player(
+            name="K. Pliskova",
+            source="wta",
+            external_id="WTA-PLISKOVA",
+        )
+
+        assert player_id is None
+        assert status == "queued"
+
+        queued = identity_db_session.query(PlayerReviewQueue).first()
+        assert queued is not None
+        suggested_ids = {
+            queued.suggested_player_1_id,
+            queued.suggested_player_2_id,
+            queued.suggested_player_3_id,
+        }
+        assert p1 in suggested_ids
+        assert p2 in suggested_ids
+
+    def test_hybrid_fuzzy_fallback_with_abbreviation(self, identity_db_session, monkeypatch):
+        service = PlayerIdentityService(identity_db_session)
+        service.exact_match_threshold = 0.90
+        service.suggestion_threshold = 0.30
+        player_id = service.create_player("Jessica Pegula", "itf", external_id="ITF-PEG")
+
+        class _NoRows:
+            def fetchall(self):
+                return []
+
+        monkeypatch.setattr(service, "_trigram_enabled", lambda: True)
+        original_execute = identity_db_session.execute
+
+        def _execute_with_trigram_mock(*args, **kwargs):
+            statement = args[0] if args else None
+            if statement is not None and "similarity(alias, :name)" in str(statement):
+                return _NoRows()
+            return original_execute(*args, **kwargs)
+
+        monkeypatch.setattr(identity_db_session, "execute", _execute_with_trigram_mock)
+
+        candidates = service._fuzzy_search(normalize_name("J. Pegula"), limit=3)
+        assert candidates
+        assert candidates[0].player_id == player_id

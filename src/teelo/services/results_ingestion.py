@@ -43,6 +43,7 @@ from teelo.db.models import (
     TournamentEdition,
     estimate_match_date_from_round,
 )
+from teelo.players.aliases import normalize_name
 from teelo.players.identity import PlayerIdentityService
 from teelo.scrape.base import ScrapedMatch
 from teelo.scrape.parsers.score import ScoreParseError, parse_score
@@ -50,6 +51,33 @@ from teelo.scrape.parsers.score import ScoreParseError, parse_score
 logger = logging.getLogger(__name__)
 PlayerResolutionKey = tuple[str, str, Optional[str], Optional[str]]
 MatchPairKey = tuple[int, str, int, int]
+
+
+def _determine_winner_id(
+    scraped: ScrapedMatch,
+    player_a_id: int,
+    player_b_id: int,
+) -> Optional[int]:
+    """
+    Determine winner_id by comparing scraped winner_name against both player names.
+
+    Returns None if no winner_name is set (e.g. upcoming match).
+    Falls back to player_a_id with a warning if winner_name doesn't match either.
+    """
+    if not scraped.winner_name:
+        return None
+    if scraped.winner_name == scraped.player_a_name:
+        return player_a_id
+    if scraped.winner_name == scraped.player_b_name:
+        return player_b_id
+    # Fallback: winner_name doesn't match either player name exactly.
+    # This shouldn't happen, but log and default to player_a for safety.
+    logger.warning(
+        "Winner name '%s' doesn't match player_a '%s' or player_b '%s'; "
+        "defaulting to player_a as winner",
+        scraped.winner_name, scraped.player_a_name, scraped.player_b_name,
+    )
+    return player_a_id
 
 
 @dataclass
@@ -379,7 +407,7 @@ def _process_single_result(
         player_b_id=player_b_id,
         player_a_seed=scraped.player_a_seed,
         player_b_seed=scraped.player_b_seed,
-        winner_id=player_a_id,  # Player A is typically the winner in results
+        winner_id=_determine_winner_id(scraped, player_a_id, player_b_id),
         score=scraped.score_raw,
         score_structured=score_structured,
         match_date=match_date,
@@ -511,6 +539,14 @@ def _resolve_player(
         external_id=external_id,
     )
 
+    # Fallback safety: one more abbreviated-name check before creating.
+    if not player_id and external_id:
+        abbreviated_match = identity_service._find_by_abbreviated_match(
+            normalize_name(name)
+        )
+        if abbreviated_match:
+            player_id = abbreviated_match.id
+
     # Fallback: create player if we have an external ID
     if not player_id and external_id:
         player_id = identity_service.create_player(
@@ -563,7 +599,7 @@ def _update_match_with_result(
         match.player_b_seed = scraped.player_b_seed
 
     # Set result fields
-    match.winner_id = player_a_id  # Player A is winner in results
+    match.winner_id = _determine_winner_id(scraped, player_a_id, player_b_id)
     match.score = scraped.score_raw
     match.score_structured = score_structured
     match.status = scraped.status
@@ -596,29 +632,33 @@ def _get_player_external_id(
     source: str,
     player_external_id_cache: Optional[dict[tuple[int, str], Optional[str]]] = None,
 ) -> Optional[str]:
+    normalized_source = source.lower()
+    if normalized_source in {"itf_men", "itf_women", "itf-men", "itf-women"}:
+        normalized_source = "itf"
+
     if player_external_id_cache is not None:
-        cache_key = (player_id, source)
+        cache_key = (player_id, normalized_source)
         if cache_key in player_external_id_cache:
             return player_external_id_cache[cache_key]
 
     player = session.query(Player).filter(Player.id == player_id).first()
     if not player:
         if player_external_id_cache is not None:
-            player_external_id_cache[(player_id, source)] = None
+            player_external_id_cache[(player_id, normalized_source)] = None
         return None
 
     result: Optional[str]
-    if source == "atp":
+    if normalized_source == "atp":
         result = player.atp_id
-    elif source == "wta":
+    elif normalized_source == "wta":
         result = player.wta_id
-    elif source == "itf":
+    elif normalized_source == "itf":
         result = player.itf_id
     else:
         result = None
 
     if player_external_id_cache is not None:
-        player_external_id_cache[(player_id, source)] = result
+        player_external_id_cache[(player_id, normalized_source)] = result
     return result
 
 

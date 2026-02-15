@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Login | Teelo Ratings{% endblock %}
+
+{% block content %}
+<section class="max-w-md mx-auto pt-6">
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
+        <h1 class="text-2xl font-bold text-teelo-dark">Admin Login</h1>
+        <p class="text-sm text-gray-500 mt-1">Sign in to access the admin queue tools.</p>
+
+        {% if error %}
+        <div class="mt-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm px-3 py-2">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="post" action="/admin/login" class="mt-5 space-y-4">
+            <input type="hidden" name="next" value="{{ next }}">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                <input id="username" name="username" required
+                       class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teelo-lime focus:border-transparent">
+            </div>
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                <input id="password" name="password" type="password" required
+                       class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teelo-lime focus:border-transparent">
+            </div>
+            <button type="submit"
+                    class="w-full rounded-lg bg-teelo-dark text-white py-2.5 font-semibold hover:opacity-90 transition">
+                Sign In
+            </button>
+        </form>
+    </div>
+</section>
+{% endblock %}

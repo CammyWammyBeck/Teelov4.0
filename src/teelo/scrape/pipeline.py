@@ -21,7 +21,7 @@ from teelo.scrape.parsers.score import ScoreParseError, parse_score
 from teelo.scrape.utils import TOUR_TYPES
 from teelo.scrape.wta import WTAScraper
 from teelo.services.draw_ingestion import ingest_draw
-from teelo.services.results_ingestion import ingest_results
+from teelo.services.results_ingestion import _determine_winner_id, ingest_results
 from teelo.services.schedule_ingestion import ingest_schedule
 from teelo.utils.geo import city_to_country, country_to_ioc
 
@@ -442,6 +442,7 @@ async def _execute_current_task(
                 sched_kwargs: dict[str, Any] = {}
                 if tour_key.startswith("ITF"):
                     sched_kwargs["tournament_url"] = task_params.tournament_url
+                    sched_kwargs["gender"] = task_params.gender
                 elif tour_key in ["ATP", "CHALLENGER", "WTA", "WTA_125"]:
                     sched_kwargs = {
                         "tournament_id": task_params.tournament_id,
@@ -981,7 +982,7 @@ async def process_scraped_match(
         existing.match_number = scraped_match.match_number
         existing.player_a_id = player_a_id
         existing.player_b_id = player_b_id
-        existing.winner_id = player_a_id
+        existing.winner_id = _determine_winner_id(scraped_match, player_a_id, player_b_id)
         existing.score = scraped_match.score_raw
         existing.score_structured = score_structured
         existing.match_date = match_date
@@ -1006,7 +1007,7 @@ async def process_scraped_match(
         match_number=scraped_match.match_number,
         player_a_id=player_a_id,
         player_b_id=player_b_id,
-        winner_id=player_a_id,  # Player A is typically the winner
+        winner_id=_determine_winner_id(scraped_match, player_a_id, player_b_id),
         score=scraped_match.score_raw,
         score_structured=score_structured,
         match_date=match_date,

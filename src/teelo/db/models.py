@@ -349,6 +349,38 @@ class PlayerReviewQueue(Base):
 
 
 # =============================================================================
+# Admin Models
+# =============================================================================
+
+class AdminUser(Base):
+    """Admin user account for protected web workflows."""
+
+    __tablename__ = "admin_users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    __table_args__ = (
+        Index("idx_admin_users_active", "is_active"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<AdminUser(username='{self.username}', active={self.is_active})>"
+
+
+# =============================================================================
 # Tournament Models
 # =============================================================================
 

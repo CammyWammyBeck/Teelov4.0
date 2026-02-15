@@ -21,14 +21,22 @@ for clear cases.
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+import logging
 from typing import Optional
 
 from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from teelo.config import settings
-from teelo.db.models import Player, PlayerAlias, PlayerReviewQueue
-from teelo.players.aliases import normalize_name, compare_names
+from teelo.db.models import Player, PlayerAlias, PlayerEloState, PlayerReviewQueue, UpdateLog
+from teelo.players.aliases import (
+    compare_names,
+    extract_last_name,
+    is_abbreviated_name,
+    normalize_name,
+)
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -93,6 +101,17 @@ class PlayerIdentityService:
         self._external_cache: dict[tuple[str, str], Optional[int]] = {}
         self._alias_cache: dict[str, Optional[int]] = {}
         self._fuzzy_cache: dict[tuple[str, int], list[PlayerMatch]] = {}
+        self._gender_cache: dict[int, Optional[str]] = {}
+
+    def _normalized_source_key(self, source: str) -> str:
+        s = (source or "").strip().lower()
+        if s in {"atp"}:
+            return "atp"
+        if s in {"wta", "wta_125", "wta125"}:
+            return "wta"
+        if s in {"itf", "itf_men", "itf_women", "itf-men", "itf-women"}:
+            return "itf"
+        return s
 
     def _trigram_enabled(self) -> bool:
         """
@@ -176,11 +195,45 @@ class PlayerIdentityService:
 
         # Strategy 2: Try exact alias match
         player = self._find_by_exact_alias(normalized_name)
-        if player:
+        if player and self._candidate_matches_source_gender(player.id, source):
             return player.id, "matched"
 
+        queue_threshold = 0.95
+
+        # Strategy 2.5: Try abbreviated-name matching (e.g. "j. pegula")
+        abbreviated_candidates = [
+            c
+            for c in self._find_abbreviated_candidates(normalized_name)
+            if self._candidate_matches_source_gender(c.player_id, source)
+        ]
+        if len(abbreviated_candidates) == 1:
+            player_id = abbreviated_candidates[0].player_id
+            self._ensure_alias(player_id, normalized_name, source)
+            if external_id:
+                self._link_external_id(player_id, source, external_id)
+            return player_id, "matched"
+        if len(abbreviated_candidates) > 1:
+            strong_abbrev = [
+                c for c in abbreviated_candidates if c.confidence >= queue_threshold
+            ]
+            if len(strong_abbrev) > 1:
+                # Ambiguous high-confidence match; defer to manual review.
+                self._add_to_review_queue(
+                    name=name,
+                    normalized_name=normalized_name,
+                    source=source,
+                    external_id=external_id,
+                    candidates=strong_abbrev,
+                    match_context=match_context,
+                )
+                return None, "queued"
+
         # Strategy 3: Try fuzzy matching
-        candidates = self._fuzzy_search(normalized_name, limit=3)
+        candidates = [
+            c
+            for c in self._fuzzy_search(normalized_name, limit=5)
+            if self._candidate_matches_source_gender(c.player_id, source)
+        ]
 
         if candidates and candidates[0].confidence >= self.exact_match_threshold:
             # High confidence match - auto-match and add alias
@@ -193,18 +246,96 @@ class PlayerIdentityService:
 
             return player_id, "matched"
 
-        # Strategy 4: Add to review queue
-        # No confident match found - needs human review
-        self._add_to_review_queue(
+        # Strategy 4: Queue only for ambiguous high-confidence candidates.
+        strong_candidates = [c for c in candidates if c.confidence >= queue_threshold]
+        if len(strong_candidates) > 1:
+            self._add_to_review_queue(
+                name=name,
+                normalized_name=normalized_name,
+                source=source,
+                external_id=external_id,
+                candidates=strong_candidates,
+                match_context=match_context,
+            )
+            return None, "queued"
+
+        # Strategy 5: No reliable existing player found -> create directly.
+        created_id = self.create_player(
             name=name,
-            normalized_name=normalized_name,
             source=source,
             external_id=external_id,
-            candidates=candidates,
-            match_context=match_context,
         )
+        return created_id, "created"
 
-        return None, "queued"
+    def _source_expected_gender(self, source: str) -> Optional[str]:
+        s = (source or "").strip().lower()
+        if s == "atp":
+            return "men"
+        if s in {"wta", "wta_125", "wta125"}:
+            return "women"
+        if s in {"itf_men", "itf-men"}:
+            return "men"
+        if s in {"itf_women", "itf-women"}:
+            return "women"
+        return None
+
+    def _infer_player_gender(self, player_id: int) -> Optional[str]:
+        """
+        Infer a player's dominant gender from historical tournament participation.
+
+        Returns:
+            'men', 'women', 'mixed' or None (unknown/no matches)
+        """
+        if player_id in self._gender_cache:
+            return self._gender_cache[player_id]
+
+        from teelo.db.models import Match, Tournament, TournamentEdition
+
+        try:
+            counts = dict(
+                self.db.query(Tournament.gender, func.count(Match.id))
+                .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+                .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+                .filter(
+                    Tournament.gender.in_(("men", "women")),
+                    or_(Match.player_a_id == player_id, Match.player_b_id == player_id),
+                )
+                .group_by(Tournament.gender)
+                .all()
+            )
+        except Exception:
+            # In lightweight unit tests, match/tournament tables may not exist.
+            self._gender_cache[player_id] = None
+            return None
+        men_count = int(counts.get("men", 0))
+        women_count = int(counts.get("women", 0))
+
+        inferred: Optional[str]
+        if men_count == 0 and women_count == 0:
+            inferred = None
+        elif men_count > women_count:
+            inferred = "men"
+        elif women_count > men_count:
+            inferred = "women"
+        else:
+            inferred = "mixed"
+
+        self._gender_cache[player_id] = inferred
+        return inferred
+
+    def _candidate_matches_source_gender(self, player_id: int, source: str) -> bool:
+        """
+        Ensure source-driven matching doesn't cross men/women boundaries.
+        """
+        expected = self._source_expected_gender(source)
+        if expected is None:
+            return True
+        inferred = self._infer_player_gender(player_id)
+        if inferred is None:
+            return True
+        if inferred == "mixed":
+            return False
+        return inferred == expected
 
     def find_player(
         self,
@@ -287,12 +418,13 @@ class PlayerIdentityService:
         )
 
         # Set the appropriate external ID based on source
+        normalized_source = self._normalized_source_key(source)
         if external_id:
-            if source == "atp":
+            if normalized_source == "atp":
                 player.atp_id = external_id
-            elif source == "wta":
+            elif normalized_source == "wta":
                 player.wta_id = external_id
-            elif source == "itf":
+            elif normalized_source == "itf":
                 player.itf_id = external_id
 
         self.db.add(player)
@@ -380,7 +512,7 @@ class PlayerIdentityService:
 
         return result_player_id
 
-    def merge_players(self, keep_id: int, merge_id: int) -> None:
+    def merge_players(self, keep_id: int, merge_id: int, commit: bool = True) -> None:
         """
         Merge two player records into one.
 
@@ -390,6 +522,7 @@ class PlayerIdentityService:
         Args:
             keep_id: Player ID to keep
             merge_id: Player ID to merge (will be deleted)
+            commit: Whether to commit immediately (default True)
 
         Raises:
             ValueError: If either player doesn't exist
@@ -403,6 +536,9 @@ class PlayerIdentityService:
             raise ValueError(f"Player {keep_id} not found")
         if not merge_player:
             raise ValueError(f"Player {merge_id} not found")
+
+        # Prefer full canonical names over abbreviated forms when merging.
+        self._promote_full_canonical_name(keep_player, merge_player)
 
         # Move all matches (both scheduled and completed) where merge_player is player_a
         self.db.query(Match).filter(Match.player_a_id == merge_id).update(
@@ -429,17 +565,104 @@ class PlayerIdentityService:
             if not existing:
                 alias.player_id = keep_id
 
-        # Copy external IDs if keep_player doesn't have them
-        if merge_player.atp_id and not keep_player.atp_id:
-            keep_player.atp_id = merge_player.atp_id
-        if merge_player.wta_id and not keep_player.wta_id:
-            keep_player.wta_id = merge_player.wta_id
-        if merge_player.itf_id and not keep_player.itf_id:
-            keep_player.itf_id = merge_player.itf_id
+        # Repoint review queue references to avoid FK violations when deleting merge_player.
+        self.db.query(PlayerReviewQueue).filter(
+            PlayerReviewQueue.suggested_player_1_id == merge_id
+        ).update({"suggested_player_1_id": keep_id}, synchronize_session=False)
+        self.db.query(PlayerReviewQueue).filter(
+            PlayerReviewQueue.suggested_player_2_id == merge_id
+        ).update({"suggested_player_2_id": keep_id}, synchronize_session=False)
+        self.db.query(PlayerReviewQueue).filter(
+            PlayerReviewQueue.suggested_player_3_id == merge_id
+        ).update({"suggested_player_3_id": keep_id}, synchronize_session=False)
+        self.db.query(PlayerReviewQueue).filter(
+            PlayerReviewQueue.resolved_player_id == merge_id
+        ).update({"resolved_player_id": keep_id}, synchronize_session=False)
+
+        # Copy external IDs if keep_player doesn't have them.
+        # Unique constraints on players.{atp_id,wta_id,itf_id} require us to
+        # release the value from merge_player first, then assign to keep_player.
+        for field_name in ("atp_id", "wta_id", "itf_id"):
+            merge_value = getattr(merge_player, field_name)
+            keep_value = getattr(keep_player, field_name)
+            if not merge_value or keep_value:
+                continue
+
+            conflict = self.db.query(Player).filter(
+                Player.id.notin_([keep_id, merge_id]),
+                getattr(Player, field_name) == merge_value,
+            ).first()
+            if conflict:
+                logger.warning(
+                    "Skipping %s transfer during merge %s->%s: value %s already on player %s",
+                    field_name,
+                    merge_id,
+                    keep_id,
+                    merge_value,
+                    conflict.id,
+                )
+                continue
+
+            setattr(merge_player, field_name, None)
+            self.db.flush()
+            setattr(keep_player, field_name, merge_value)
+
+        # Remove merged player's incremental ELO state row.
+        self.db.query(PlayerEloState).filter(
+            PlayerEloState.player_id == merge_id
+        ).delete(synchronize_session=False)
+
+        # Mark all kept-player matches for ELO recomputation now that history changed.
+        self.db.query(Match).filter(
+            or_(Match.player_a_id == keep_id, Match.player_b_id == keep_id)
+        ).update({"elo_needs_recompute": True}, synchronize_session=False)
+
+        # Audit merge operation for traceability.
+        self.db.add(
+            UpdateLog(
+                update_type="player_merge",
+                details={
+                    "keep_id": keep_id,
+                    "merge_id": merge_id,
+                    "keep_name": keep_player.canonical_name,
+                    "merge_name": merge_player.canonical_name,
+                },
+                success=True,
+            )
+        )
 
         # Delete the merged player
         self.db.delete(merge_player)
-        self.db.commit()
+        if commit:
+            self.db.commit()
+        logger.info("Merged player %s into %s", merge_id, keep_id)
+
+    def _promote_full_canonical_name(self, keep_player: Player, merge_player: Player) -> None:
+        """
+        Promote a fuller canonical name to the kept player when safe.
+
+        If keep is abbreviated (e.g. "J. Pegula") and merge is full
+        (e.g. "Jessica Pegula"), use the full-name canonical for display.
+        """
+        keep_norm = normalize_name(keep_player.canonical_name)
+        merge_norm = normalize_name(merge_player.canonical_name)
+
+        if not keep_norm or not merge_norm:
+            return
+        if not is_abbreviated_name(keep_norm):
+            return
+        if is_abbreviated_name(merge_norm):
+            return
+        if extract_last_name(keep_norm) != extract_last_name(merge_norm):
+            return
+
+        first_initial = keep_norm.split()[0].rstrip(".")
+        merge_first = merge_norm.split()[0].rstrip(".")
+        if not merge_first.startswith(first_initial):
+            return
+
+        if compare_names(keep_norm, merge_norm) >= 0.90:
+            keep_player.canonical_name = merge_player.canonical_name
 
     def link_cross_tour_ids(
         self,
@@ -489,7 +712,8 @@ class PlayerIdentityService:
         Returns:
             Player if found, None otherwise
         """
-        cache_key = (source, external_id)
+        normalized_source = self._normalized_source_key(source)
+        cache_key = (normalized_source, external_id)
         if cache_key in self._external_cache:
             player_id = self._external_cache[cache_key]
             return self.db.get(Player, player_id) if player_id else None
@@ -497,24 +721,24 @@ class PlayerIdentityService:
         # 1. Check pending players in session
         for obj in self.db.new:
             if isinstance(obj, Player):
-                if source == "atp" and obj.atp_id == external_id:
+                if normalized_source == "atp" and obj.atp_id == external_id:
                     self._external_cache[cache_key] = obj.id
                     return obj
-                if source == "wta" and obj.wta_id == external_id:
+                if normalized_source == "wta" and obj.wta_id == external_id:
                     self._external_cache[cache_key] = obj.id
                     return obj
-                if source == "itf" and obj.itf_id == external_id:
+                if normalized_source == "itf" and obj.itf_id == external_id:
                     self._external_cache[cache_key] = obj.id
                     return obj
 
         # 2. Check database
         query = self.db.query(Player)
 
-        if source == "atp":
+        if normalized_source == "atp":
             query = query.filter(Player.atp_id == external_id)
-        elif source == "wta":
+        elif normalized_source == "wta":
             query = query.filter(Player.wta_id == external_id)
-        elif source == "itf":
+        elif normalized_source == "itf":
             query = query.filter(Player.itf_id == external_id)
         else:
             return None
@@ -562,6 +786,121 @@ class PlayerIdentityService:
         self._alias_cache[normalized_name] = None
         return None
 
+    def _find_by_abbreviated_match(self, normalized_name: str) -> Optional[Player]:
+        """
+        Return a player only when abbreviated-name matching is unambiguous.
+
+        Args:
+            normalized_name: Normalized name to evaluate
+
+        Returns:
+            Player when exactly one candidate is found, otherwise None
+        """
+        candidates = self._find_abbreviated_candidates(normalized_name)
+        if len(candidates) != 1:
+            return None
+        return self.db.get(Player, candidates[0].player_id)
+
+    def _find_abbreviated_candidates(self, normalized_name: str) -> list[PlayerMatch]:
+        """
+        Find candidates that match abbreviated/full-name variants.
+
+        Examples:
+        - "j. pegula" -> aliases like "jessica pegula"
+        - "jessica pegula" -> aliases "j pegula" / "j. pegula"
+        """
+        parts = normalized_name.split()
+        if len(parts) < 2:
+            return []
+
+        last_name = extract_last_name(normalized_name)
+        if not last_name:
+            return []
+
+        by_player: dict[int, PlayerMatch] = {}
+
+        if is_abbreviated_name(normalized_name):
+            initial = parts[0].rstrip(".")
+            aliases = self.db.query(PlayerAlias).filter(
+                or_(
+                    PlayerAlias.alias == last_name,
+                    PlayerAlias.alias.like(f"% {last_name}"),
+                )
+            ).all()
+
+            for alias in aliases:
+                alias_parts = alias.alias.split()
+                if len(alias_parts) < 2:
+                    continue
+                first = alias_parts[0].rstrip(".")
+                if len(first) < 3:
+                    # Skip other abbreviated forms to avoid ambiguous short-short matches.
+                    continue
+                if not first.startswith(initial):
+                    continue
+                score = compare_names(normalized_name, alias.alias)
+                existing = by_player.get(alias.player_id)
+                if not existing or score > existing.confidence:
+                    by_player[alias.player_id] = PlayerMatch(
+                        player_id=alias.player_id,
+                        confidence=score,
+                        match_type="abbreviated",
+                        matched_value=alias.alias,
+                    )
+        else:
+            initial = parts[0][0]
+            abbreviated_aliases = {f"{initial} {last_name}", f"{initial}. {last_name}"}
+            aliases = self.db.query(PlayerAlias).filter(
+                PlayerAlias.alias.in_(abbreviated_aliases)
+            ).all()
+
+            for alias in aliases:
+                score = compare_names(normalized_name, alias.alias)
+                existing = by_player.get(alias.player_id)
+                if not existing or score > existing.confidence:
+                    by_player[alias.player_id] = PlayerMatch(
+                        player_id=alias.player_id,
+                        confidence=score,
+                        match_type="abbreviated",
+                        matched_value=alias.alias,
+                    )
+
+        # Include pending aliases in the current session.
+        for obj in self.db.new:
+            if not isinstance(obj, PlayerAlias):
+                continue
+            p_id = obj.player_id or (obj.player.id if obj.player else None)
+            if not p_id:
+                continue
+
+            alias_value = obj.alias
+            alias_parts = alias_value.split()
+            if len(alias_parts) < 2:
+                continue
+
+            if is_abbreviated_name(normalized_name):
+                initial = parts[0].rstrip(".")
+                first = alias_parts[0].rstrip(".")
+                alias_last = extract_last_name(alias_value)
+                if alias_last != last_name or len(first) < 3 or not first.startswith(initial):
+                    continue
+            else:
+                initial = parts[0][0]
+                if alias_value not in {f"{initial} {last_name}", f"{initial}. {last_name}"}:
+                    continue
+
+            score = compare_names(normalized_name, alias_value)
+            existing = by_player.get(p_id)
+            if not existing or score > existing.confidence:
+                by_player[p_id] = PlayerMatch(
+                    player_id=p_id,
+                    confidence=score,
+                    match_type="abbreviated",
+                    matched_value=alias_value,
+                )
+
+        return sorted(by_player.values(), key=lambda m: m.confidence, reverse=True)
+
     def _fuzzy_search(self, normalized_name: str, limit: int = 3) -> list[PlayerMatch]:
         """
         Search for players using fuzzy name matching.
@@ -581,8 +920,23 @@ class PlayerIdentityService:
         if cache_key in self._fuzzy_cache:
             return self._fuzzy_cache[cache_key]
 
-        matches = []
-        seen_player_ids = set()
+        # Keep best match per player as we merge multiple matching strategies.
+        by_player: dict[int, PlayerMatch] = {}
+
+        def _store_match(player_id: int, alias_value: str, confidence: float) -> None:
+            if confidence < self.suggestion_threshold:
+                return
+            existing = by_player.get(player_id)
+            if existing and existing.confidence >= confidence:
+                return
+            by_player[player_id] = PlayerMatch(
+                player_id=player_id,
+                confidence=confidence,
+                match_type="fuzzy",
+                matched_value=alias_value,
+            )
+
+        trigram_top_confidence = 0.0
 
         if self._trigram_enabled():
             rows = self.db.execute(
@@ -598,7 +952,7 @@ class PlayerIdentityService:
                 {
                     "name": normalized_name,
                     "threshold": float(self.suggestion_threshold),
-                    "limit": limit,
+                    "limit": max(limit * 3, 10),
                 },
             ).fetchall()
 
@@ -606,58 +960,44 @@ class PlayerIdentityService:
                 player_id = row._mapping["player_id"]
                 alias_value = row._mapping["alias"]
                 confidence = float(row._mapping["score"])
-                if player_id in seen_player_ids:
-                    continue
-                matches.append(
-                    PlayerMatch(
-                        player_id=player_id,
-                        confidence=confidence,
-                        match_type="fuzzy",
-                        matched_value=alias_value,
-                    )
-                )
-                seen_player_ids.add(player_id)
+                if confidence > trigram_top_confidence:
+                    trigram_top_confidence = confidence
+                _store_match(player_id, alias_value, confidence)
+
+            # pg_trgm under-scores abbreviated names. If it did not find an exact
+            # quality match, run a Python compare fallback over same-last-name aliases.
+            if trigram_top_confidence < self.exact_match_threshold:
+                last_name = extract_last_name(normalized_name)
+                if last_name:
+                    fallback_aliases = self.db.query(PlayerAlias).filter(
+                        or_(
+                            PlayerAlias.alias == last_name,
+                            PlayerAlias.alias.like(f"% {last_name}"),
+                        )
+                    ).all()
+
+                    for alias in fallback_aliases:
+                        confidence = compare_names(normalized_name, alias.alias)
+                        _store_match(alias.player_id, alias.alias, confidence)
         else:
-            # Get all aliases from database
+            # Pure Python fallback when pg_trgm is unavailable.
             aliases = self.db.query(PlayerAlias).all()
-
-            # Check database aliases
             for alias in aliases:
-                if alias.player_id in seen_player_ids:
-                    continue
-
                 confidence = compare_names(normalized_name, alias.alias)
-                if confidence >= self.suggestion_threshold:
-                    matches.append(PlayerMatch(
-                        player_id=alias.player_id,
-                        confidence=confidence,
-                        match_type="fuzzy",
-                        matched_value=alias.alias,
-                    ))
-                    seen_player_ids.add(alias.player_id)
+                _store_match(alias.player_id, alias.alias, confidence)
 
         # Also consider pending aliases in session to avoid matching
-        # the same name to multiple players in one batch
+        # the same name to multiple players in one batch.
         pending_aliases = [obj for obj in self.db.new if isinstance(obj, PlayerAlias)]
-                
-        # Check pending aliases
         for alias in pending_aliases:
             p_id = alias.player_id or (alias.player.id if alias.player else None)
-            if not p_id or p_id in seen_player_ids:
+            if not p_id:
                 continue
-                
             confidence = compare_names(normalized_name, alias.alias)
-            if confidence >= self.suggestion_threshold:
-                matches.append(PlayerMatch(
-                    player_id=p_id,
-                    confidence=confidence,
-                    match_type="fuzzy",
-                    matched_value=alias.alias,
-                ))
-                seen_player_ids.add(p_id)
+            _store_match(p_id, alias.alias, confidence)
 
-        # Sort by confidence (highest first) and limit
-        matches.sort(key=lambda m: m.confidence, reverse=True)
+        # Sort by confidence (highest first) and limit.
+        matches = sorted(by_player.values(), key=lambda m: m.confidence, reverse=True)
         limited = matches[:limit]
         self._fuzzy_cache[cache_key] = limited
         return limited
@@ -726,13 +1066,15 @@ class PlayerIdentityService:
         if not player:
             return
 
-        if source == "atp" and not player.atp_id:
+        normalized_source = self._normalized_source_key(source)
+
+        if normalized_source == "atp" and not player.atp_id:
             player.atp_id = external_id
             self._external_cache[("atp", external_id)] = player.id
-        elif source == "wta" and not player.wta_id:
+        elif normalized_source == "wta" and not player.wta_id:
             player.wta_id = external_id
             self._external_cache[("wta", external_id)] = player.id
-        elif source == "itf" and not player.itf_id:
+        elif normalized_source == "itf" and not player.itf_id:
             player.itf_id = external_id
             self._external_cache[("itf", external_id)] = player.id
 

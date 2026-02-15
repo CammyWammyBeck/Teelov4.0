@@ -98,6 +98,29 @@ def extract_initials(name: str) -> str:
     return "".join(part[0] for part in parts if part)
 
 
+def is_abbreviated_name(name: str) -> bool:
+    """
+    Check if a name starts with an abbreviated first name.
+
+    Examples considered abbreviated:
+    - "j pegula"
+    - "j. pegula"
+
+    Args:
+        name: Name to inspect (normalized or raw)
+
+    Returns:
+        True if first token is a single-letter abbreviation
+    """
+    normalized = normalize_name(name)
+    parts = normalized.split()
+    if len(parts) < 2:
+        return False
+
+    first = parts[0].rstrip(".")
+    return len(first) == 1 and first.isalpha()
+
+
 def compare_names(name1: str, name2: str) -> float:
     """
     Compare two player names and return a similarity score.

@@ -245,12 +245,16 @@ def _find_player_by_external_id(
     if not external_id:
         return None
 
+    normalized_source = source.lower()
+    if normalized_source in {"itf_men", "itf_women", "itf-men", "itf-women"}:
+        normalized_source = "itf"
+
     ext_id = external_id.upper()
-    if source == "atp":
+    if normalized_source == "atp":
         return session.query(Player).filter(Player.atp_id == ext_id).first()
-    if source == "wta":
+    if normalized_source == "wta":
         return session.query(Player).filter(Player.wta_id == ext_id).first()
-    if source == "itf":
+    if normalized_source == "itf":
         return session.query(Player).filter(Player.itf_id == ext_id).first()
     return None
 
@@ -280,11 +284,15 @@ def _fill_missing_external_ids(
 
 
 def _get_source_external_id(player: Player, source: str) -> Optional[str]:
-    if source == "atp":
+    normalized_source = source.lower()
+    if normalized_source in {"itf_men", "itf_women", "itf-men", "itf-women"}:
+        normalized_source = "itf"
+
+    if normalized_source == "atp":
         return player.atp_id
-    if source == "wta":
+    if normalized_source == "wta":
         return player.wta_id
-    if source == "itf":
+    if normalized_source == "itf":
         return player.itf_id
     return None
 

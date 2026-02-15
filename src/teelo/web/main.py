@@ -3,6 +3,7 @@ import hashlib
 from pathlib import Path
 import re
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import frontmatter
 import markdown
@@ -11,15 +12,32 @@ from fastapi.exceptions import StarletteHTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import and_, func, or_
+from starlette.middleware.sessions import SessionMiddleware
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from teelo.config import settings
-from teelo.db.models import Match, Player, PlayerAlias, PlayerEloState, Tournament, TournamentEdition
+from teelo.db.models import (
+    AdminUser,
+    Match,
+    Player,
+    PlayerAlias,
+    PlayerEloState,
+    PlayerReviewQueue,
+    Tournament,
+    TournamentEdition,
+)
 from teelo.db.session import get_db
 from teelo.match_statuses import get_status_group, normalize_status_filter
+from teelo.players.identity import PlayerIdentityService
+from teelo.web.admin_auth import authenticate_admin, mark_admin_login
 
 app = FastAPI(title="Teelo Ratings")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.admin_session_secret,
+    max_age=settings.admin_session_max_age_seconds,
+)
 
 # Mount static files
 static_path = Path(__file__).parent / "static"
@@ -33,6 +51,29 @@ MATCHES_PAGE_STATUS_FILTERS = get_status_group("all")
 
 # Inject settings (for feature flags) into all templates
 templates.env.globals["features"] = settings
+
+ADMIN_SESSION_KEY = "admin_user_id"
+
+
+def _current_admin_user(request: Request, db: Session) -> Optional[AdminUser]:
+    admin_id = request.session.get(ADMIN_SESSION_KEY)
+    if not admin_id:
+        return None
+    return (
+        db.query(AdminUser)
+        .filter(AdminUser.id == admin_id, AdminUser.is_active.is_(True))
+        .first()
+    )
+
+
+def _require_admin(request: Request, db: Session) -> Optional[RedirectResponse]:
+    if _current_admin_user(request, db) is not None:
+        return None
+    next_path = request.url.path
+    return RedirectResponse(
+        url=f"/admin/login?next={quote(next_path, safe='/')}",
+        status_code=303,
+    )
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -608,28 +649,52 @@ async def api_rankings(
             status_code=400,
         )
 
-    # Subquery: find all player IDs who have played in tournaments of this gender.
-    # A player can appear as player_a or player_b, so we union both.
-    players_as_a = (
-        db.query(Match.player_a_id.label("pid"))
+    # Build per-player match counts by tournament gender.
+    # A player must be majority in requested gender to appear in that ranking.
+    events_a = (
+        db.query(
+            Match.player_a_id.label("pid"),
+            Tournament.gender.label("gender"),
+        )
         .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
         .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
-        .filter(Tournament.gender == gender_param)
+        .filter(Tournament.gender.in_(("men", "women")))
     )
-    players_as_b = (
-        db.query(Match.player_b_id.label("pid"))
+    events_b = (
+        db.query(
+            Match.player_b_id.label("pid"),
+            Tournament.gender.label("gender"),
+        )
         .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
         .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
-        .filter(Tournament.gender == gender_param)
+        .filter(Tournament.gender.in_(("men", "women")))
     )
-    gender_player_ids = players_as_a.union(players_as_b).subquery()
+    gender_events = events_a.union_all(events_b).subquery()
+    gender_counts = (
+        db.query(
+            gender_events.c.pid.label("pid"),
+            func.sum(
+                case((gender_events.c.gender == "men", 1), else_=0)
+            ).label("men_matches"),
+            func.sum(
+                case((gender_events.c.gender == "women", 1), else_=0)
+            ).label("women_matches"),
+        )
+        .group_by(gender_events.c.pid)
+        .subquery()
+    )
 
     # Main query: join Player + PlayerEloState, filter by gender, rank by ELO
     query = (
         db.query(Player, PlayerEloState)
         .join(PlayerEloState, PlayerEloState.player_id == Player.id)
-        .filter(Player.id.in_(db.query(gender_player_ids.c.pid)))
+        .join(gender_counts, gender_counts.c.pid == Player.id)
     )
+
+    if gender_param == "men":
+        query = query.filter(gender_counts.c.men_matches > gender_counts.c.women_matches)
+    else:
+        query = query.filter(gender_counts.c.women_matches > gender_counts.c.men_matches)
 
     # By default, exclude inactive players (no match in the last 6 months)
     if not include_inactive:
@@ -725,6 +790,321 @@ async def blog_detail(request: Request, slug: str):
             "current_path": request.url.path,
         },
     )
+
+
+@app.get("/admin/login", response_class=HTMLResponse)
+async def admin_login_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    next: str = Query("/admin"),
+):
+    if _current_admin_user(request, db):
+        return RedirectResponse(url="/admin", status_code=303)
+
+    return templates.TemplateResponse(
+        "admin_login.html",
+        {
+            "request": request,
+            "next": next if next.startswith("/") else "/admin",
+            "error": None,
+            "now": datetime.utcnow(),
+            "current_path": request.url.path,
+        },
+    )
+
+
+@app.post("/admin/login", response_class=HTMLResponse)
+async def admin_login_submit(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    form = await request.form()
+    username = str(form.get("username", "")).strip().lower()
+    password = str(form.get("password", ""))
+    next_path = str(form.get("next", "/admin"))
+    if not next_path.startswith("/"):
+        next_path = "/admin"
+
+    admin = authenticate_admin(db, username, password)
+    if not admin:
+        return templates.TemplateResponse(
+            "admin_login.html",
+            {
+                "request": request,
+                "next": next_path,
+                "error": "Invalid username or password.",
+                "now": datetime.utcnow(),
+                "current_path": request.url.path,
+            },
+            status_code=401,
+        )
+
+    request.session[ADMIN_SESSION_KEY] = admin.id
+    mark_admin_login(db, admin)
+    db.commit()
+    return RedirectResponse(url=next_path, status_code=303)
+
+
+@app.post("/admin/logout")
+async def admin_logout(request: Request):
+    request.session.pop(ADMIN_SESSION_KEY, None)
+    return RedirectResponse(url="/admin/login", status_code=303)
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_home(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    pending_count = (
+        db.query(func.count(PlayerReviewQueue.id))
+        .filter(PlayerReviewQueue.status == "pending")
+        .scalar()
+        or 0
+    )
+    admin = _current_admin_user(request, db)
+    return templates.TemplateResponse(
+        "admin_home.html",
+        {
+            "request": request,
+            "admin": admin,
+            "pending_count": pending_count,
+            "now": datetime.utcnow(),
+            "current_path": request.url.path,
+        },
+    )
+
+
+def _player_detail_map(db: Session, player_ids: set[int]) -> dict[int, dict]:
+    if not player_ids:
+        return {}
+
+    players = db.query(Player).filter(Player.id.in_(player_ids)).all()
+    alias_counts = dict(
+        db.query(PlayerAlias.player_id, func.count(PlayerAlias.id))
+        .filter(PlayerAlias.player_id.in_(player_ids))
+        .group_by(PlayerAlias.player_id)
+        .all()
+    )
+    elo_states = {
+        state.player_id: state
+        for state in db.query(PlayerEloState).filter(
+            PlayerEloState.player_id.in_(player_ids)
+        ).all()
+    }
+
+    counts_a = dict(
+        db.query(Match.player_a_id, func.count(Match.id))
+        .filter(Match.player_a_id.in_(player_ids))
+        .group_by(Match.player_a_id)
+        .all()
+    )
+    counts_b = dict(
+        db.query(Match.player_b_id, func.count(Match.id))
+        .filter(Match.player_b_id.in_(player_ids))
+        .group_by(Match.player_b_id)
+        .all()
+    )
+
+    details: dict[int, dict] = {}
+    for player in players:
+        state = elo_states.get(player.id)
+        details[player.id] = {
+            "id": player.id,
+            "name": player.canonical_name,
+            "atp_id": player.atp_id,
+            "wta_id": player.wta_id,
+            "itf_id": player.itf_id,
+            "nationality": player.nationality_ioc,
+            "alias_count": int(alias_counts.get(player.id, 0)),
+            "match_count": int(counts_a.get(player.id, 0)) + int(counts_b.get(player.id, 0)),
+            "elo_rating": int(state.rating) if state and state.rating is not None else None,
+            "last_match_date": (
+                state.last_match_date.strftime("%Y-%m-%d")
+                if state and state.last_match_date
+                else None
+            ),
+        }
+    return details
+
+
+@app.get("/admin/duplicates", response_class=HTMLResponse)
+async def admin_duplicates_queue(
+    request: Request,
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(25, ge=1, le=100),
+):
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    base_query = db.query(PlayerReviewQueue).filter(PlayerReviewQueue.status == "pending")
+    total = base_query.count()
+    items = (
+        base_query.order_by(PlayerReviewQueue.created_at.asc(), PlayerReviewQueue.id.asc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    player_ids: set[int] = set()
+    for item in items:
+        for pid in (
+            item.suggested_player_1_id,
+            item.suggested_player_2_id,
+            item.suggested_player_3_id,
+        ):
+            if pid:
+                player_ids.add(pid)
+    details_map = _player_detail_map(db, player_ids)
+
+    queue_rows = []
+    for item in items:
+        suggestions = []
+        for idx, pid in enumerate(
+            [
+                item.suggested_player_1_id,
+                item.suggested_player_2_id,
+                item.suggested_player_3_id,
+            ],
+            start=1,
+        ):
+            if not pid:
+                continue
+            confidence = getattr(item, f"suggested_player_{idx}_confidence")
+            suggestion = details_map.get(pid)
+            if not suggestion:
+                continue
+            suggestions.append(
+                {
+                    "player": suggestion,
+                    "confidence": float(confidence) if confidence is not None else None,
+                }
+            )
+
+        queue_rows.append(
+            {
+                "id": item.id,
+                "scraped_name": item.scraped_name,
+                "scraped_source": item.scraped_source,
+                "scraped_external_id": item.scraped_external_id,
+                "match_external_id": item.match_external_id,
+                "tournament_name": item.tournament_name,
+                "created_at": item.created_at.strftime("%Y-%m-%d %H:%M"),
+                "suggestions": suggestions,
+            }
+        )
+
+    notice = request.query_params.get("notice")
+    admin = _current_admin_user(request, db)
+    return templates.TemplateResponse(
+        "admin_duplicates.html",
+        {
+            "request": request,
+            "admin": admin,
+            "queue_rows": queue_rows,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "has_more": (page * per_page) < total,
+            "notice": notice,
+            "now": datetime.utcnow(),
+            "current_path": request.url.path,
+        },
+    )
+
+
+def _admin_action_redirect(
+    message: str,
+    page: Optional[str],
+    per_page: Optional[str],
+) -> RedirectResponse:
+    query = f"notice={quote(message, safe='')}"
+    if page and page.isdigit():
+        query += f"&page={page}"
+    if per_page and per_page.isdigit():
+        query += f"&per_page={per_page}"
+    return RedirectResponse(url=f"/admin/duplicates?{query}", status_code=303)
+
+
+@app.post("/admin/duplicates/{review_id}/match")
+async def admin_duplicate_match(
+    request: Request,
+    review_id: int,
+    db: Session = Depends(get_db),
+):
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    form = await request.form()
+    player_id_raw = str(form.get("player_id", "")).strip()
+    page = str(form.get("page", "")).strip()
+    per_page = str(form.get("per_page", "")).strip()
+    if not player_id_raw.isdigit():
+        return _admin_action_redirect("Invalid player id.", page, per_page)
+
+    admin = _current_admin_user(request, db)
+    identity = PlayerIdentityService(db)
+    identity.resolve_review_item(
+        review_id=review_id,
+        action="match",
+        player_id=int(player_id_raw),
+        resolved_by=admin.username if admin else "admin",
+    )
+    return _admin_action_redirect(f"Matched review #{review_id}.", page, per_page)
+
+
+@app.post("/admin/duplicates/{review_id}/create")
+async def admin_duplicate_create(
+    request: Request,
+    review_id: int,
+    db: Session = Depends(get_db),
+):
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    form = await request.form()
+    page = str(form.get("page", "")).strip()
+    per_page = str(form.get("per_page", "")).strip()
+    admin = _current_admin_user(request, db)
+    identity = PlayerIdentityService(db)
+    identity.resolve_review_item(
+        review_id=review_id,
+        action="create",
+        resolved_by=admin.username if admin else "admin",
+    )
+    return _admin_action_redirect(f"Created player for review #{review_id}.", page, per_page)
+
+
+@app.post("/admin/duplicates/{review_id}/ignore")
+async def admin_duplicate_ignore(
+    request: Request,
+    review_id: int,
+    db: Session = Depends(get_db),
+):
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    form = await request.form()
+    page = str(form.get("page", "")).strip()
+    per_page = str(form.get("per_page", "")).strip()
+    admin = _current_admin_user(request, db)
+    identity = PlayerIdentityService(db)
+    identity.resolve_review_item(
+        review_id=review_id,
+        action="ignore",
+        resolved_by=admin.username if admin else "admin",
+    )
+    return _admin_action_redirect(f"Ignored review #{review_id}.", page, per_page)
+
 
 # Only for debugging
 if __name__ == "__main__":

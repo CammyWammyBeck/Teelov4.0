@@ -57,6 +57,7 @@ from teelo.draw import (
     get_previous_round,
 )
 from teelo.match_statuses import get_status_group
+from teelo.players.aliases import normalize_name
 from teelo.players.identity import PlayerIdentityService
 from teelo.scrape.base import ScrapedDrawEntry
 from teelo.scrape.parsers.score import ScoreParseError, parse_score
@@ -426,6 +427,14 @@ def _resolve_player(
         external_id=external_id,
     )
 
+    # Fallback safety: one more abbreviated-name check before creating.
+    if not player_id and external_id:
+        abbreviated_match = identity_service._find_by_abbreviated_match(
+            normalize_name(name)
+        )
+        if abbreviated_match:
+            player_id = abbreviated_match.id
+
     # Fallback: create player if we have an external ID
     if not player_id and external_id:
         player_id = identity_service.create_player(
@@ -445,8 +454,12 @@ def _get_player_external_id(
     source: str,
     player_external_id_cache: Optional[dict[tuple[int, str], Optional[str]]] = None,
 ) -> Optional[str]:
+    normalized_source = source.lower()
+    if normalized_source in {"itf_men", "itf_women", "itf-men", "itf-women"}:
+        normalized_source = "itf"
+
     if player_external_id_cache is not None:
-        cache_key = (player_id, source)
+        cache_key = (player_id, normalized_source)
         if cache_key in player_external_id_cache:
             return player_external_id_cache[cache_key]
 
@@ -455,21 +468,21 @@ def _get_player_external_id(
     player = session.query(Player).filter(Player.id == player_id).first()
     if not player:
         if player_external_id_cache is not None:
-            player_external_id_cache[(player_id, source)] = None
+            player_external_id_cache[(player_id, normalized_source)] = None
         return None
 
     result: Optional[str]
-    if source == "atp":
+    if normalized_source == "atp":
         result = player.atp_id
-    elif source == "wta":
+    elif normalized_source == "wta":
         result = player.wta_id
-    elif source == "itf":
+    elif normalized_source == "itf":
         result = player.itf_id
     else:
         result = None
 
     if player_external_id_cache is not None:
-        player_external_id_cache[(player_id, source)] = result
+        player_external_id_cache[(player_id, normalized_source)] = result
     return result
 
 

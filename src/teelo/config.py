@@ -162,6 +162,19 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # Admin / Authentication
+    # ==========================================================================
+
+    admin_session_secret: str = Field(
+        default="change-me-in-env",
+        description="Secret key for admin session signing",
+    )
+    admin_session_max_age_seconds: int = Field(
+        default=86400,
+        description="Admin session lifetime in seconds",
+    )
+
+    # ==========================================================================
     # Feature Flags
     # ==========================================================================
 
