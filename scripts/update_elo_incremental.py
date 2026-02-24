@@ -12,7 +12,7 @@ import sys
 from time import perf_counter
 from typing import Any
 
-from sqlalchemy import and_, or_, update
+from sqlalchemy import and_, func, or_, update
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -72,6 +72,101 @@ def _days_since(last_date: date | None, current_date: date | None) -> int | None
     if last_date is None or current_date is None:
         return None
     return (current_date - last_date).days
+
+
+def _load_historical_player_state(
+    session, player_id: int, before_temporal_order: int, initial_rating: float
+) -> PlayerState:
+    """Load a player's ELO state as of BEFORE a given temporal_order.
+
+    Finds the player's most recent match before the given temporal_order and uses
+    the elo_post value from that match. If no prior match exists, returns initial state.
+
+    OPTIMIZATION: Uses efficient queries with minimal data transfer.
+    """
+    # Find most recent match as player_a
+    match_a = (
+        session.query(
+            Match.temporal_order,
+            Match.id,
+            Match.elo_post_player_a,
+            Match.match_date,
+        )
+        .filter(
+            Match.player_a_id == player_id,
+            Match.temporal_order < before_temporal_order,
+            Match.elo_post_player_a.isnot(None),
+        )
+        .order_by(Match.temporal_order.desc(), Match.id.desc())
+        .first()
+    )
+
+    # Find most recent match as player_b
+    match_b = (
+        session.query(
+            Match.temporal_order,
+            Match.id,
+            Match.elo_post_player_b,
+            Match.match_date,
+        )
+        .filter(
+            Match.player_b_id == player_id,
+            Match.temporal_order < before_temporal_order,
+            Match.elo_post_player_b.isnot(None),
+        )
+        .order_by(Match.temporal_order.desc(), Match.id.desc())
+        .first()
+    )
+
+    # Use whichever is more recent
+    last_elo_post = None
+    last_temporal = None
+    last_match_date = None
+
+    if match_a and match_b:
+        if match_a[0] > match_b[0]:  # Compare temporal_order
+            last_elo_post = float(match_a[2])
+            last_temporal = int(match_a[0])
+            last_match_date = match_a[3]
+        else:
+            last_elo_post = float(match_b[2])
+            last_temporal = int(match_b[0])
+            last_match_date = match_b[3]
+    elif match_a:
+        last_elo_post = float(match_a[2])
+        last_temporal = int(match_a[0])
+        last_match_date = match_a[3]
+    elif match_b:
+        last_elo_post = float(match_b[2])
+        last_temporal = int(match_b[0])
+        last_match_date = match_b[3]
+
+    if last_elo_post is not None:
+        # Count matches before this temporal_order
+        match_count = session.query(func.count(Match.id)).filter(
+            or_(Match.player_a_id == player_id, Match.player_b_id == player_id),
+            Match.temporal_order < before_temporal_order,
+            Match.status.in_(TERMINAL_STATUSES),
+        ).scalar() or 0
+
+        return PlayerState(
+            player_id=player_id,
+            rating=last_elo_post,
+            match_count=int(match_count),
+            last_temporal_order=last_temporal,
+            last_match_date=last_match_date,
+            career_peak=last_elo_post,  # We don't track historical peaks
+        )
+    else:
+        # No prior matches, use initial rating
+        return PlayerState(
+            player_id=player_id,
+            rating=initial_rating,
+            match_count=0,
+            last_temporal_order=None,
+            last_match_date=None,
+            career_peak=initial_rating,
+        )
 
 
 def _preload_player_states(session, player_initial_ratings: dict[int, float]) -> dict[int, PlayerState]:
@@ -240,6 +335,29 @@ def _format_summary_line(payload: dict[str, Any], elapsed: float) -> str:
     )
 
 
+def _find_earliest_needing_update(session) -> tuple[int, int] | None:
+    """Find the earliest match (by temporal_order, id) that needs ELO computation.
+
+    Returns (temporal_order, match_id) or None if no matches need updates.
+    """
+    earliest = (
+        session.query(Match.temporal_order, Match.id)
+        .filter(
+            Match.status.in_(TERMINAL_STATUSES),
+            Match.winner_id.isnot(None),
+            Match.temporal_order.isnot(None),
+            or_(
+                Match.elo_post_player_a.is_(None),
+                Match.elo_post_player_b.is_(None),
+                Match.elo_needs_recompute.is_(True),
+            ),
+        )
+        .order_by(Match.temporal_order.asc(), Match.id.asc())
+        .first()
+    )
+    return earliest
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Apply incremental ELO updates for terminal matches.")
     parser.add_argument("--batch-size", type=int, default=1000, help="Maximum matches per DB batch.")
@@ -292,6 +410,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Refresh pre-match ELO for all pending matches (upcoming/scheduled), regardless of touched players.",
     )
+    parser.add_argument(
+        "--cascade-threshold",
+        type=int,
+        default=1000,
+        help="Max cascade matches before switching to full recompute mode (default: 1000).",
+    )
     return parser
 
 
@@ -312,6 +436,7 @@ def main() -> int:
         "dry_run": args.dry_run,
         "rebuild": args.rebuild,
         "refresh_pending_all": args.refresh_pending_all,
+        "cascade_threshold": args.cascade_threshold,
         "processed": 0,
         "updated": 0,
         "skipped": 0,
@@ -321,6 +446,10 @@ def main() -> int:
         "pending_pre_updated": 0,
         "checkpoint_in": None,
         "checkpoint_out": None,
+        "cascade_count": 0,
+        "full_recompute_triggered": False,
+        "starting_temporal": None,
+        "starting_match_id": None,
     }
 
     _append_jsonl(
@@ -385,20 +514,51 @@ def main() -> int:
             )
             session.flush()
 
+        # Determine starting point: earliest match needing update, or checkpoint
+        start_temporal: int | None = None
+        start_match_id: int | None = None
+
+        if not args.rebuild:
+            earliest = _find_earliest_needing_update(session)
+            if earliest:
+                start_temporal, start_match_id = earliest
+                payload["starting_temporal"] = start_temporal
+                payload["starting_match_id"] = start_match_id
+                print(f"Found earliest match needing ELO: temporal={start_temporal} match_id={start_match_id}")
+            elif cursor:
+                # No gaps, continue from checkpoint
+                start_temporal = cursor["last_temporal_order"]
+                start_match_id = cursor["last_match_id"]
+                payload["starting_temporal"] = start_temporal
+                payload["starting_match_id"] = start_match_id
+            # else: no checkpoint, no gaps - will process nothing (query will be empty)
+
         # Print startup header
         resume_info = ""
         if cursor:
-            resume_info = f" | Resume: temporal={cursor['last_temporal_order']} match={cursor['last_match_id']}"
+            resume_info = f" | Checkpoint: temporal={cursor['last_temporal_order']} match={cursor['last_match_id']}"
+        if start_temporal is not None and (not cursor or start_temporal != cursor.get("last_temporal_order")):
+            resume_info += f" | Starting from: temporal={start_temporal} match={start_match_id}"
         print(f"ELO INCREMENTAL UPDATE")
         mode_label = "REBUILD" if args.rebuild else "INCREMENTAL"
         print(f"Mode: {mode_label} | Params: {params_version} | Batch: {args.batch_size}{resume_info}")
+        print(f"Cascade threshold: {args.cascade_threshold} matches")
         print("\u2500" * 60)
 
         progress = LiveEloProgress()
         run_touched_player_ids: set[int] = set()
 
+        # Tree cascade tracking (persists across batches)
+        affected_players: set[int] = set()
+        cascade_count = 0
+        full_recompute_mode = False
+
         while True:
             if processed_cap is not None and payload["processed"] >= processed_cap:
+                break
+
+            # In incremental mode, if no starting point, we're done
+            if not args.rebuild and start_temporal is None:
                 break
 
             query = (
@@ -406,34 +566,43 @@ def main() -> int:
                 .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
                 .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
             )
-            if args.rebuild:
-                query = query.filter(
-                    Match.status.in_(TERMINAL_STATUSES),
-                    Match.winner_id.isnot(None),
-                    Match.temporal_order.isnot(None),
-                )
-            else:
-                query = query.filter(
-                    Match.status.in_(TERMINAL_STATUSES),
-                    Match.winner_id.isnot(None),
-                    Match.temporal_order.isnot(None),
-                    or_(
-                        Match.elo_post_player_a.is_(None),
-                        Match.elo_post_player_b.is_(None),
-                        Match.elo_needs_recompute.is_(True),
-                    ),
-                )
+            # Base filter: terminal matches with winners
+            query = query.filter(
+                Match.status.in_(TERMINAL_STATUSES),
+                Match.winner_id.isnot(None),
+                Match.temporal_order.isnot(None),
+            )
 
-            if cursor is not None:
-                query = query.filter(
-                    or_(
-                        Match.temporal_order > cursor["last_temporal_order"],
-                        and_(
-                            Match.temporal_order == cursor["last_temporal_order"],
-                            Match.id > cursor["last_match_id"],
-                        ),
+            # In incremental mode, filter from starting point (first batch) or cursor (subsequent batches)
+            # In rebuild mode, process everything from beginning
+            if not args.rebuild:
+                # Determine which position to use for filtering:
+                # - If this is the first batch (payload["batches"] == 0), use start_temporal
+                # - Otherwise, use the cursor which gets updated each batch
+                is_first_batch = payload["batches"] == 0
+                if is_first_batch:
+                    filter_temporal = start_temporal
+                    filter_match_id = start_match_id
+                elif cursor:
+                    filter_temporal = cursor["last_temporal_order"]
+                    filter_match_id = cursor["last_match_id"]
+                else:
+                    filter_temporal = start_temporal
+                    filter_match_id = start_match_id
+
+                if filter_temporal is not None:
+                    query = query.filter(
+                        or_(
+                            Match.temporal_order > filter_temporal,
+                            and_(
+                                Match.temporal_order == filter_temporal,
+                                Match.id > filter_match_id if not is_first_batch else Match.id >= filter_match_id,
+                            ),
+                        )
                     )
-                )
+                else:
+                    # No starting point in incremental mode, nothing to do
+                    break
 
             query = query.order_by(Match.temporal_order.asc(), Match.id.asc())
             query_limit = args.batch_size
@@ -546,19 +715,84 @@ def main() -> int:
                 if args.dry_run:
                     continue
 
+                # Determine if this match needs processing
+                needs_elo = (
+                    match.elo_post_player_a is None
+                    or match.elo_post_player_b is None
+                    or match.elo_needs_recompute
+                )
+                involves_affected_player = (
+                    int(match.player_a_id) in affected_players or int(match.player_b_id) in affected_players
+                )
+                needs_processing = args.rebuild or full_recompute_mode or needs_elo or involves_affected_player
+
+                if not needs_processing:
+                    # Skip this match, doesn't need ELO update
+                    payload["skipped"] += 1
+                    batch_skipped += 1
+                    continue
+
                 try:
                     level_code = get_level_code(tournament_level, tournament_tour)
                     state_a = state_by_player[int(match.player_a_id)]
                     state_b = state_by_player[int(match.player_b_id)]
 
-                    if (
+                    # Check if match is out-of-order (players have already played future matches)
+                    is_out_of_order = (
                         (state_a.last_temporal_order is not None and match.temporal_order < state_a.last_temporal_order)
                         or (state_b.last_temporal_order is not None and match.temporal_order < state_b.last_temporal_order)
-                    ):
-                        recompute_match_ids.append(int(match.id))
-                        payload["skipped"] += 1
-                        batch_skipped += 1
-                        continue
+                    )
+
+                    if is_out_of_order and not full_recompute_mode:
+                        # Out-of-order match detected! This means we need to recompute from this point forward.
+                        # Instead of just flagging it, switch to full recompute mode to process everything.
+                        print(
+                            f"\nOut-of-order match detected at temporal={match.temporal_order} match_id={match.id}"
+                            f"\n  Player A last_temporal={state_a.last_temporal_order}"
+                            f"\n  Player B last_temporal={state_b.last_temporal_order}"
+                            f"\n  Switching to FULL RECOMPUTE mode to reprocess from this point forward"
+                        )
+                        full_recompute_mode = True
+                        payload["full_recompute_triggered"] = True
+                        payload["cascade_count"] = cascade_count
+                        affected_players = set()  # Clear, no longer tracking individual players
+
+                        # Load player states from BEFORE this match's temporal_order (historical state)
+                        initial_rating = initial_elo_for_level_code(params, level_code)
+                        historical_state_a = _load_historical_player_state(
+                            session, int(match.player_a_id), match.temporal_order, initial_rating
+                        )
+                        historical_state_b = _load_historical_player_state(
+                            session, int(match.player_b_id), match.temporal_order, initial_rating
+                        )
+
+                        # Replace in-memory states with historical states
+                        state_by_player[int(match.player_a_id)] = historical_state_a
+                        state_by_player[int(match.player_b_id)] = historical_state_b
+                        state_a = historical_state_a
+                        state_b = historical_state_b
+
+                        print(
+                            f"  Loaded historical ELO: Player A={state_a.rating:.2f} (from {state_a.match_count} prior matches), "
+                            f"Player B={state_b.rating:.2f} (from {state_b.match_count} prior matches)"
+                        )
+
+                        # Now continue to process this match with historical states
+                    elif is_out_of_order and full_recompute_mode:
+                        # Already in full recompute mode, load historical states for any out-of-order players
+                        initial_rating = initial_elo_for_level_code(params, level_code)
+                        if state_a.last_temporal_order is not None and match.temporal_order < state_a.last_temporal_order:
+                            historical_state_a = _load_historical_player_state(
+                                session, int(match.player_a_id), match.temporal_order, initial_rating
+                            )
+                            state_by_player[int(match.player_a_id)] = historical_state_a
+                            state_a = historical_state_a
+                        if state_b.last_temporal_order is not None and match.temporal_order < state_b.last_temporal_order:
+                            historical_state_b = _load_historical_player_state(
+                                session, int(match.player_b_id), match.temporal_order, initial_rating
+                            )
+                            state_by_player[int(match.player_b_id)] = historical_state_b
+                            state_b = historical_state_b
 
                     match_date = match.match_date or date_from_temporal_order(match.temporal_order)
                     # Always continue from the current rolling player state.
@@ -659,6 +893,30 @@ def main() -> int:
                     )
                     payload["updated"] += 1
                     batch_updated += 1
+
+                    # Tree cascade tracking: if this match was processed due to cascade,
+                    # add these players to the affected set (unless we're in full recompute mode)
+                    if not args.rebuild and not full_recompute_mode:
+                        # If this match involved affected players (cascade), track new players
+                        if involves_affected_player or needs_elo:
+                            affected_players.add(int(match.player_a_id))
+                            affected_players.add(int(match.player_b_id))
+
+                            # Count cascade matches (those triggered by affected players, not original gaps)
+                            if involves_affected_player and not needs_elo:
+                                cascade_count += 1
+
+                                # Check if cascade has grown too large
+                                if cascade_count >= args.cascade_threshold:
+                                    print(
+                                        f"\nCascade exceeded {args.cascade_threshold} matches at "
+                                        f"temporal={match.temporal_order}, switching to FULL RECOMPUTE mode"
+                                    )
+                                    full_recompute_mode = True
+                                    payload["full_recompute_triggered"] = True
+                                    payload["cascade_count"] = cascade_count
+                                    affected_players = set()  # Free memory, no longer needed
+
                 except Exception as exc:
                     payload["errors"] += 1
                     batch_errors += 1
@@ -896,6 +1154,9 @@ def main() -> int:
     payload["ended_at"] = ended_at.isoformat()
     payload["duration_s"] = (ended_at - started_at).total_seconds()
     payload["status"] = "success"
+    # Update final cascade count if not already set by full recompute trigger
+    if not payload.get("full_recompute_triggered"):
+        payload["cascade_count"] = cascade_count
 
     _append_jsonl(
         status_path,
@@ -915,11 +1176,16 @@ def main() -> int:
         _write_json(Path(args.metrics_json), payload)
 
     rate = payload["processed"] / payload["duration_s"] if payload["duration_s"] > 0 else 0
+    cascade_info = ""
+    if payload.get("full_recompute_triggered"):
+        cascade_info = f" [CASCADE→FULL @ {payload.get('cascade_count', 0)} matches]"
+    elif payload.get("cascade_count", 0) > 0:
+        cascade_info = f" [cascade={payload.get('cascade_count', 0)}]"
     print(
         "ELO incremental complete: "
         f"processed={payload['processed']} updated={payload['updated']} "
         f"pending_pre_updated={payload['pending_pre_updated']} "
-        f"skipped={payload['skipped']} errors={payload['errors']} "
+        f"skipped={payload['skipped']} errors={payload['errors']}{cascade_info} "
         f"in {payload['duration_s']:.1f}s ({rate:.0f}/s)"
     )
     return 0
