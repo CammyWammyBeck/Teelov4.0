@@ -559,19 +559,22 @@ async def _execute_current_task(
                     if verbose:
                         print(f"  Results: {results['results']}")
 
-                # Cancel any pending matches that are now stale: if a completed result
-                # exists 2+ rounds ahead of a pending match, that match can never be played.
-                cancelled = cancel_stale_pending_matches(session, edition)
-                if cancelled > 0:
-                    results["cancelled_stale"] = f"Cancelled {cancelled} stale pending matches"
-                    if verbose:
-                        print(f"  Cleanup: Cancelled {cancelled} stale pending matches")
             except Exception as exc:
                 if verbose:
                     print(f"  Results Error: {exc}")
                 session.rollback()
         else:
             report("Skipping Results (tournament has not started yet)")
+
+        # Cancel any pending matches that are now stale: if a completed result
+        # exists 2+ rounds ahead of a pending match, that match can never be played.
+        # This runs unconditionally (outside the results scrape gate) so it fires
+        # even when fast_mode skips results re-ingestion for completed tournaments.
+        cancelled = cancel_stale_pending_matches(session, edition)
+        if cancelled > 0:
+            results["cancelled_stale"] = f"Cancelled {cancelled} stale pending matches"
+            if verbose:
+                print(f"  Cleanup: Cancelled {cancelled} stale pending matches")
 
     commit_start = perf_counter()
     session.commit()
