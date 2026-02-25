@@ -13,6 +13,7 @@ from typing import Any, Callable, Mapping, Optional
 
 from teelo.db import Match, PipelineCheckpoint, Tournament, TournamentEdition
 from teelo.db.models import estimate_match_date_from_round
+from teelo.elo.updater import EloUpdater
 from teelo.players.aliases import normalize_name
 from teelo.players.identity import PlayerIdentityService
 from teelo.scrape.atp import ATPScraper
@@ -21,7 +22,7 @@ from teelo.scrape.parsers.score import ScoreParseError, parse_score
 from teelo.scrape.utils import TOUR_TYPES
 from teelo.scrape.wta import WTAScraper
 from teelo.services.draw_ingestion import ingest_draw
-from teelo.services.results_ingestion import _determine_winner_id, ingest_results
+from teelo.services.results_ingestion import ResultsIngestionStats, _determine_winner_id, ingest_results
 from teelo.services.schedule_ingestion import ingest_schedule
 from teelo.utils.geo import city_to_country, country_to_ioc
 
@@ -497,6 +498,9 @@ async def _execute_current_task(
             report("Skipping Schedule (tournament appears fully completed)")
 
         # 3. RESULTS
+        # Tracks stats from ingest_results so we can run ELO inline after commit.
+        # Stays None if results were skipped (fast_mode fingerprint match) or failed.
+        results_ingest_stats: Optional[ResultsIngestionStats] = None
         if _should_scrape_results(task_params, today, fast_mode=fast_mode):
             try:
                 report("Scraping Results")
@@ -546,6 +550,7 @@ async def _execute_current_task(
                     report("Ingesting Results")
                     results_ingest_start = perf_counter()
                     stats = ingest_results(session, matches, edition, identity_service)
+                    results_ingest_stats = stats  # captured for inline ELO update below
                     results_ingest_elapsed = perf_counter() - results_ingest_start
                     timings["phases"]["results"]["ingest"] += results_ingest_elapsed
                     timings["ingestion"] += results_ingest_elapsed
@@ -563,6 +568,24 @@ async def _execute_current_task(
     commit_start = perf_counter()
     session.commit()
     timings["db_commit"] = perf_counter() - commit_start
+
+    # Inline ELO update — process newly completed matches immediately so the
+    # hourly update_elo.py ideally finds nothing to do. Uses the match IDs
+    # collected during ingestion (no extra DB query needed).
+    if results_ingest_stats and results_ingest_stats.completed_match_ids:
+        elo_start = perf_counter()
+        elo_result = EloUpdater.from_session(session).run_for_match_ids(
+            session, results_ingest_stats.completed_match_ids
+        )
+        session.commit()
+        timings["elo_update"] = perf_counter() - elo_start
+        if verbose:
+            print(
+                f"  ELO: {elo_result.processed} matches, "
+                f"{elo_result.pre_snapshots_refreshed} pre-snapshots updated "
+                f"({timings['elo_update']:.2f}s)"
+            )
+
     timings["total"] = perf_counter() - total_start
     results["timings"] = timings
     return results

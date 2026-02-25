@@ -253,6 +253,48 @@ class EloUpdater:
 
         return UpdateResult(processed=len(match_updates), pre_snapshots_refreshed=n_pre)
 
+    def run_for_match_ids(
+        self,
+        session: Session,
+        match_ids: list[int],
+    ) -> UpdateResult:
+        """
+        Process specific match IDs inline after scraping.
+
+        Unlike run(), this skips the full table scan and backfill detection.
+        The invariant is: these matches were just scraped and are the most
+        recent for the involved players. The hourly update_elo.py catches
+        any edge cases (out-of-order historical inserts, etc.).
+
+        Args:
+            session: Active SQLAlchemy session. Caller is responsible for commit.
+            match_ids: IDs of terminal matches to process.
+                       Typically from ResultsIngestionStats.completed_match_ids.
+
+        Returns:
+            UpdateResult with counts.
+        """
+        if not match_ids:
+            return UpdateResult()
+
+        matches = self._find_by_ids(session, match_ids)
+        if not matches:
+            return UpdateResult()
+
+        involved_ids = (
+            {m.player_a_id for m in matches}
+            | {m.player_b_id for m in matches}
+        )
+        states = self._load_player_states(session, involved_ids)
+        match_updates, touched_ids = self._process_matches(matches, states)
+
+        if not match_updates:
+            return UpdateResult()
+
+        self._bulk_write(session, match_updates, states, touched_ids)
+        n_pre = self._refresh_pre_snapshots(session, touched_ids)
+        return UpdateResult(processed=len(match_updates), pre_snapshots_refreshed=n_pre)
+
     # ------------------------------------------------------------------
     # DB queries
     # ------------------------------------------------------------------
@@ -314,6 +356,72 @@ class EloUpdater:
         for row in rows:
             level_code = get_level_code(row.level, row.tour)
             # Use stored match_date if available; extract from temporal_order otherwise
+            match_date = row.match_date
+            if match_date is None and row.temporal_order is not None:
+                match_date = date_from_temporal_order(row.temporal_order)
+            result.append(
+                _MatchRow(
+                    id=row.id,
+                    player_a_id=row.player_a_id,
+                    player_b_id=row.player_b_id,
+                    winner_id=row.winner_id,
+                    temporal_order=row.temporal_order,
+                    match_date=match_date,
+                    score_structured=row.score_structured,
+                    level_code=level_code,
+                )
+            )
+        return result
+
+    def _find_by_ids(
+        self,
+        session: Session,
+        match_ids: list[int],
+    ) -> list[_MatchRow]:
+        """
+        Load specific matches by ID with tournament level info.
+
+        Structurally identical to _find_unprocessed but filters by explicit
+        match IDs instead of scanning for all unprocessed. Keeps the
+        elo_post IS NULL / elo_needs_recompute guard so calling
+        run_for_match_ids() is idempotent — matches already processed are
+        silently skipped.
+
+        Results are sorted by temporal_order ASC, id ASC so QF is processed
+        before SF within the same tournament.
+        """
+        stmt = (
+            select(
+                Match.id,
+                Match.player_a_id,
+                Match.player_b_id,
+                Match.winner_id,
+                Match.temporal_order,
+                Match.match_date,
+                Match.score_structured,
+                Tournament.level,
+                Tournament.tour,
+            )
+            .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+            .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+            .where(Match.id.in_(match_ids))
+            .where(Match.status.in_(TERMINAL_STATUSES))
+            .where(Match.winner_id.isnot(None))
+            .where(Match.temporal_order.isnot(None))
+            .where(
+                or_(
+                    Match.elo_post_player_a.is_(None),
+                    Match.elo_post_player_b.is_(None),
+                    Match.elo_needs_recompute.is_(True),
+                )
+            )
+            .order_by(Match.temporal_order.asc(), Match.id.asc())
+        )
+        rows = session.execute(stmt).all()
+
+        result: list[_MatchRow] = []
+        for row in rows:
+            level_code = get_level_code(row.level, row.tour)
             match_date = row.match_date
             if match_date is None and row.temporal_order is not None:
                 match_date = date_from_temporal_order(row.temporal_order)

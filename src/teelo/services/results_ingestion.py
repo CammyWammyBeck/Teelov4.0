@@ -89,6 +89,10 @@ class ResultsIngestionStats:
     matches_skipped_duplicate: int = 0
     skipped_no_player_match: int = 0
     errors: list[str] = field(default_factory=list)
+    # IDs of terminal matches (created or updated with a result) in this run.
+    # Populated after each batch flush so IDs are guaranteed to be set.
+    # Used by the pipeline for inline ELO updates without a re-query.
+    completed_match_ids: list[int] = field(default_factory=list)
 
     def summary(self) -> tuple[str, Optional[Match]]:
         """Return a human-readable summary of ingestion results."""
@@ -206,11 +210,11 @@ def _process_results_batch(
     batch_external = dict(existing_by_external_id)
     batch_pairs = dict(existing_by_pair)
     batch_seen = set(seen_external_ids)
-    batch_results: list[str] = []
+    batch_results: list[tuple[str, Optional[Match]]] = []
     try:
         with session.begin_nested():
             for scraped in batch:
-                result, _match = _process_single_result(
+                result, match = _process_single_result(
                     session=session,
                     scraped=scraped,
                     edition=edition,
@@ -222,7 +226,8 @@ def _process_results_batch(
                     seen_external_ids=batch_seen,
                     update_existing=update_existing,
                 )
-                batch_results.append(result)
+                batch_results.append((result, match))
+            # flush assigns DB IDs to newly created Match rows
             session.flush()
 
         existing_by_external_id.clear()
@@ -231,8 +236,12 @@ def _process_results_batch(
         existing_by_pair.update(batch_pairs)
         seen_external_ids.clear()
         seen_external_ids.update(batch_seen)
-        for result in batch_results:
+        for result, match in batch_results:
             _increment_stats_for_result(stats, result)
+            # Collect IDs of terminal matches so the pipeline can run ELO inline
+            # without a re-query. IDs are valid because flush() ran above.
+            if result in ("created", "updated") and match is not None and match.id and match.winner_id:
+                stats.completed_match_ids.append(match.id)
         return
     except Exception as batch_error:
         logger.warning(
@@ -244,7 +253,7 @@ def _process_results_batch(
     for scraped in batch:
         try:
             with session.begin_nested():
-                result, _match = _process_single_result(
+                result, match = _process_single_result(
                     session=session,
                     scraped=scraped,
                     edition=edition,
@@ -258,6 +267,8 @@ def _process_results_batch(
                 )
                 session.flush()
             _increment_stats_for_result(stats, result)
+            if result in ("created", "updated") and match is not None and match.id and match.winner_id:
+                stats.completed_match_ids.append(match.id)
         except Exception as e:
             error_msg = f"{scraped.player_a_name} vs {scraped.player_b_name}: {e}"
             stats.errors.append(error_msg)
