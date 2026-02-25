@@ -531,62 +531,24 @@ def run_optimization(
 
 def rebuild_live_elo_state(params: EloParams, params_version: str) -> tuple[int, int, int]:
     """
-    Rebuild live inline ELO artifacts from completed matches in temporal order.
+    Rebuild all ELO artifacts from completed matches in temporal order.
 
-    This rebuilds:
-    - match-level pre/post ELO snapshots + metadata columns
-    - player_elo_states
+    Delegates to EloUpdater.rebuild() which processes all terminal matches in a
+    single in-memory pass and writes results in two bulk DB operations.
+
+    Returns (processed_count, 0, n_player_states) for backward-compatible callers.
+    The middle value (formerly "flagged_recompute") is always 0 in the new system —
+    backfills are handled automatically rather than being flagged for later.
     """
-    from teelo.db.models import Match, PlayerEloState, Tournament, TournamentEdition
-    from teelo.elo.constants import get_level_code
-    from teelo.elo.live import TERMINAL_STATUSES, LiveEloUpdater
+    from teelo.db.models import PlayerEloState
+    from teelo.elo.updater import EloUpdater
 
     with get_session() as session:
-        session.query(PlayerEloState).delete()
-        session.query(Match).update(
-            {
-                Match.elo_pre_player_a: None,
-                Match.elo_pre_player_b: None,
-                Match.elo_post_player_a: None,
-                Match.elo_post_player_b: None,
-                Match.elo_params_version: None,
-                Match.elo_processed_at: None,
-                Match.elo_needs_recompute: False,
-            },
-            synchronize_session=False,
-        )
-        session.flush()
-
-        matches = (
-            session.query(Match)
-            .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
-            .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
-            .filter(
-                Match.status.in_(tuple(TERMINAL_STATUSES)),
-                Match.winner_id.isnot(None),
-                Match.temporal_order.isnot(None),
-            )
-            .order_by(Match.temporal_order.asc(), Match.id.asc())
-            .all()
-        )
-
-        updater = LiveEloUpdater(params=params, params_version=params_version)
-        processed = 0
-        flagged_recompute = 0
-        for match in matches:
-            level_code = get_level_code(
-                match.tournament_edition.tournament.level,
-                match.tournament_edition.tournament.tour,
-            )
-            updater.ensure_pre_match_snapshot(session, match, force=True)
-            if updater.apply_completed_match(session, match, level_code=level_code):
-                processed += 1
-            elif match.elo_needs_recompute:
-                flagged_recompute += 1
-
+        updater = EloUpdater(params=params, params_version=params_version)
+        result = updater.rebuild(session)
         session.commit()
         n_states = session.query(PlayerEloState).count()
-        return processed, flagged_recompute, n_states
+        return result.processed, 0, n_states
 
 
 def print_split_info(label: str, split: dict[str, int | date], matches: list[dict]) -> None:
@@ -887,10 +849,9 @@ def main() -> None:
                 print(f"Persisted non-active ELO params set for rebuild: {record.name}")
 
         print()
-        print("Rebuilding live inline ELO state...")
-        processed, flagged, n_states = rebuild_live_elo_state(best_params, params_version=params_version)
+        print("Rebuilding ELO state...")
+        processed, _, n_states = rebuild_live_elo_state(best_params, params_version=params_version)
         print(f"Processed matches: {processed}")
-        print(f"Out-of-order flagged: {flagged}")
         print(f"PlayerEloState rows: {n_states}")
 
     print("Done.")

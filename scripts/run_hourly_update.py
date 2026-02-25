@@ -257,7 +257,7 @@ def _build_registry() -> StageRegistry:
     registry.register(
         StageDefinition(
             name="elo_incremental",
-            runner=_run_script_stage("scripts/update_elo_incremental.py"),
+            runner=_run_script_stage("scripts/update_elo.py"),
             description="Apply incremental ELO updates for newly terminal matches.",
             enabled_by_default=True,
         )
