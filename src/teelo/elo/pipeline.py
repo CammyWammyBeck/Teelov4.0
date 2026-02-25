@@ -282,11 +282,12 @@ class EloPipeline:
 
 def load_matches_for_elo(session: Session) -> list[dict]:
     """
-    Load all completed matches for ELO computation.
+    Load all result-bearing matches for ELO computation.
 
-    Single query joining Match → TournamentEdition → Tournament to get
-    the tournament level. Returns lightweight dicts sorted by temporal_order
-    for fast iteration.
+    Includes completed, retired, walkover, and default matches — matching
+    TERMINAL_STATUSES in updater.py. Single query joining Match →
+    TournamentEdition → Tournament to get the tournament level. Returns
+    lightweight dicts sorted by temporal_order for fast iteration.
 
     Args:
         session: SQLAlchemy session
@@ -312,7 +313,7 @@ def load_matches_for_elo(session: Session) -> list[dict]:
         )
         .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
         .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
-        .where(Match.status.in_(["completed", "retired"]))
+        .where(Match.status.in_(["completed", "retired", "walkover", "default"]))
         .where(Match.winner_id.isnot(None))
         .where(Match.temporal_order.isnot(None))
         .order_by(Match.temporal_order)
