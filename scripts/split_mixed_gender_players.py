@@ -240,7 +240,7 @@ def main() -> int:
         session.flush()
         print(
             f"\nDone. Created {created} split players. "
-            "Run ELO rebuild next: py scripts/update_elo_incremental.py --rebuild --refresh-pending-all"
+            "Run ELO rebuild next: python scripts/update_elo.py --rebuild"
         )
         return 0
 
