@@ -71,10 +71,11 @@ async def discover_tour_tasks(
     today: date,
     headless: bool,
     semaphore: asyncio.Semaphore,
+    lookback_days: int = 7,
 ) -> tuple[list, float]:
     """Discover current tournaments for one tour."""
     scraper_cls = _get_scraper_class(tour_key)
-    window_start = today - timedelta(days=7)
+    window_start = today - timedelta(days=lookback_days)
     window_end = today + timedelta(days=7)
 
     print(f"\n[{tour_key}] Starting tour discovery...")
@@ -543,6 +544,12 @@ async def main():
         help="Disable fast profile.",
     )
     parser.add_argument("--discover-only", action="store_true", help="Discover current tournaments only")
+    parser.add_argument(
+        "--lookback-days",
+        type=int,
+        default=7,
+        help="How many days back to look for tournaments (default: 7). Increase to reprocess recently completed tournaments.",
+    )
     parser.add_argument("--process-only", action="store_true", help="Process from queue only (skip discovery)")
     parser.add_argument(
         "--metrics-json",
@@ -654,6 +661,7 @@ async def main():
                     today=today,
                     headless=headless,
                     semaphore=semaphore,
+                    lookback_days=args.lookback_days,
                 )
                 for t in tours
             ),
