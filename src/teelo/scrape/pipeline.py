@@ -22,7 +22,7 @@ from teelo.scrape.parsers.score import ScoreParseError, parse_score
 from teelo.scrape.utils import TOUR_TYPES
 from teelo.scrape.wta import WTAScraper
 from teelo.services.draw_ingestion import ingest_draw
-from teelo.services.results_ingestion import ResultsIngestionStats, _determine_winner_id, ingest_results
+from teelo.services.results_ingestion import ResultsIngestionStats, _determine_winner_id, cancel_stale_pending_matches, ingest_results
 from teelo.services.schedule_ingestion import ingest_schedule
 from teelo.utils.geo import city_to_country, country_to_ioc
 
@@ -558,6 +558,14 @@ async def _execute_current_task(
                     _write_checkpoint_fingerprint(session, results_key, results_fp, len(matches))
                     if verbose:
                         print(f"  Results: {results['results']}")
+
+                # Cancel any pending matches that are now stale: if a completed result
+                # exists 2+ rounds ahead of a pending match, that match can never be played.
+                cancelled = cancel_stale_pending_matches(session, edition)
+                if cancelled > 0:
+                    results["cancelled_stale"] = f"Cancelled {cancelled} stale pending matches"
+                    if verbose:
+                        print(f"  Cleanup: Cancelled {cancelled} stale pending matches")
             except Exception as exc:
                 if verbose:
                     print(f"  Results Error: {exc}")
@@ -764,6 +772,11 @@ async def _execute_historical_task(
         flush_elapsed = perf_counter() - flush_start
         timings["phases"]["matches"]["ingest"] += flush_elapsed
         timings["ingestion"] += flush_elapsed
+
+    # Cancel any pending matches that are now stale: if a completed result
+    # exists 2+ rounds ahead of a pending match, that match can never be played.
+    cancelled = cancel_stale_pending_matches(session, edition)
+    result["stale_matches_cancelled"] = cancelled
 
     commit_start = perf_counter()
     session.commit()

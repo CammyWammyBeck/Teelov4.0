@@ -40,6 +40,7 @@ from sqlalchemy.orm import Session
 from teelo.db.models import (
     Match,
     Player,
+    ROUND_ORDER,
     TournamentEdition,
     estimate_match_date_from_round,
 )
@@ -743,6 +744,75 @@ def _make_pair_match_key_from_values(
 ) -> MatchPairKey:
     a_id, b_id = sorted([player_a_id, player_b_id])
     return edition_id, (round_code or ""), a_id, b_id
+
+
+def cancel_stale_pending_matches(session: Session, edition: TournamentEdition) -> int:
+    """
+    Cancel pending (upcoming/scheduled) matches that could not have been played
+    because a match 2+ rounds ahead of them has already completed.
+
+    Example: if an R32 match is pending but a QF result exists, the R32 player
+    could not have advanced, so the R32 match is stale and should be cancelled.
+    Similarly, a pending R128 can be cancelled once a R32 result exists.
+
+    "2 rounds ahead" is measured by position in the ordered round sequence
+    (Q1, Q2, Q3, R128, R64, R32, R16, QF, SF, F), not by the numeric ROUND_ORDER
+    values (which are not evenly spaced).
+
+    Returns: number of matches cancelled
+    """
+    # Build the ordered round sequence from ROUND_ORDER (sorted by numeric value).
+    # This gives us positional indices we can compare: index(QF) - index(R32) == 2.
+    round_sequence: list[str] = [
+        r for r, _ in sorted(ROUND_ORDER.items(), key=lambda x: x[1])
+    ]
+    round_index: dict[str, int] = {r: i for i, r in enumerate(round_sequence)}
+
+    # Load all matches for this edition in one query.
+    all_matches = (
+        session.query(Match)
+        .filter(Match.tournament_edition_id == edition.id)
+        .all()
+    )
+
+    # Find the highest round index among all completed/retired/walkover/default matches.
+    # This tells us how far into the tournament results actually reached.
+    RESULT_STATUSES = {"completed", "retired", "walkover", "default"}
+    max_completed_index: int = -1
+    for m in all_matches:
+        if m.status in RESULT_STATUSES and m.round in round_index:
+            idx = round_index[m.round]
+            if idx > max_completed_index:
+                max_completed_index = idx
+
+    if max_completed_index < 0:
+        # No completed matches yet — nothing to cancel.
+        return 0
+
+    # Cancel pending matches whose round is 2+ positions behind the furthest completed round.
+    # A match at index i is stale if max_completed_index >= i + 2, i.e. i <= max_completed_index - 2.
+    cancelled = 0
+    for match in all_matches:
+        if match.status not in ("upcoming", "scheduled") or match.winner_id is not None:
+            continue
+        if match.round not in round_index:
+            continue
+        pending_index = round_index[match.round]
+        if pending_index <= max_completed_index - 2:
+            match.status = "cancelled"
+            cancelled += 1
+            logger.info(
+                "Cancelled stale pending match id=%s (player_a=%s vs player_b=%s, round=%s) "
+                "reason=round_superseded (pending_idx=%d, max_completed_idx=%d)",
+                match.id,
+                match.player_a_id,
+                match.player_b_id,
+                match.round,
+                pending_index,
+                max_completed_index,
+            )
+
+    return cancelled
 
 
 def ingest_single_result(
