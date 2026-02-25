@@ -94,7 +94,7 @@ class ResultsIngestionStats:
     # Used by the pipeline for inline ELO updates without a re-query.
     completed_match_ids: list[int] = field(default_factory=list)
 
-    def summary(self) -> tuple[str, Optional[Match]]:
+    def summary(self) -> str:
         """Return a human-readable summary of ingestion results."""
         lines = [
             f"Results ingestion complete:",
