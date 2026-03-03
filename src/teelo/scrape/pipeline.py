@@ -232,6 +232,7 @@ async def execute_task(
     mode: str,
     overwrite: bool = False,
     fast_mode: bool = False,
+    force: bool = False,
     progress_callback: Optional[Callable[[str], None]] = None,
     verbose: bool = True,
 ) -> dict[str, Any]:
@@ -251,6 +252,7 @@ async def execute_task(
             session,
             identity_service,
             fast_mode=fast_mode,
+            force=force,
             progress_callback=progress_callback,
             verbose=verbose,
         )
@@ -324,15 +326,18 @@ def _should_scrape_schedule(task_params: TaskParams, today: date, fast_mode: boo
     return True
 
 
-def _should_scrape_results(task_params: TaskParams, today: date, fast_mode: bool = False) -> bool:
+def _should_scrape_results(
+    task_params: TaskParams, today: date, fast_mode: bool = False, force: bool = False
+) -> tuple[bool, str]:
+    """Return (should_scrape, skip_reason).  skip_reason is empty when should_scrape is True."""
     start_date = _parse_date(task_params.start_date)
     if start_date and start_date > (today + timedelta(days=1)):
-        return False
-    if fast_mode:
+        return False, "Skipping Results (tournament has not started yet)"
+    if fast_mode and not force:
         end_date = _parse_date(task_params.end_date)
         if end_date and end_date < (today - timedelta(days=1)):
-            return False
-    return True
+            return False, "Skipping Results (tournament ended; fast-mode gate)"
+    return True, ""
 
 
 async def _execute_current_task(
@@ -341,6 +346,7 @@ async def _execute_current_task(
     session,
     identity_service: PlayerIdentityService,
     fast_mode: bool = False,
+    force: bool = False,
     progress_callback: Optional[Callable[[str], None]] = None,
     verbose: bool = True,
 ) -> dict[str, Any]:
@@ -373,8 +379,38 @@ async def _execute_current_task(
         if verbose:
             print(message)
 
+    # Pre-flight: skip the entire task if the tournament hasn't entered its
+    # "check window" yet — no page loads, no selector timeouts.
+    #
+    # Lead-time by level:
+    #   Grand Slam  → 7 days  (qualifying starts ~1 week before main draw)
+    #   All others  → 3 days  (draws usually posted 2–3 days before play)
+    #
+    # If start_date is missing we proceed normally (can't determine window).
+    start_date = _parse_date(task_params.start_date)
+    if start_date is not None:
+        level = (task_params.tournament_level or "").lower()
+        lead_days = 7 if "grand slam" in level else 3
+        check_from = start_date - timedelta(days=lead_days)
+        if today < check_from:
+            report(
+                f"Skipping (not in check window yet — starts {start_date}, "
+                f"check from {check_from})"
+            )
+            timings["total"] = perf_counter() - total_start
+            results["timings"] = timings
+            return results
+
     async with scraper_ctx as active_scraper:
         edition = await get_or_create_edition(session, task_params, tour_key)
+
+        # Pre-seed the ATP scraper's tournament info cache so it doesn't need to
+        # navigate to the overview page (all metadata is already in task_params).
+        if tour_key in ["ATP", "CHALLENGER"] and hasattr(active_scraper, "seed_tournament_info_cache"):
+            active_scraper.seed_tournament_info_cache(
+                task_params,
+                tour_type=TOUR_TYPES[tour_key]["tour_type"],
+            )
 
         # 1. DRAW
         try:
@@ -501,7 +537,8 @@ async def _execute_current_task(
         # Tracks stats from ingest_results so we can run ELO inline after commit.
         # Stays None if results were skipped (fast_mode fingerprint match) or failed.
         results_ingest_stats: Optional[ResultsIngestionStats] = None
-        if _should_scrape_results(task_params, today, fast_mode=fast_mode):
+        _do_results, _skip_reason = _should_scrape_results(task_params, today, fast_mode=fast_mode, force=force)
+        if _do_results:
             try:
                 report("Scraping Results")
                 res_kwargs = {
@@ -564,7 +601,7 @@ async def _execute_current_task(
                     print(f"  Results Error: {exc}")
                 session.rollback()
         else:
-            report("Skipping Results (tournament has not started yet)")
+            report(_skip_reason)
 
         # Cancel any pending matches that are now stale: if a completed result
         # exists 2+ rounds ahead of a pending match, that match can never be played.

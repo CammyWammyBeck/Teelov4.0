@@ -13,6 +13,8 @@ Usage:
     python scripts/update_current_events.py --tours ATP,WTA
     python scripts/update_current_events.py --discover-only
     python scripts/update_current_events.py --process-only
+
+Fast mode is always enabled.
 """
 
 import argparse
@@ -27,13 +29,14 @@ import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
+from typing import IO
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from teelo.config import settings
 from teelo.db import get_session
-from teelo.db.models import ScrapeQueue
+from teelo.db.models import Match, ScrapeQueue, Tournament, TournamentEdition
 from teelo.players.identity import PlayerIdentityService
 from teelo.scrape.atp import ATPScraper
 from teelo.scrape.base import VirtualDisplay
@@ -43,6 +46,33 @@ from teelo.scrape.pipeline import TaskParams, execute_task
 from teelo.scrape.queue import ScrapeQueueManager
 from teelo.scrape.utils import TOUR_TYPES
 from teelo.scrape.wta import WTAScraper
+
+
+class _Tee:
+    """Write to both the real stdout and a log file, prefixing each line with [HH:MM:SS]."""
+
+    def __init__(self, real_stdout: IO[str], log_file: IO[str]) -> None:
+        self._real = real_stdout
+        self._log = log_file
+
+    def write(self, data: str) -> int:
+        self._real.write(data)
+        if data:
+            ts = datetime.now().strftime("%H:%M:%S")
+            for line in data.splitlines(keepends=True):
+                self._log.write(f"[{ts}] {line}")
+            self._log.flush()
+        return len(data)
+
+    def flush(self) -> None:
+        self._real.flush()
+        self._log.flush()
+
+    def isatty(self) -> bool:
+        return self._real.isatty()
+
+    def __getattr__(self, name: str):
+        return getattr(self._real, name)
 
 
 def _get_scraper_class(tour_key: str):
@@ -99,13 +129,66 @@ async def discover_tour_tasks(
             return tasks, discovery_elapsed
 
 
+# Statuses that mean a Final match has a known result and the tournament is done.
+_TERMINAL_STATUSES = frozenset(["completed", "retired", "walkover", "default"])
+
+
+def _get_completed_edition_keys(session, tasks: list) -> set[tuple[str, int]]:
+    """
+    Return the set of (tournament_code, year) pairs for which a completed
+    Final already exists in the database.
+
+    Single batch query — one DB round-trip regardless of how many tasks
+    were discovered.
+    """
+    if not tasks:
+        return set()
+
+    tournament_codes = list({task.params.tournament_id for task in tasks})
+
+    rows = (
+        session.query(Tournament.tournament_code, TournamentEdition.year)
+        .join(TournamentEdition, TournamentEdition.tournament_id == Tournament.id)
+        .join(Match, Match.tournament_edition_id == TournamentEdition.id)
+        .filter(
+            Tournament.tournament_code.in_(tournament_codes),
+            Match.round == "F",
+            Match.status.in_(list(_TERMINAL_STATUSES)),
+            Match.winner_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+
+    return {(row.tournament_code, row.year) for row in rows}
+
+
 def enqueue_current_tasks(
     session,
     queue_manager: ScrapeQueueManager,
     tasks: list,
+    force: bool = False,
 ) -> int:
+    """
+    Enqueue discovered tournament tasks, skipping any edition whose
+    Final is already recorded in the database as completed.
+    This prevents re-scraping fully finished tournaments on every run.
+
+    When ``force`` is True the completed-edition check is skipped and all
+    discovered tasks are enqueued regardless of their current DB state.
+    """
+    # One batch query to find all already-finished editions upfront.
+    completed_editions = set() if force else _get_completed_edition_keys(session, tasks)
+
+    skipped = 0
     queue_payload = []
     for task in tasks:
+        edition_key = (task.params.tournament_id, task.params.year)
+        if edition_key in completed_editions:
+            display_name = task.params.tournament_name or task.params.tournament_id
+            print(f"  Skipping {display_name} ({task.params.year}) — final already completed.")
+            skipped += 1
+            continue
         queue_payload.append(
             {
                 "task_type": "current_tournament",
@@ -113,8 +196,13 @@ def enqueue_current_tasks(
                 "priority": ScrapeQueueManager.PRIORITY_HIGH,
             }
         )
+
+    if skipped:
+        print(f"  Skipped {skipped} already-completed tournament(s).")
+
     if not queue_payload:
         return 0
+
     queue_manager.enqueue_batch(queue_payload)
     session.commit()
     return len(queue_payload)
@@ -238,6 +326,7 @@ async def process_queue(
     session,
     headless: bool,
     fast_mode: bool = True,
+    force: bool = False,
     worker_id: int | None = None,
     event_queue: multiprocessing.Queue | None = None,
     show_logs: bool = True,
@@ -374,6 +463,7 @@ async def process_queue(
                         identity_service=identity_service,
                         mode="current",
                         fast_mode=fast_mode,
+                        force=force,
                         progress_callback=on_phase,
                         verbose=show_logs,
                     )
@@ -406,13 +496,25 @@ async def process_queue(
                             "timings": task_timings,
                         }
                     )
+                    # Top-level summary
                     log(
                         "  Timings: "
-                        f"scrape={task_timings.get('scraping', 0.0):.2f}s, "
-                        f"ingest={task_timings.get('ingestion', 0.0):.2f}s, "
-                        f"commit={task_timings.get('db_commit', 0.0):.2f}s, "
-                        f"total={task_timings.get('total', 0.0):.2f}s"
+                        f"total={task_timings.get('total', 0.0):.2f}s  "
+                        f"(scrape={task_timings.get('scraping', 0.0):.2f}s  "
+                        f"ingest={task_timings.get('ingestion', 0.0):.2f}s  "
+                        f"commit={task_timings.get('db_commit', 0.0):.2f}s"
+                        + (f"  elo={task_timings.get('elo_update', 0.0):.2f}s" if task_timings.get("elo_update") else "")
+                        + ")"
                     )
+                    # Per-phase breakdown (draw / schedule / results)
+                    phases = task_timings.get("phases", {})
+                    for phase_name, phase_t in phases.items():
+                        if not isinstance(phase_t, dict):
+                            continue
+                        s = phase_t.get("scrape", 0.0)
+                        i = phase_t.get("ingest", 0.0)
+                        if s or i:
+                            log(f"    {phase_name:10}: scrape={s:.2f}s  ingest={i:.2f}s")
 
                 session.commit()
                 queue_manager.mark_completed(task.id)
@@ -468,12 +570,28 @@ async def process_queue(
             await active_ctx.__aexit__(None, None, None)
 
     log(
-        "Timing totals: "
-        f"scrape={stats['timings']['scraping']:.2f}s, "
-        f"ingest={stats['timings']['ingestion']:.2f}s, "
-        f"commit={stats['timings']['db_commit']:.2f}s, "
-        f"total={stats['timings']['total']:.2f}s"
+        "\nTiming totals: "
+        f"total={stats['timings']['total']:.2f}s  "
+        f"(scrape={stats['timings']['scraping']:.2f}s  "
+        f"ingest={stats['timings']['ingestion']:.2f}s  "
+        f"commit={stats['timings']['db_commit']:.2f}s)"
     )
+
+    # Aggregate per-phase totals across all tasks
+    phase_totals: dict[str, dict[str, float]] = {}
+    for t in stats.get("task_timings", []):
+        phases = t.get("timings", {}).get("phases", {})
+        for phase_name, phase_t in phases.items():
+            if not isinstance(phase_t, dict):
+                continue
+            if phase_name not in phase_totals:
+                phase_totals[phase_name] = {"scrape": 0.0, "ingest": 0.0}
+            phase_totals[phase_name]["scrape"] += phase_t.get("scrape", 0.0)
+            phase_totals[phase_name]["ingest"] += phase_t.get("ingest", 0.0)
+    if phase_totals:
+        log("Phase breakdown (cumulative across all tasks):")
+        for phase_name, phase_t in phase_totals.items():
+            log(f"  {phase_name:10}: scrape={phase_t['scrape']:.2f}s  ingest={phase_t['ingest']:.2f}s")
 
     return stats
 
@@ -484,27 +602,50 @@ def run_worker(
     fast_mode: bool = True,
     event_queue: multiprocessing.Queue | None = None,
     quiet_worker_logs: bool = True,
+    log_file_path: str | None = None,
+    force: bool = False,
 ) -> None:
     with get_session() as session:
         if quiet_worker_logs:
-            with open(os.devnull, "w", encoding="utf-8") as devnull:
-                with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
-                    stats = asyncio.run(
-                        process_queue(
-                            session,
-                            headless=headless,
-                            fast_mode=fast_mode,
-                            worker_id=worker_id,
-                            event_queue=event_queue,
-                            show_logs=False,
+            if log_file_path is not None:
+                # Suppress console but capture to log file with timestamp prefix.
+                log_f = open(log_file_path, "a", encoding="utf-8")
+                with open(os.devnull, "w", encoding="utf-8") as devnull:
+                    tee = _Tee(devnull, log_f)
+                    with contextlib.redirect_stdout(tee), contextlib.redirect_stderr(devnull):
+                        stats = asyncio.run(
+                            process_queue(
+                                session,
+                                headless=headless,
+                                fast_mode=fast_mode,
+                                force=force,
+                                worker_id=worker_id,
+                                event_queue=event_queue,
+                                show_logs=True,
+                            )
                         )
-                    )
+                log_f.close()
+            else:
+                with open(os.devnull, "w", encoding="utf-8") as devnull:
+                    with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
+                        stats = asyncio.run(
+                            process_queue(
+                                session,
+                                headless=headless,
+                                fast_mode=fast_mode,
+                                force=force,
+                                worker_id=worker_id,
+                                event_queue=event_queue,
+                                show_logs=False,
+                            )
+                        )
         else:
             stats = asyncio.run(
                 process_queue(
                     session,
                     headless=headless,
                     fast_mode=fast_mode,
+                    force=force,
                     worker_id=worker_id,
                     event_queue=event_queue,
                     show_logs=True,
@@ -530,19 +671,6 @@ async def main():
     parser.add_argument("--year", type=int, default=date.today().year, help="Season year to scan")
     parser.add_argument("--max-parallel-tours", type=int, default=3, help="Max tour workers to run concurrently")
     parser.add_argument("--headed", action="store_true", help="Force headed browser mode (slower)")
-    parser.add_argument(
-        "--fast",
-        dest="fast",
-        action="store_true",
-        default=True,
-        help="Enable fast profile for hourly retries (default: enabled).",
-    )
-    parser.add_argument(
-        "--no-fast",
-        dest="fast",
-        action="store_false",
-        help="Disable fast profile.",
-    )
     parser.add_argument("--discover-only", action="store_true", help="Discover current tournaments only")
     parser.add_argument(
         "--lookback-days",
@@ -600,13 +728,47 @@ async def main():
         action="store_true",
         help="Clear pending/retry/in_progress queue tasks before starting.",
     )
+    parser.add_argument(
+        "--max-per-tour",
+        type=int,
+        default=0,
+        help="Limit tasks enqueued per tour (0 = unlimited). Useful for quick timing tests.",
+    )
+    parser.add_argument(
+        "--force-enqueue",
+        action="store_true",
+        help="Enqueue all discovered tournaments even if their Final is already completed.",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default=None,
+        help="Tee all stdout output to this file (append mode, timestamped lines).",
+    )
     args = parser.parse_args()
 
+    log_file_handle = None
+    original_stdout = sys.stdout
+    if args.log_file:
+        log_path = Path(args.log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_file_handle = log_path.open("a", encoding="utf-8")
+        sys.stdout = _Tee(original_stdout, log_file_handle)
+
+    try:
+        await _main_impl(args, original_stdout)
+    finally:
+        sys.stdout = original_stdout
+        if log_file_handle is not None:
+            log_file_handle.close()
+
+
+async def _main_impl(args, original_stdout) -> None:
     if args.discover_only and args.process_only:
         raise SystemExit("Error: --discover-only cannot be combined with --process-only.")
 
     tours = [t.strip().upper() for t in args.tours.split(",")]
-    apply_fast_scrape_profile(args.fast)
+    apply_fast_scrape_profile(True)
 
     # Validate tours
     tours = [t for t in tours if t in TOUR_TYPES]
@@ -618,7 +780,6 @@ async def main():
     print(
         "Settings: "
         f"headless={headless}, "
-        f"fast={args.fast}, "
         f"virtual_display={settings.scrape_virtual_display}, "
         f"timeout_ms={settings.scrape_timeout}, "
         f"delays={settings.scrape_delay_min}-{settings.scrape_delay_max}s"
@@ -673,6 +834,10 @@ async def main():
                 print(f"[{tour_key}] Discovery failed: {result}")
                 continue
             tasks, discovery_elapsed = result
+            # Optionally cap the number of tasks per tour for quick test runs.
+            if args.max_per_tour > 0 and len(tasks) > args.max_per_tour:
+                print(f"[{tour_key}] Limiting to {args.max_per_tour} of {len(tasks)} tasks (--max-per-tour)")
+                tasks = tasks[: args.max_per_tour]
             metrics_payload["discovery"].append(
                 {
                     "tour_key": tour_key,
@@ -684,7 +849,7 @@ async def main():
 
         with get_session() as session:
             queue_manager = ScrapeQueueManager(session)
-            tasks_added = enqueue_current_tasks(session, queue_manager, all_tasks)
+            tasks_added = enqueue_current_tasks(session, queue_manager, all_tasks, force=args.force_enqueue)
 
         print(f"\nAdded {tasks_added} current tasks to the queue")
 
@@ -714,7 +879,8 @@ async def main():
         for worker_id in worker_ids:
             process = ctx.Process(
                 target=run_worker,
-                args=(worker_id, headless, args.fast, event_queue, args.quiet_worker_logs),
+                args=(worker_id, headless, True, event_queue, args.quiet_worker_logs, args.log_file),
+                kwargs={"force": args.force_enqueue},
             )
             process.start()
             processes.append(process)
@@ -807,7 +973,7 @@ async def main():
         stats = aggregated
     else:
         with get_session() as session:
-            stats = await process_queue(session, headless=headless, fast_mode=args.fast)
+            stats = await process_queue(session, headless=headless, fast_mode=True, force=args.force_enqueue)
         metrics_payload["workers"].append(stats)
 
     metrics_payload["aggregate"] = stats
