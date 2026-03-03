@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 from pathlib import Path
 import re
@@ -14,15 +15,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import and_, case, func, or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from teelo.config import settings
 from teelo.db.models import (
     AdminUser,
     Match,
+    MatchSurfaceEloSnapshot,
     Player,
     PlayerAlias,
     PlayerEloState,
+    PlayerSurfaceEloState,
     PlayerReviewQueue,
     Tournament,
     TournamentEdition,
@@ -53,6 +56,12 @@ MATCHES_PAGE_STATUS_FILTERS = get_status_group("all")
 templates.env.globals["features"] = settings
 
 ADMIN_SESSION_KEY = "admin_user_id"
+
+
+def _round_elo(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    return int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def _current_admin_user(request: Request, db: Session) -> Optional[AdminUser]:
@@ -321,15 +330,15 @@ def _serialize_match(match: Match) -> dict:
         "id": pa.id if pa else match.player_a_id,
         "name": pa.canonical_name if pa else "Unknown",
         "seed": match.player_a_seed,
-        "elo_pre": int(match.elo_pre_player_a) if match.elo_pre_player_a is not None else None,
-        "elo_change": int(match.elo_post_player_a - match.elo_pre_player_a) if match.elo_post_player_a is not None and match.elo_pre_player_a is not None else None,
+        "elo_pre": _round_elo(match.elo_pre_player_a),
+        "elo_change": _round_elo(match.elo_post_player_a - match.elo_pre_player_a) if match.elo_post_player_a is not None and match.elo_pre_player_a is not None else None,
     }
     player_b_payload = {
         "id": pb.id if pb else match.player_b_id,
         "name": pb.canonical_name if pb else "Unknown",
         "seed": match.player_b_seed,
-        "elo_pre": int(match.elo_pre_player_b) if match.elo_pre_player_b is not None else None,
-        "elo_change": int(match.elo_post_player_b - match.elo_pre_player_b) if match.elo_post_player_b is not None and match.elo_pre_player_b is not None else None,
+        "elo_pre": _round_elo(match.elo_pre_player_b),
+        "elo_change": _round_elo(match.elo_post_player_b - match.elo_pre_player_b) if match.elo_post_player_b is not None and match.elo_pre_player_b is not None else None,
     }
 
     # Deterministically randomize display sides to avoid persistent winner-on-A bias
@@ -623,10 +632,817 @@ async def rankings_page(
     )
 
 
+def _compute_record_block(db: Session, player_id: int, statuses: list[str], date_from: Optional[date] = None) -> dict:
+    query = db.query(
+        func.count(Match.id).label("played"),
+        func.sum(case((Match.winner_id == player_id, 1), else_=0)).label("wins"),
+    ).filter(
+        Match.status.in_(statuses),
+        Match.winner_id.isnot(None),
+        or_(Match.player_a_id == player_id, Match.player_b_id == player_id),
+    )
+    if date_from is not None:
+        query = query.filter(Match.match_date >= date_from)
+    row = query.one()
+    played = int(row.played or 0)
+    wins = int(row.wins or 0)
+    return {"wins": wins, "losses": max(played - wins, 0), "played": played}
+
+
+def _resolve_history_range(range_value: str) -> Optional[date]:
+    today = date.today()
+    normalized = (range_value or "1y").strip().lower()
+    if normalized == "30d":
+        return today - timedelta(days=30)
+    if normalized == "90d":
+        return today - timedelta(days=90)
+    if normalized == "1y":
+        return today - timedelta(days=365)
+    if normalized == "3y":
+        return today - timedelta(days=365 * 3)
+    if normalized == "career":
+        return None
+    return today - timedelta(days=365)
+
+
+@app.get("/players/{player_id}", response_class=HTMLResponse)
+async def player_page(
+    request: Request,
+    player_id: int,
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_players")),
+):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    return templates.TemplateResponse(
+        "player_detail.html",
+        {
+            "request": request,
+            "player_id": player_id,
+            "player_name": player.canonical_name,
+            "now": datetime.utcnow(),
+            "current_path": request.url.path,
+        },
+    )
+
+
+@app.get("/api/players/{player_id}/elo-history")
+async def api_player_elo_history(
+    player_id: int,
+    db: Session = Depends(get_db),
+    range: str = Query("1y", description="Range: 30d,90d,1y,3y,career"),
+    surface: str = Query("overall", description="Surface: overall,hard,clay,grass,indoor"),
+    max_points: int = Query(600, ge=100, le=5000),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_players")),
+):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        return JSONResponse({"error": "Player not found"}, status_code=404)
+
+    start_date = _resolve_history_range(range)
+    statuses = get_status_group("historical_default")
+    surface_norm = (surface or "overall").strip().lower()
+
+    points: list[dict[str, Any]] = []
+
+    player_a_alias = aliased(Player)
+    player_b_alias = aliased(Player)
+    opponent_expr = case(
+        (Match.player_a_id == player_id, player_b_alias.canonical_name),
+        else_=player_a_alias.canonical_name,
+    )
+    event_date_expr = func.coalesce(Match.match_date, Match.scheduled_date)
+    result_expr = case(
+        (Match.winner_id == player_id, "W"),
+        else_="L",
+    )
+    player_elo_change_expr = case(
+        (Match.player_a_id == player_id, Match.elo_post_player_a - Match.elo_pre_player_a),
+        else_=Match.elo_post_player_b - Match.elo_pre_player_b,
+    )
+    surface_expr = case(
+        (Tournament.indoor_outdoor == "Indoor", "Indoor"),
+        else_=func.coalesce(TournamentEdition.surface, Tournament.surface),
+    )
+
+    if surface_norm == "overall":
+        elo_expr = case(
+            (Match.player_a_id == player_id, Match.elo_post_player_a),
+            else_=Match.elo_post_player_b,
+        )
+        query = (
+            db.query(
+                Match.id.label("match_id"),
+                event_date_expr.label("event_date"),
+                Match.temporal_order.label("temporal_order"),
+                elo_expr.label("rating"),
+                Tournament.name.label("tournament_name"),
+                Match.round.label("round"),
+                surface_expr.label("surface"),
+                opponent_expr.label("opponent_name"),
+                result_expr.label("result"),
+                Match.score.label("score"),
+                player_elo_change_expr.label("elo_change"),
+            )
+            .select_from(Match)
+            .outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+            .outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
+            .outerjoin(player_a_alias, Match.player_a_id == player_a_alias.id)
+            .outerjoin(player_b_alias, Match.player_b_id == player_b_alias.id)
+            .filter(
+                Match.status.in_(statuses),
+                Match.winner_id.isnot(None),
+                or_(Match.player_a_id == player_id, Match.player_b_id == player_id),
+            )
+            .filter(elo_expr.isnot(None))
+        )
+        if start_date is not None:
+            query = query.filter(event_date_expr >= start_date)
+        rows = (
+            query.order_by(
+                event_date_expr.asc().nullslast(),
+                Match.temporal_order.asc().nullslast(),
+                Match.id.asc(),
+            )
+            .all()
+        )
+        points = [
+            {
+                "match_id": int(row.match_id),
+                "date": row.event_date.isoformat() if row.event_date else None,
+                "rating": float(row.rating),
+                "tournament_name": row.tournament_name,
+                "round": row.round,
+                "surface": row.surface,
+                "opponent_name": row.opponent_name,
+                "result": row.result,
+                "score": row.score,
+                "elo_change": _round_elo(row.elo_change),
+            }
+            for row in rows
+        ]
+    else:
+        surface_map = {
+            "hard": "Hard",
+            "clay": "Clay",
+            "grass": "Grass",
+            "indoor": "Indoor",
+        }
+        surface_value = surface_map.get(surface_norm)
+        if surface_value is None:
+            return JSONResponse(
+                {"error": "surface must be one of: overall,hard,clay,grass,indoor"},
+                status_code=400,
+            )
+
+        query = (
+            db.query(
+                MatchSurfaceEloSnapshot.match_id.label("match_id"),
+                event_date_expr.label("event_date"),
+                MatchSurfaceEloSnapshot.temporal_order.label("temporal_order"),
+                MatchSurfaceEloSnapshot.elo_post.label("rating"),
+                Tournament.name.label("tournament_name"),
+                Match.round.label("round"),
+                surface_expr.label("surface"),
+                opponent_expr.label("opponent_name"),
+                result_expr.label("result"),
+                Match.score.label("score"),
+                player_elo_change_expr.label("elo_change"),
+            )
+            .join(Match, Match.id == MatchSurfaceEloSnapshot.match_id)
+            .outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+            .outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
+            .outerjoin(player_a_alias, Match.player_a_id == player_a_alias.id)
+            .outerjoin(player_b_alias, Match.player_b_id == player_b_alias.id)
+            .filter(
+                MatchSurfaceEloSnapshot.player_id == player_id,
+                MatchSurfaceEloSnapshot.surface == surface_value,
+            )
+        )
+        if start_date is not None:
+            query = query.filter(event_date_expr >= start_date)
+        rows = (
+            query.order_by(
+                event_date_expr.asc().nullslast(),
+                MatchSurfaceEloSnapshot.temporal_order.asc().nullslast(),
+                MatchSurfaceEloSnapshot.match_id.asc(),
+            )
+            .all()
+        )
+        points = [
+            {
+                "match_id": int(row.match_id),
+                "date": row.event_date.isoformat() if row.event_date else None,
+                "rating": float(row.rating),
+                "tournament_name": row.tournament_name,
+                "round": row.round,
+                "surface": row.surface,
+                "opponent_name": row.opponent_name,
+                "result": row.result,
+                "score": row.score,
+                "elo_change": _round_elo(row.elo_change),
+            }
+            for row in rows
+        ]
+
+    total_points = len(points)
+    if total_points > max_points:
+        stride = max(1, total_points // max_points)
+        sampled = points[::stride]
+        if sampled[-1]["match_id"] != points[-1]["match_id"]:
+            sampled.append(points[-1])
+        points = sampled
+
+    min_rating = min((p["rating"] for p in points), default=None)
+    max_rating = max((p["rating"] for p in points), default=None)
+
+    return JSONResponse(
+        {
+            "player_id": player_id,
+            "range": range,
+            "surface": surface_norm,
+            "total_points": total_points,
+            "returned_points": len(points),
+            "min_rating": min_rating,
+            "max_rating": max_rating,
+            "points": points,
+        }
+    )
+
+
+@app.get("/api/players/{player_id}/overview")
+async def api_player_overview(
+    player_id: int,
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_players")),
+):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        return JSONResponse({"error": "Player not found"}, status_code=404)
+
+    overall_payload = _build_player_overall_elo_payload(db, player, player_id)
+    surface_payload = _build_player_surface_elo_payload(db, player_id)
+    records_payload = _build_player_records_payload(db, player_id)
+    player_payload = _build_player_profile_payload(player)
+
+    return JSONResponse(
+        {
+            "player": player_payload,
+            "overall_elo": overall_payload,
+            "surface_elo": surface_payload,
+            "records": records_payload,
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+    )
+
+
+def _build_player_profile_payload(player: Player) -> dict[str, Any]:
+    birth_date = player.birth_date
+    age_years = None
+    if birth_date:
+        today = date.today()
+        age_years = (
+            today.year - birth_date.year
+            - ((today.month, today.day) < (birth_date.month, birth_date.day))
+        )
+    return {
+        "id": player.id,
+        "name": player.canonical_name,
+        "nationality": player.nationality_ioc,
+        "birth_date": birth_date.isoformat() if birth_date else None,
+        "age_years": age_years,
+        "hand": player.hand,
+        "backhand": player.backhand,
+        "height_cm": player.height_cm,
+        "turned_pro_year": player.turned_pro_year,
+    }
+
+
+def _build_player_overall_elo_payload(db: Session, player: Player, player_id: int) -> dict[str, Any]:
+    elo_state = (
+        db.query(PlayerEloState)
+        .filter(PlayerEloState.player_id == player_id)
+        .first()
+    )
+
+    overall_rank = None
+    if elo_state:
+        better_count = (
+            db.query(func.count(PlayerEloState.id))
+            .join(Player, Player.id == PlayerEloState.player_id)
+            .filter(
+                or_(
+                    PlayerEloState.rating > elo_state.rating,
+                    and_(
+                        PlayerEloState.rating == elo_state.rating,
+                        Player.canonical_name < player.canonical_name,
+                    ),
+                )
+            )
+            .scalar()
+            or 0
+        )
+        overall_rank = int(better_count) + 1
+
+    return {
+        "rating": _round_elo(elo_state.rating) if elo_state else None,
+        "rank": overall_rank,
+        "career_peak": _round_elo(elo_state.career_peak) if elo_state else None,
+        "match_count": int(elo_state.match_count) if elo_state else 0,
+        "last_match_date": elo_state.last_match_date.isoformat() if elo_state and elo_state.last_match_date else None,
+    }
+
+
+def _build_gender_counts_subquery(db: Session):
+    events_a = (
+        db.query(
+            Match.player_a_id.label("pid"),
+            Tournament.gender.label("gender"),
+        )
+        .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .filter(Tournament.gender.in_(("men", "women")))
+    )
+    events_b = (
+        db.query(
+            Match.player_b_id.label("pid"),
+            Tournament.gender.label("gender"),
+        )
+        .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .filter(Tournament.gender.in_(("men", "women")))
+    )
+    gender_events = events_a.union_all(events_b).subquery()
+    return (
+        db.query(
+            gender_events.c.pid.label("pid"),
+            func.sum(
+                case((gender_events.c.gender == "men", 1), else_=0)
+            ).label("men_matches"),
+            func.sum(
+                case((gender_events.c.gender == "women", 1), else_=0)
+            ).label("women_matches"),
+        )
+        .group_by(gender_events.c.pid)
+        .subquery()
+    )
+
+
+def _build_player_surface_elo_payload(db: Session, player_id: int) -> list[dict[str, Any]]:
+    surface_rows = (
+        db.query(PlayerSurfaceEloState)
+        .filter(PlayerSurfaceEloState.player_id == player_id)
+        .order_by(PlayerSurfaceEloState.rating.desc(), PlayerSurfaceEloState.surface.asc())
+        .all()
+    )
+
+    player = db.query(Player).filter(Player.id == player_id).first()
+    player_name = player.canonical_name if player else None
+    gender_counts = _build_gender_counts_subquery(db)
+    player_gender_row = (
+        db.query(gender_counts.c.men_matches, gender_counts.c.women_matches)
+        .filter(gender_counts.c.pid == player_id)
+        .first()
+    )
+    player_gender = None
+    if player_gender_row:
+        men_count = int(player_gender_row.men_matches or 0)
+        women_count = int(player_gender_row.women_matches or 0)
+        if men_count > women_count:
+            player_gender = "men"
+        elif women_count > men_count:
+            player_gender = "women"
+
+    def compute_surface_rank(row: PlayerSurfaceEloState) -> Optional[int]:
+        if not player_name or player_gender is None:
+            return None
+        rank_query = (
+            db.query(func.count(PlayerSurfaceEloState.id))
+            .join(Player, Player.id == PlayerSurfaceEloState.player_id)
+            .join(gender_counts, gender_counts.c.pid == Player.id)
+            .filter(PlayerSurfaceEloState.surface == row.surface)
+        )
+        if player_gender == "men":
+            rank_query = rank_query.filter(gender_counts.c.men_matches > gender_counts.c.women_matches)
+        else:
+            rank_query = rank_query.filter(gender_counts.c.women_matches > gender_counts.c.men_matches)
+
+        better_count = (
+            rank_query.filter(
+                or_(
+                    PlayerSurfaceEloState.rating > row.rating,
+                    and_(
+                        PlayerSurfaceEloState.rating == row.rating,
+                        Player.canonical_name < player_name,
+                    ),
+                )
+            )
+            .scalar()
+            or 0
+        )
+        return int(better_count) + 1
+
+    return [
+        {
+            "surface": row.surface,
+            "rating": _round_elo(row.rating),
+            "rank": compute_surface_rank(row),
+            "career_peak": _round_elo(row.career_peak),
+            "match_count": int(row.match_count),
+            "last_match_date": row.last_match_date.isoformat() if row.last_match_date else None,
+        }
+        for row in surface_rows
+    ]
+
+
+def _build_player_records_payload(db: Session, player_id: int) -> dict[str, Any]:
+    statuses = get_status_group("historical_default")
+    career_record = _compute_record_block(db, player_id, statuses)
+    last_52_record = _compute_record_block(
+        db,
+        player_id,
+        statuses,
+        date_from=(date.today() - timedelta(days=364)),
+    )
+
+    last10_matches = (
+        db.query(Match.winner_id)
+        .filter(
+            Match.status.in_(statuses),
+            Match.winner_id.isnot(None),
+            or_(Match.player_a_id == player_id, Match.player_b_id == player_id),
+        )
+        .order_by(
+            Match.match_date.desc().nullslast(),
+            Match.temporal_order.desc().nullslast(),
+            Match.id.desc(),
+        )
+        .limit(10)
+        .all()
+    )
+    last10_played = len(last10_matches)
+    last10_wins = sum(1 for m in last10_matches if m.winner_id == player_id)
+    last10_record = {
+        "wins": int(last10_wins),
+        "losses": int(last10_played - last10_wins),
+        "played": int(last10_played),
+    }
+
+    return {
+        "career": career_record,
+        "last_52_weeks": last_52_record,
+        "last_10": last10_record,
+    }
+
+
+@app.get("/api/players/{player_id}/surface-elo")
+async def api_player_surface_elo(
+    player_id: int,
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_players")),
+):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        return JSONResponse({"error": "Player not found"}, status_code=404)
+
+    return JSONResponse(
+        {
+            "player_id": player_id,
+            "surface_elo": _build_player_surface_elo_payload(db, player_id),
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+    )
+
+
+@app.get("/api/players/{player_id}/profile-overview")
+async def api_player_profile_overview(
+    player_id: int,
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_players")),
+):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        return JSONResponse({"error": "Player not found"}, status_code=404)
+
+    return JSONResponse(
+        {
+            "player_id": player_id,
+            "player": _build_player_profile_payload(player),
+            "overall_elo": _build_player_overall_elo_payload(db, player, player_id),
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+    )
+
+
+@app.get("/api/players/{player_id}/records")
+async def api_player_records(
+    player_id: int,
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_players")),
+):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        return JSONResponse({"error": "Player not found"}, status_code=404)
+
+    return JSONResponse(
+        {
+            "player_id": player_id,
+            "records": _build_player_records_payload(db, player_id),
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+    )
+
+
+@app.get("/api/players/{player_id}/matches")
+async def api_player_matches(
+    player_id: int,
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(25, ge=1, le=100),
+    surface: Optional[str] = Query(None, description="hard,clay,grass,indoor"),
+    result: str = Query("all", description="all,win,loss"),
+    date_from: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_players")),
+):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        return JSONResponse({"error": "Player not found"}, status_code=404)
+
+    query = (
+        db.query(Match)
+        .outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+        .outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .options(
+            joinedload(Match.player_a),
+            joinedload(Match.player_b),
+            joinedload(Match.tournament_edition).joinedload(TournamentEdition.tournament),
+        )
+        .filter(
+            Match.status.in_(get_status_group("historical_default")),
+            Match.winner_id.isnot(None),
+            or_(Match.player_a_id == player_id, Match.player_b_id == player_id),
+        )
+    )
+
+    surface_map = {
+        "hard": "Hard",
+        "clay": "Clay",
+        "grass": "Grass",
+        "indoor": "Indoor",
+    }
+    surface_norm = (surface or "").strip().lower()
+    if surface_norm:
+        resolved_surface = surface_map.get(surface_norm)
+        if not resolved_surface:
+            return JSONResponse(
+                {"error": "surface must be one of: hard,clay,grass,indoor"},
+                status_code=400,
+            )
+        if resolved_surface == "Indoor":
+            query = query.filter(Tournament.indoor_outdoor == "Indoor")
+        else:
+            query = query.filter(
+                or_(
+                    TournamentEdition.surface == resolved_surface,
+                    and_(
+                        TournamentEdition.surface.is_(None),
+                        Tournament.surface == resolved_surface,
+                    ),
+                )
+            )
+
+    result_norm = (result or "all").strip().lower()
+    if result_norm == "win":
+        query = query.filter(Match.winner_id == player_id)
+    elif result_norm == "loss":
+        query = query.filter(Match.winner_id != player_id)
+    elif result_norm != "all":
+        return JSONResponse({"error": "result must be one of: all,win,loss"}, status_code=400)
+
+    parsed_from = None
+    parsed_to = None
+    if date_from:
+        try:
+            parsed_from = date.fromisoformat(date_from)
+        except ValueError:
+            return JSONResponse({"error": "date_from must be YYYY-MM-DD"}, status_code=400)
+    if date_to:
+        try:
+            parsed_to = date.fromisoformat(date_to)
+        except ValueError:
+            return JSONResponse({"error": "date_to must be YYYY-MM-DD"}, status_code=400)
+    if parsed_from:
+        query = query.filter(Match.match_date >= parsed_from)
+    if parsed_to:
+        query = query.filter(Match.match_date <= parsed_to)
+
+    total = query.count()
+    offset = (page - 1) * per_page
+    matches = (
+        query.order_by(
+            Match.match_date.desc().nullslast(),
+            Match.temporal_order.desc().nullslast(),
+            Match.id.desc(),
+        )
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    payload: list[dict[str, Any]] = []
+    for m in matches:
+        serialized = _serialize_match(m)
+        is_a = m.player_a_id == player_id
+        pre = m.elo_pre_player_a if is_a else m.elo_pre_player_b
+        post = m.elo_post_player_a if is_a else m.elo_post_player_b
+        player_change = _round_elo(post - pre) if pre is not None and post is not None else None
+        payload.append(
+            {
+                **serialized,
+                "player_result": "W" if m.winner_id == player_id else "L",
+                "player_elo_change": player_change,
+            }
+        )
+
+    try:
+        match_rows_template = templates.get_template("partials/match_rows.html")
+        table_rows_html = match_rows_template.module.render_table_rows(payload)
+        cards_html = match_rows_template.module.render_cards(payload)
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).error(
+            "player matches template render failed: %s", exc, exc_info=True
+        )
+        table_rows_html = ""
+        cards_html = ""
+
+    return JSONResponse(
+        {
+            "matches": payload,
+            "table_rows_html": table_rows_html,
+            "cards_html": cards_html,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "has_more": (offset + per_page) < total,
+        }
+    )
+
+
+@app.get("/api/players/{player_id}/tournaments")
+async def api_player_tournaments(
+    player_id: int,
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_players")),
+):
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        return JSONResponse({"error": "Player not found"}, status_code=404)
+
+    ROUND_PRIORITY: dict[str, int] = {r: i for i, r in enumerate(
+        ["F", "SF", "QF", "R16", "R32", "R64", "R128", "RR", "Q3", "Q2", "Q1", "WC", "LL", "PR", "bye"]
+    )}
+
+    statuses = ["completed", "retired", "walkover", "default"]
+
+    rows = (
+        db.query(
+            Match.id.label("match_id"),
+            Match.tournament_edition_id.label("edition_id"),
+            Match.match_date.label("match_date"),
+            Match.round.label("round"),
+            Match.winner_id.label("winner_id"),
+            Match.player_a_id.label("player_a_id"),
+            Match.player_b_id.label("player_b_id"),
+            Tournament.name.label("tournament_name"),
+            Tournament.level.label("tournament_level"),
+            TournamentEdition.year.label("year"),
+            func.coalesce(TournamentEdition.surface, Tournament.surface).label("surface"),
+        )
+        .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .filter(
+            Match.status.in_(statuses),
+            or_(Match.player_a_id == player_id, Match.player_b_id == player_id),
+        )
+        .all()
+    )
+
+    # Group by edition
+    from collections import defaultdict
+    editions: dict[int, list] = defaultdict(list)
+    edition_meta: dict[int, dict] = {}
+    for row in rows:
+        editions[row.edition_id].append(row)
+        if row.edition_id not in edition_meta:
+            edition_meta[row.edition_id] = {
+                "tournament_name": row.tournament_name,
+                "tournament_level": row.tournament_level,
+                "year": row.year,
+                "surface": row.surface,
+            }
+
+    # Collect all opponent IDs to resolve names
+    all_opponent_ids: set[int] = set()
+    tournament_results = []
+
+    for edition_id, matches in editions.items():
+        # Find deepest round
+        def round_rank(m):
+            return ROUND_PRIORITY.get(m.round, 999)
+
+        deepest_match = min(matches, key=round_rank)
+        deepest_round = deepest_match.round
+
+        won_title = any(
+            m.round == "F" and m.winner_id == player_id for m in matches
+        )
+
+        # Find opponent
+        opponent_id: Optional[int] = None
+        match_date = None
+
+        if won_title:
+            # Find the Final match where player won
+            final_matches = [m for m in matches if m.round == "F" and m.winner_id == player_id]
+            if final_matches:
+                fm = final_matches[0]
+                opponent_id = fm.player_b_id if fm.player_a_id == player_id else fm.player_a_id
+                match_date = fm.match_date
+        else:
+            # Find deepest round match where player lost (i.e., winner_id != player_id)
+            deepest_loss = [m for m in matches if m.round == deepest_round and m.winner_id != player_id and m.winner_id is not None]
+            if deepest_loss:
+                dm = deepest_loss[0]
+                opponent_id = dm.winner_id  # whoever beat them
+                match_date = dm.match_date
+            else:
+                # fallback: use any deepest match
+                dm = deepest_match
+                opponent_id = dm.player_b_id if dm.player_a_id == player_id else dm.player_a_id
+                match_date = dm.match_date
+
+        if opponent_id is not None:
+            all_opponent_ids.add(int(opponent_id))
+
+        meta = edition_meta[edition_id]
+        tournament_results.append({
+            "edition_id": edition_id,
+            "year": int(meta["year"]) if meta["year"] is not None else None,
+            "date": match_date.isoformat() if match_date else None,
+            "tournament_name": meta["tournament_name"],
+            "tournament_level": meta["tournament_level"],
+            "surface": meta["surface"],
+            "result": deepest_round,
+            "won_title": won_title,
+            "opponent_id": int(opponent_id) if opponent_id is not None else None,
+        })
+
+    # Resolve opponent names
+    opponent_map: dict[int, str] = {}
+    if all_opponent_ids:
+        opp_rows = db.query(Player.id, Player.canonical_name).filter(Player.id.in_(all_opponent_ids)).all()
+        opponent_map = {int(p.id): p.canonical_name for p in opp_rows}
+
+    for t in tournament_results:
+        oid = t.get("opponent_id")
+        t["opponent_name"] = opponent_map.get(oid) if oid is not None else None
+
+    # Sort by date descending
+    tournament_results.sort(key=lambda t: (t["date"] or ""), reverse=True)
+    tournament_results = tournament_results[:100]
+
+    # Summary
+    titles_count = sum(1 for t in tournament_results if t["won_title"])
+    finals_count = sum(1 for t in tournament_results if t["result"] == "F" and not t["won_title"])
+    semis_count = sum(1 for t in tournament_results if t["result"] == "SF")
+    quarters_count = sum(1 for t in tournament_results if t["result"] == "QF")
+
+    # Remove internal field
+    for t in tournament_results:
+        t.pop("edition_id", None)
+
+    return JSONResponse(
+        {
+            "summary": {
+                "titles": titles_count,
+                "finals": finals_count,
+                "semifinals": semis_count,
+                "quarterfinals": quarters_count,
+            },
+            "tournaments": tournament_results,
+        }
+    )
+
+
 @app.get("/api/rankings")
 async def api_rankings(
     db: Session = Depends(get_db),
     gender: str = Query(..., description="Player gender: 'men' or 'women'"),
+    surface: str = Query("overall", description="overall,hard,clay,grass"),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(50, ge=1, le=100, description="Results per page"),
     include_inactive: bool = Query(False, description="Include players with no match in the last 6 months"),
@@ -648,48 +1464,38 @@ async def api_rankings(
             {"error": "gender must be 'men' or 'women'"},
             status_code=400,
         )
+    surface_param = (surface or "overall").strip().lower()
+    surface_map = {
+        "overall": None,
+        "hard": "Hard",
+        "clay": "Clay",
+        "grass": "Grass",
+    }
+    resolved_surface = surface_map.get(surface_param)
+    if surface_param not in surface_map:
+        return JSONResponse(
+            {"error": "surface must be one of: overall,hard,clay,grass"},
+            status_code=400,
+        )
 
-    # Build per-player match counts by tournament gender.
-    # A player must be majority in requested gender to appear in that ranking.
-    events_a = (
-        db.query(
-            Match.player_a_id.label("pid"),
-            Tournament.gender.label("gender"),
-        )
-        .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
-        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
-        .filter(Tournament.gender.in_(("men", "women")))
-    )
-    events_b = (
-        db.query(
-            Match.player_b_id.label("pid"),
-            Tournament.gender.label("gender"),
-        )
-        .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
-        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
-        .filter(Tournament.gender.in_(("men", "women")))
-    )
-    gender_events = events_a.union_all(events_b).subquery()
-    gender_counts = (
-        db.query(
-            gender_events.c.pid.label("pid"),
-            func.sum(
-                case((gender_events.c.gender == "men", 1), else_=0)
-            ).label("men_matches"),
-            func.sum(
-                case((gender_events.c.gender == "women", 1), else_=0)
-            ).label("women_matches"),
-        )
-        .group_by(gender_events.c.pid)
-        .subquery()
-    )
+    gender_counts = _build_gender_counts_subquery(db)
 
-    # Main query: join Player + PlayerEloState, filter by gender, rank by ELO
-    query = (
-        db.query(Player, PlayerEloState)
-        .join(PlayerEloState, PlayerEloState.player_id == Player.id)
-        .join(gender_counts, gender_counts.c.pid == Player.id)
-    )
+    if resolved_surface is None:
+        # Main query: join Player + PlayerEloState, filter by gender, rank by ELO
+        query = (
+            db.query(Player, PlayerEloState)
+            .join(PlayerEloState, PlayerEloState.player_id == Player.id)
+            .join(gender_counts, gender_counts.c.pid == Player.id)
+        )
+    else:
+        # Surface-specific query: rank from surface Elo table, active status from overall Elo table.
+        query = (
+            db.query(Player, PlayerSurfaceEloState, PlayerEloState)
+            .join(PlayerSurfaceEloState, PlayerSurfaceEloState.player_id == Player.id)
+            .join(PlayerEloState, PlayerEloState.player_id == Player.id)
+            .join(gender_counts, gender_counts.c.pid == Player.id)
+            .filter(PlayerSurfaceEloState.surface == resolved_surface)
+        )
 
     if gender_param == "men":
         query = query.filter(gender_counts.c.men_matches > gender_counts.c.women_matches)
@@ -701,7 +1507,10 @@ async def api_rankings(
         six_months_ago = date.today() - timedelta(days=183)
         query = query.filter(PlayerEloState.last_match_date >= six_months_ago)
 
-    query = query.order_by(PlayerEloState.rating.desc(), Player.canonical_name.asc())
+    if resolved_surface is None:
+        query = query.order_by(PlayerEloState.rating.desc(), Player.canonical_name.asc())
+    else:
+        query = query.order_by(PlayerSurfaceEloState.rating.desc(), Player.canonical_name.asc())
 
     total = query.count()
     offset = (page - 1) * per_page
@@ -709,16 +1518,22 @@ async def api_rankings(
 
     # Serialize players with rank computed from offset
     players_data = []
-    for i, (player, elo_state) in enumerate(results):
-        last_date = elo_state.last_match_date
+    for i, row in enumerate(results):
+        if resolved_surface is None:
+            player, elo_state = row
+            last_date = elo_state.last_match_date
+        else:
+            player, surface_elo_state, overall_elo_state = row
+            elo_state = surface_elo_state
+            last_date = overall_elo_state.last_match_date
         players_data.append({
             "rank": offset + i + 1,
             "id": player.id,
             "name": player.canonical_name,
             "nationality": player.nationality_ioc,
-            "rating": int(elo_state.rating),
+            "rating": _round_elo(elo_state.rating),
             "match_count": elo_state.match_count,
-            "career_peak": int(elo_state.career_peak),
+            "career_peak": _round_elo(elo_state.career_peak),
             "last_match_date": last_date.isoformat() if last_date else None,
             "last_match_display": last_date.strftime("%d %b %Y") if last_date else None,
         })
@@ -734,6 +1549,7 @@ async def api_rankings(
         "page": page,
         "per_page": per_page,
         "has_more": (offset + per_page) < total,
+        "surface": surface_param,
     })
 
 
@@ -922,7 +1738,7 @@ def _player_detail_map(db: Session, player_ids: set[int]) -> dict[int, dict]:
             "nationality": player.nationality_ioc,
             "alias_count": int(alias_counts.get(player.id, 0)),
             "match_count": int(counts_a.get(player.id, 0)) + int(counts_b.get(player.id, 0)),
-            "elo_rating": int(state.rating) if state and state.rating is not None else None,
+            "elo_rating": _round_elo(state.rating) if state and state.rating is not None else None,
             "last_match_date": (
                 state.last_match_date.strftime("%Y-%m-%d")
                 if state and state.last_match_date

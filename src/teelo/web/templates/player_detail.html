@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}{{ player_name }} | Teelo Ratings{% endblock %}
+
+{% block content %}
+<section class="space-y-5" data-player-id="{{ player_id }}" id="player-page-root">
+
+    {# ── HEADER CARD ───────────────────────────────────────────────── #}
+    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
+        <div class="border-l-4 border-teelo-lime px-6 py-5">
+            <p class="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-0.5">Player Profile</p>
+            <h1 id="player-name" class="text-3xl md:text-4xl font-extrabold text-teelo-dark tracking-tight">{{ player_name }}</h1>
+            <p id="player-meta" class="text-sm text-gray-500 mt-1.5">Loading…</p>
+        </div>
+    </div>
+
+    {# ── KPI STRIP ──────────────────────────────────────────────────── #}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 hidden" id="overview-kpis">
+        <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-soft flex flex-col gap-1">
+            <p class="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Overall Elo</p>
+            <p class="text-3xl font-extrabold text-teelo-dark tabular-nums" id="kpi-elo">—</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-soft flex flex-col gap-1">
+            <p class="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Overall Rank</p>
+            <p class="text-3xl font-extrabold text-teelo-dark tabular-nums" id="kpi-rank">—</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-soft flex flex-col gap-1">
+            <p class="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Career Peak</p>
+            <p class="text-3xl font-extrabold text-teelo-dark tabular-nums" id="kpi-peak">—</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-soft flex flex-col gap-1">
+            <p class="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Last 10</p>
+            <p class="text-3xl font-extrabold text-teelo-dark tabular-nums" id="kpi-last10">—</p>
+        </div>
+    </div>
+    <div id="kpi-loading" class="flex justify-center py-2">
+        <div class="loading-spinner"></div>
+    </div>
+
+    {# ── SURFACE ELO ─────────────────────────────────────────────────── #}
+    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+        <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
+                <i data-lucide="layers" class="w-4 h-4 text-gray-400"></i>
+                Surface Elo
+            </h2>
+            <span class="text-[11px] text-gray-400" id="surface-updated-at"></span>
+        </div>
+        <div id="surface-loading" class="flex justify-center py-4">
+            <div class="loading-spinner"></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 hidden" id="surface-cards">
+            <p class="text-sm text-gray-400">No surface Elo data yet.</p>
+        </div>
+    </div>
+
+    {# ── RECORDS ─────────────────────────────────────────────────────── #}
+    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+        <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
+            <i data-lucide="bar-chart-3" class="w-4 h-4 text-gray-400"></i>
+            Records
+        </h2>
+        <div id="records-loading" class="flex justify-center py-4">
+            <div class="loading-spinner"></div>
+        </div>
+        <div class="grid grid-cols-3 gap-3 mt-4 hidden" id="record-cards">
+            <div class="rounded-xl border border-gray-100 bg-gray-50/50 p-4 text-center">
+                <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Career</p>
+                <p class="text-xl font-bold text-teelo-dark mt-1 tabular-nums" id="record-career">—</p>
+            </div>
+            <div class="rounded-xl border border-gray-100 bg-gray-50/50 p-4 text-center">
+                <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Last 52W</p>
+                <p class="text-xl font-bold text-teelo-dark mt-1 tabular-nums" id="record-52w">—</p>
+            </div>
+            <div class="rounded-xl border border-gray-100 bg-gray-50/50 p-4 text-center">
+                <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Last 10</p>
+                <p class="text-xl font-bold text-teelo-dark mt-1 tabular-nums" id="record-last10">—</p>
+            </div>
+        </div>
+    </div>
+
+    {# ── ELO HISTORY CHART ──────────────────────────────────────────── #}
+    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+            <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
+                <i data-lucide="trending-up" class="w-4 h-4 text-gray-400"></i>
+                Elo History
+            </h2>
+            <div class="flex items-center gap-2 flex-wrap">
+                <div class="flex items-center gap-1">
+                    <button class="filter-chip history-range-btn" data-range="30d">30D</button>
+                    <button class="filter-chip history-range-btn" data-range="90d">90D</button>
+                    <button class="filter-chip history-range-btn" data-range="1y">1Y</button>
+                    <button class="filter-chip history-range-btn" data-range="3y">3Y</button>
+                    <button class="filter-chip history-range-btn active" data-range="career">Career</button>
+                </div>
+                <select id="history-surface" class="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-600 focus:outline-none focus:border-teelo-dark">
+                    <option value="overall">Overall</option>
+                    <option value="hard">Hard</option>
+                    <option value="clay">Clay</option>
+                    <option value="grass">Grass</option>
+                    <option value="indoor">Indoor</option>
+                </select>
+            </div>
+        </div>
+        <div class="mt-4 rounded-xl border border-gray-100 bg-gray-50/60 p-3 overflow-hidden">
+            <div id="history-loading" class="flex justify-center py-3">
+                <div class="loading-spinner"></div>
+            </div>
+            <div id="history-content" class="hidden">
+                <div class="history-chart-wrap relative w-full">
+                    <canvas id="history-chart-canvas" role="img" aria-label="Elo history line chart"></canvas>
+                </div>
+                <div class="flex justify-between text-[11px] text-gray-400 mt-1 tabular-nums">
+                    <span id="history-min">Min: —</span>
+                    <span id="history-meta">Loading…</span>
+                    <span id="history-max">Max: —</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── RECENT MATCHES ──────────────────────────────────────────────── #}
+    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+        <div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+            <div class="flex items-center gap-3">
+                <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
+                    <i data-lucide="crosshair" class="w-4 h-4 text-gray-400"></i>
+                    Recent Matches
+                </h2>
+                <span id="player-matches-count" class="text-xs text-gray-400"></span>
+            </div>
+            <div class="flex items-center gap-2">
+                <select id="matches-result" class="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-600 focus:outline-none focus:border-teelo-dark">
+                    <option value="all">All</option>
+                    <option value="win">Wins</option>
+                    <option value="loss">Losses</option>
+                </select>
+                <select id="matches-surface" class="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-600 focus:outline-none focus:border-teelo-dark">
+                    <option value="">All Surfaces</option>
+                    <option value="hard">Hard</option>
+                    <option value="clay">Clay</option>
+                    <option value="grass">Grass</option>
+                    <option value="indoor">Indoor</option>
+                </select>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <div id="matches-loading" class="flex justify-center py-6">
+                <div class="loading-spinner"></div>
+            </div>
+            <div id="matches-content" class="hidden">
+                <table class="w-full text-left border-collapse hidden md:table">
+                    <thead>
+                        <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
+                            <th class="pl-5 pr-2 py-3 w-8"></th>
+                            <th class="px-5 py-3">Tournament</th>
+                            <th class="px-5 py-3 text-right">Player A</th>
+                            <th class="px-5 py-3 text-center">Score</th>
+                            <th class="px-5 py-3">Player B</th>
+                            <th class="px-5 py-3 text-right">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="player-matches-table-body" class="divide-y divide-gray-100/70"></tbody>
+                </table>
+                <div id="player-matches-cards-container" class="md:hidden divide-y divide-gray-100"></div>
+                <div id="player-matches-empty" class="hidden text-center py-12">
+                    <i data-lucide="search" class="w-10 h-10 text-gray-200 mx-auto"></i>
+                    <p class="text-sm font-semibold text-gray-400 mt-3">No matches found</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Try adjusting your filters</p>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3">
+            <button id="player-matches-more" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hidden">
+                Load more
+            </button>
+        </div>
+    </div>
+
+    {# ── TOURNAMENT RESULTS ───────────────────────────────────────────── #}
+    <section class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+      <h2 class="text-base font-semibold text-gray-800 mb-4">Tournament Results</h2>
+
+      <!-- KPI Summary Strip -->
+      <div id="tournament-summary" class="flex flex-wrap gap-3 mb-5"></div>
+
+      <!-- Result Filter Chips -->
+      <div class="flex flex-wrap gap-2 mb-3">
+        <button class="filter-chip active" data-tournament-result-filter="all">All</button>
+        <button class="filter-chip" data-tournament-result-filter="title">Titles</button>
+        <button class="filter-chip" data-tournament-result-filter="final">Finals</button>
+        <button class="filter-chip" data-tournament-result-filter="semi">Semis</button>
+        <button class="filter-chip" data-tournament-result-filter="quarter">Quarters</button>
+      </div>
+
+      <!-- Surface Filter Chips -->
+      <div class="flex flex-wrap gap-2 mb-5">
+        <button class="filter-chip active" data-tournament-surface-filter="all">All Surfaces</button>
+        <button class="filter-chip" data-tournament-surface-filter="Hard">Hard</button>
+        <button class="filter-chip" data-tournament-surface-filter="Clay">Clay</button>
+        <button class="filter-chip" data-tournament-surface-filter="Grass">Grass</button>
+      </div>
+
+      <!-- Loading / Content -->
+      <div id="tournaments-loading" class="flex justify-center py-6">
+        <div class="loading-spinner"></div>
+      </div>
+      <div id="tournaments-content" class="hidden">
+        <!-- Desktop Table -->
+        <div class="hidden md:block overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="text-left text-[11px] uppercase tracking-wider text-gray-400 border-b border-gray-100">
+                <th class="pb-2 pr-4">Year</th>
+                <th class="pb-2 pr-4">Tournament</th>
+                <th class="pb-2 pr-4">Level</th>
+                <th class="pb-2 pr-4">Surface</th>
+                <th class="pb-2 pr-4">Result</th>
+                <th class="pb-2">Opponent</th>
+              </tr>
+            </thead>
+            <tbody id="player-tournaments-body" class="divide-y divide-gray-100">
+              <tr><td colspan="6" class="py-8 text-center text-gray-400 text-sm">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div id="player-tournaments-cards" class="md:hidden divide-y divide-gray-100">
+          <div class="py-8 text-center text-gray-400 text-sm">Loading...</div>
+        </div>
+
+        <!-- Load More -->
+        <div id="tournaments-load-more" class="hidden mt-4 text-center">
+          <button id="tournaments-load-more-btn" class="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+            Load more
+          </button>
+        </div>
+      </div>
+    </section>
+
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', path='/js/player_detail.js') }}"></script>
+{% endblock %}
