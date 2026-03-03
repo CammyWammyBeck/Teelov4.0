@@ -57,7 +57,6 @@ def _run_update_current_events_stage(ctx: StageContext) -> StageResult:
     tours = ctx.options.get("tours")
     headless = bool(ctx.options.get("headless", False))
     clear_queue = bool(ctx.options.get("clear_queue", False))
-    fast = bool(ctx.options.get("fast", True))
 
     metrics_json = stage_dir / "metrics.json"
     status_jsonl = stage_dir / "status.jsonl"
@@ -75,10 +74,6 @@ def _run_update_current_events_stage(ctx: StageContext) -> StageResult:
     ]
     if tours:
         cmd.extend(["--tours", tours])
-    if fast:
-        cmd.append("--fast")
-    else:
-        cmd.append("--no-fast")
     if headless:
         # update_current_events uses settings unless --headed is set.
         # We keep this flag for consistency in orchestrator options.
@@ -267,7 +262,7 @@ def _build_registry() -> StageRegistry:
             name="player_enrichment_incremental",
             runner=_run_script_stage("scripts/update_players_incremental.py"),
             description="Enrich players requiring profile metadata.",
-            enabled_by_default=False,
+            enabled_by_default=True,
         )
     )
     return registry
@@ -338,11 +333,6 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Clear queue before current_events_ingest stage.",
     )
-    parser.add_argument(
-        "--no-fast",
-        action="store_true",
-        help="Disable fast mode in current_events_ingest.",
-    )
     return parser.parse_args()
 
 
@@ -398,7 +388,6 @@ async def main() -> int:
                         "workers": args.workers,
                         "tours": args.tours,
                         "clear_queue": args.clear_queue,
-                        "fast": not args.no_fast,
                     },
                 )
                 result = await _execute_stage(stage, ctx)
