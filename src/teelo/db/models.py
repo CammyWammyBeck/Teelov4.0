@@ -814,6 +814,67 @@ class PlayerEloState(Base):
         return f"<PlayerEloState(player_id={self.player_id}, rating={self.rating})>"
 
 
+class PlayerSurfaceEloState(Base):
+    """Current surface-specific ELO state per player."""
+
+    __tablename__ = "player_surface_elo_states"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), nullable=False)
+    surface: Mapped[str] = mapped_column(String(20), nullable=False)
+    rating: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False, default=Decimal("1500.00"))
+    match_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_match_date: Mapped[Optional[datetime]] = mapped_column(Date, nullable=True)
+    last_temporal_order: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    career_peak: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False, default=Decimal("1500.00"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    player: Mapped["Player"] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("player_id", "surface", name="uq_player_surface_elo_state"),
+        Index("ix_player_surface_elo_state_surface_rating", "surface", "rating"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<PlayerSurfaceEloState(player_id={self.player_id}, "
+            f"surface='{self.surface}', rating={self.rating})>"
+        )
+
+
+class MatchSurfaceEloSnapshot(Base):
+    """Per-match, per-player surface-specific ELO snapshots."""
+
+    __tablename__ = "match_surface_elo_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), nullable=False)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), nullable=False)
+    surface: Mapped[str] = mapped_column(String(20), nullable=False)
+    temporal_order: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    elo_pre: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+    elo_post: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+    elo_change: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+    elo_params_version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    processed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    match: Mapped["Match"] = relationship()
+    player: Mapped["Player"] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("match_id", "player_id", "surface", name="uq_match_surface_elo_snapshot"),
+        Index("ix_match_surface_elo_player_surface", "player_id", "surface"),
+        Index("ix_match_surface_elo_match", "match_id"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MatchSurfaceEloSnapshot(match_id={self.match_id}, "
+            f"player_id={self.player_id}, surface='{self.surface}')>"
+        )
+
+
 class EloParameterSet(Base):
     """Persisted ELO parameter sets (defaults and optimized variants)."""
 
