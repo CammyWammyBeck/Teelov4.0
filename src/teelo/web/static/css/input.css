@@ -8,6 +8,45 @@
   }
 }
 
+:root {
+    --surface-hard: #3b82f6;
+    --surface-clay: #ea580c;
+    --surface-grass: #16a34a;
+    --surface-indoor: #6b7280;
+}
+
+.surface-text-hard {
+    color: var(--surface-hard);
+}
+
+.surface-text-clay {
+    color: var(--surface-clay);
+}
+
+.surface-text-grass {
+    color: var(--surface-grass);
+}
+
+.surface-text-indoor {
+    color: var(--surface-indoor);
+}
+
+.surface-border-hard {
+    border-color: var(--surface-hard);
+}
+
+.surface-border-clay {
+    border-color: var(--surface-clay);
+}
+
+.surface-border-grass {
+    border-color: var(--surface-grass);
+}
+
+.surface-border-indoor {
+    border-color: var(--surface-indoor);
+}
+
 .table-container {
     overflow-x: auto;
 }
@@ -44,6 +83,26 @@
     background-color: #ccff00;
     color: #1a1a1a;
     border-color: #ccff00;
+}
+
+/* ==========================================================================
+   Player detail chart
+   ========================================================================== */
+
+.history-chart-wrap {
+    height: 260px;
+}
+
+@media (min-width: 640px) {
+    .history-chart-wrap {
+        height: 320px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .history-chart-wrap {
+        height: 360px;
+    }
 }
 
 /* ==========================================================================

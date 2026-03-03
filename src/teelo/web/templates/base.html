@@ -88,13 +88,6 @@
                     </a>
                     {% endif %}
 
-                    {% if features.enable_feature_players %}
-                    <a href="#" class="group relative px-4 py-2 rounded-lg text-sm font-medium text-gray-500 transition-all duration-200 hover:text-teelo-dark hover:bg-gray-100">
-                        <span class="relative z-10 flex items-center gap-2">
-                            <i data-lucide="users" class="w-4 h-4"></i> Players
-                        </span>
-                    </a>
-                    {% endif %}
                 </div>
 
                 <!-- Mobile hamburger -->
@@ -142,11 +135,6 @@
                 {% if features.enable_feature_blog %}
                 <a href="/blog" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path is defined and current_path.startswith('/blog') else 'text-gray-600 hover:bg-gray-50' }}">
                     <span class="flex items-center gap-3"><i data-lucide="newspaper" class="w-4 h-4"></i> Blog</span>
-                </a>
-                {% endif %}
-                {% if features.enable_feature_players %}
-                <a href="#" class="px-4 py-3 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-                    <span class="flex items-center gap-3"><i data-lucide="users" class="w-4 h-4"></i> Players</span>
                 </a>
                 {% endif %}
             </div>

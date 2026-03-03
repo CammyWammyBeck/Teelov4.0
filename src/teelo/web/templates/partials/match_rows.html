@@ -19,7 +19,7 @@
 {% endmacro %}
 
 {% macro surface_cls(surface) %}
-{% if surface == 'Hard' %}text-[#3B82F6]{% elif surface == 'Clay' %}text-[#EA580C]{% elif surface == 'Grass' %}text-green-600{% endif %}
+{% if surface == 'Hard' %}surface-text-hard{% elif surface == 'Clay' %}surface-text-clay{% elif surface == 'Grass' %}surface-text-grass{% elif surface == 'Indoor' %}surface-text-indoor{% endif %}
 {% endmacro %}
 
 {% macro elo_badge(player) %}
@@ -46,6 +46,13 @@
 {% set is_winner_b = m.winner_id == m.player_b.id %}
 {% set score_display = 'W/O' if m.status == 'walkover' else (m.score or 'vs') %}
 <tr class="hover:bg-gray-50/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime">
+    {% if m.player_result is defined and m.player_result %}
+    <td class="pl-5 pr-2 py-3 w-8">
+        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold leading-none {% if m.player_result == 'W' %}bg-teelo-lime text-teelo-dark{% else %}bg-red-100 text-red-600{% endif %}">
+            {{ m.player_result }}
+        </span>
+    </td>
+    {% endif %}
     <td class="px-5 py-3">
         <div class="flex items-center gap-2">
             <span class="{{ circuit_bg(m.tour, m.tournament_level) }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ circuit_label(m.tour, m.tournament_level) }}</span>
@@ -107,6 +114,10 @@
 
     {# Meta line — compact: round · gender-dot surface · date #}
     <div class="flex items-center gap-1.5 text-[11px] text-gray-400 mb-2.5">
+        {% if m.player_result is defined and m.player_result %}
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold leading-none flex-shrink-0 {% if m.player_result == 'W' %}bg-teelo-lime text-teelo-dark{% else %}bg-red-100 text-red-600{% endif %}">{{ m.player_result }}</span>
+        <span class="text-gray-300">·</span>
+        {% endif %}
         <span class="font-medium">{{ m.round or '' }}</span>
         <span class="text-gray-300">·</span>
         <span class="w-1.5 h-1.5 rounded-full {{ gender_dot_cls(m.gender, m.tour) }} flex-shrink-0"></span>
