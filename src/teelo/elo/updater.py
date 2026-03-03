@@ -24,13 +24,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from typing import Callable
 from typing import NamedTuple
 
-from sqlalchemy import or_, select, text, update
+from sqlalchemy import delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from teelo.db.models import Match, PlayerEloState, Tournament, TournamentEdition
+from teelo.db.models import (
+    Match,
+    MatchSurfaceEloSnapshot,
+    PlayerEloState,
+    PlayerSurfaceEloState,
+    Tournament,
+    TournamentEdition,
+)
 from teelo.elo.boost import calculate_k_boost
 from teelo.elo.calculator import calculate_fast
 from teelo.elo.constants import get_level_code
@@ -41,6 +49,32 @@ from teelo.elo.pipeline import EloParams, date_from_temporal_order, initial_elo_
 
 # Terminal match statuses that receive ELO computation
 TERMINAL_STATUSES = ("completed", "retired", "walkover", "default")
+
+
+def resolve_surface_bucket(
+    edition_surface: str | None,
+    tournament_surface: str | None,
+    indoor_outdoor: str | None,
+) -> str:
+    """
+    Resolve a match into one of the player-page surface buckets.
+
+    Priority:
+    1) Indoor events are bucketed as "Indoor"
+    2) Otherwise normalize edition/tournament surface to Hard/Clay/Grass
+    3) Unknown values default to Hard for conservative baseline behavior
+    """
+    if indoor_outdoor and indoor_outdoor.strip().lower() == "indoor":
+        return "Indoor"
+
+    raw_surface = (edition_surface or tournament_surface or "").strip().lower()
+    if raw_surface == "hard":
+        return "Hard"
+    if raw_surface == "clay":
+        return "Clay"
+    if raw_surface == "grass":
+        return "Grass"
+    return "Hard"
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +92,18 @@ class _PlayerState:
     career_peak: float = 1500.0
 
 
+@dataclass
+class _SurfaceState:
+    """In-memory surface ELO state for one player/surface pair."""
+    player_id: int
+    surface: str
+    rating: float = 1500.0
+    match_count: int = 0
+    last_temporal_order: int | None = None
+    last_match_date: date | None = None
+    career_peak: float = 1500.0
+
+
 class _MatchRow(NamedTuple):
     """Lightweight match record loaded from DB for processing."""
     id: int
@@ -68,6 +114,7 @@ class _MatchRow(NamedTuple):
     match_date: date | None
     score_structured: dict | None
     level_code: str
+    surface: str
 
 
 class _MatchUpdate(NamedTuple):
@@ -77,6 +124,17 @@ class _MatchUpdate(NamedTuple):
     elo_pre_player_b: float
     elo_post_player_a: float
     elo_post_player_b: float
+
+
+class _SurfaceSnapshotUpdate(NamedTuple):
+    """Surface ELO snapshot values to write after processing."""
+    match_id: int
+    player_id: int
+    surface: str
+    temporal_order: int
+    elo_pre: float
+    elo_post: float
+    elo_change: float
 
 
 @dataclass
@@ -132,6 +190,10 @@ class EloUpdater:
         self,
         session: Session,
         player_ids: set[int] | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
+        progress_every: int = 0,
+        batch_size: int = 10000,
+        commit_every_batch: bool = False,
     ) -> UpdateResult:
         """
         Process all unprocessed terminal matches and update ELO.
@@ -148,8 +210,12 @@ class EloUpdater:
         """
         result = UpdateResult()
 
+        if batch_size <= 0:
+            batch_size = 10000
+
         # 1. Find unprocessed terminal matches (with tournament level via JOIN)
-        unprocessed = self._find_unprocessed(session, player_ids)
+        total_pending = self._count_unprocessed(session, player_ids)
+        unprocessed = self._find_unprocessed(session, player_ids, limit=batch_size)
         if not unprocessed:
             return result
 
@@ -159,6 +225,7 @@ class EloUpdater:
             | {m.player_b_id for m in unprocessed}
         )
         states = self._load_player_states(session, involved_ids)
+        surface_states = self._load_surface_states(session, involved_ids)
 
         # 3. Backfill detection: is any unprocessed match earlier than a player's
         #    last processed match? (Only happens when historical data is scraped.)
@@ -172,10 +239,10 @@ class EloUpdater:
                 "Clearing affected matches and recovering historical states."
             )
             # Clears match ELO from backfill_temporal forward and resets player states
-            self._handle_backfill(session, backfill_temporal, states)
+            self._handle_backfill(session, backfill_temporal, states, surface_states)
 
             # Re-scan — the clear may have exposed many more unprocessed matches
-            unprocessed = self._find_unprocessed(session, player_ids=None)
+            unprocessed = self._find_unprocessed(session, player_ids=None, limit=batch_size)
             if not unprocessed:
                 return result
 
@@ -187,24 +254,77 @@ class EloUpdater:
             new_ids = all_involved - set(states.keys())
             if new_ids:
                 states.update(self._load_player_states(session, new_ids))
+                surface_states.update(self._load_surface_states(session, new_ids))
 
-        # 4. Core computation — pure in-memory, zero additional DB calls
-        match_updates, touched_ids = self._process_matches(unprocessed, states)
-        result.processed = len(match_updates)
-
-        # 5. Two bulk DB writes: match ELO columns + player state upsert
-        if match_updates:
-            self._bulk_write(session, match_updates, states, touched_ids)
-
-            # 6. Refresh elo_pre snapshots on upcoming/scheduled matches
-            #    so ML predictions stay current for touched players
-            result.pre_snapshots_refreshed = self._refresh_pre_snapshots(
-                session, touched_ids
+        # 4. Process/write in bounded batches to avoid giant statements.
+        touched_all: set[int] = set()
+        processed_so_far = 0
+        while unprocessed:
+            all_involved = (
+                {m.player_a_id for m in unprocessed}
+                | {m.player_b_id for m in unprocessed}
             )
+            new_ids = all_involved - set(states.keys())
+            if new_ids:
+                states.update(self._load_player_states(session, new_ids))
+                surface_states.update(self._load_surface_states(session, new_ids))
+
+            def _batch_progress(done_in_batch: int, total_in_batch: int) -> None:
+                if progress_callback is None:
+                    return
+                progress_callback(processed_so_far + done_in_batch, total_pending)
+
+            (
+                match_updates,
+                touched_ids,
+                surface_snapshots,
+                touched_surface_keys,
+            ) = self._process_matches(
+                unprocessed,
+                states,
+                surface_states,
+                progress_callback=_batch_progress if progress_callback else None,
+                progress_every=progress_every,
+            )
+            if not match_updates:
+                break
+
+            self._bulk_write(
+                session,
+                match_updates,
+                states,
+                touched_ids,
+                surface_states,
+                surface_snapshots,
+                touched_surface_keys,
+            )
+            if commit_every_batch:
+                session.commit()
+            else:
+                session.flush()
+
+            processed_so_far += len(match_updates)
+            touched_all.update(touched_ids)
+            result.processed += len(match_updates)
+
+            if len(unprocessed) < batch_size:
+                break
+            unprocessed = self._find_unprocessed(session, player_ids, limit=batch_size)
+
+        # 6. Refresh elo_pre snapshots once at end for all touched players
+        if touched_all:
+            result.pre_snapshots_refreshed = self._refresh_pre_snapshots(session, touched_all)
 
         return result
 
-    def rebuild(self, session: Session) -> UpdateResult:
+    def rebuild(
+        self,
+        session: Session,
+        progress_callback: Callable[[int, int], None] | None = None,
+        progress_every: int = 0,
+        batch_size: int = 10000,
+        commit_every_batch: bool = False,
+    ) -> UpdateResult:
         """
         Full rebuild: wipe all ELO data and reprocess every terminal match
         from scratch in temporal order.
@@ -217,6 +337,8 @@ class EloUpdater:
         """
         # Clear all existing ELO data
         session.query(PlayerEloState).delete()
+        session.query(PlayerSurfaceEloState).delete()
+        session.query(MatchSurfaceEloSnapshot).delete()
         session.execute(
             update(Match)
             .values(
@@ -232,31 +354,70 @@ class EloUpdater:
         )
         session.flush()
 
+        if batch_size <= 0:
+            batch_size = 10000
+
         # Process everything — states dict starts empty (all players at default)
-        unprocessed = self._find_unprocessed(session, player_ids=None)
-        if not unprocessed:
+        total_pending = self._count_unprocessed(session, player_ids=None)
+        unprocessed = self._find_unprocessed(session, player_ids=None, limit=batch_size)
+        if not unprocessed or total_pending == 0:
             return UpdateResult()
+        states: dict[int, _PlayerState] = {}
+        surface_states: dict[tuple[int, str], _SurfaceState] = {}
+        touched_all: set[int] = set()
+        processed_so_far = 0
 
-        involved_ids = (
-            {m.player_a_id for m in unprocessed}
-            | {m.player_b_id for m in unprocessed}
-        )
-        # After wiping, DB has no states — _load_player_states will return
-        # default _PlayerState instances for all IDs.
-        states = self._load_player_states(session, involved_ids)
+        while unprocessed:
+            def _batch_progress(done_in_batch: int, total_in_batch: int) -> None:
+                if progress_callback is None:
+                    return
+                progress_callback(processed_so_far + done_in_batch, total_pending)
 
-        match_updates, touched_ids = self._process_matches(unprocessed, states)
-        n_pre = 0
-        if match_updates:
-            self._bulk_write(session, match_updates, states, touched_ids)
-            n_pre = self._refresh_pre_snapshots(session, touched_ids)
+            (
+                match_updates,
+                touched_ids,
+                surface_snapshots,
+                touched_surface_keys,
+            ) = self._process_matches(
+                unprocessed,
+                states,
+                surface_states,
+                progress_callback=_batch_progress if progress_callback else None,
+                progress_every=progress_every,
+            )
+            if not match_updates:
+                break
 
-        return UpdateResult(processed=len(match_updates), pre_snapshots_refreshed=n_pre)
+            self._bulk_write(
+                session,
+                match_updates,
+                states,
+                touched_ids,
+                surface_states,
+                surface_snapshots,
+                touched_surface_keys,
+            )
+            if commit_every_batch:
+                session.commit()
+            else:
+                session.flush()
+
+            processed_so_far += len(match_updates)
+            touched_all.update(touched_ids)
+
+            if len(unprocessed) < batch_size:
+                break
+            unprocessed = self._find_unprocessed(session, player_ids=None, limit=batch_size)
+
+        n_pre = self._refresh_pre_snapshots(session, touched_all) if touched_all else 0
+        return UpdateResult(processed=processed_so_far, pre_snapshots_refreshed=n_pre)
 
     def run_for_match_ids(
         self,
         session: Session,
         match_ids: list[int],
+        progress_callback: Callable[[int, int], None] | None = None,
+        progress_every: int = 0,
     ) -> UpdateResult:
         """
         Process specific match IDs inline after scraping.
@@ -286,12 +447,32 @@ class EloUpdater:
             | {m.player_b_id for m in matches}
         )
         states = self._load_player_states(session, involved_ids)
-        match_updates, touched_ids = self._process_matches(matches, states)
+        surface_states = self._load_surface_states(session, involved_ids)
+        (
+            match_updates,
+            touched_ids,
+            surface_snapshots,
+            touched_surface_keys,
+        ) = self._process_matches(
+            matches,
+            states,
+            surface_states,
+            progress_callback=progress_callback,
+            progress_every=progress_every,
+        )
 
         if not match_updates:
             return UpdateResult()
 
-        self._bulk_write(session, match_updates, states, touched_ids)
+        self._bulk_write(
+            session,
+            match_updates,
+            states,
+            touched_ids,
+            surface_states,
+            surface_snapshots,
+            touched_surface_keys,
+        )
         n_pre = self._refresh_pre_snapshots(session, touched_ids)
         return UpdateResult(processed=len(match_updates), pre_snapshots_refreshed=n_pre)
 
@@ -303,6 +484,7 @@ class EloUpdater:
         self,
         session: Session,
         player_ids: set[int] | None,
+        limit: int | None = None,
     ) -> list[_MatchRow]:
         """
         Load all unprocessed terminal matches with tournament level info.
@@ -323,6 +505,9 @@ class EloUpdater:
                 Match.temporal_order,
                 Match.match_date,
                 Match.score_structured,
+                TournamentEdition.surface.label("edition_surface"),
+                Tournament.surface.label("tournament_surface"),
+                Tournament.indoor_outdoor,
                 Tournament.level,
                 Tournament.tour,
             )
@@ -350,6 +535,8 @@ class EloUpdater:
             )
 
         stmt = stmt.order_by(Match.temporal_order.asc(), Match.id.asc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
         rows = session.execute(stmt).all()
 
         result: list[_MatchRow] = []
@@ -369,9 +556,38 @@ class EloUpdater:
                     match_date=match_date,
                     score_structured=row.score_structured,
                     level_code=level_code,
+                    surface=resolve_surface_bucket(
+                        row.edition_surface,
+                        row.tournament_surface,
+                        row.indoor_outdoor,
+                    ),
                 )
             )
         return result
+
+    def _count_unprocessed(self, session: Session, player_ids: set[int] | None) -> int:
+        """Count unprocessed terminal matches for progress and batch planning."""
+        stmt = (
+            select(func.count())
+            .where(Match.status.in_(TERMINAL_STATUSES))
+            .where(Match.winner_id.isnot(None))
+            .where(Match.temporal_order.isnot(None))
+            .where(
+                or_(
+                    Match.elo_post_player_a.is_(None),
+                    Match.elo_post_player_b.is_(None),
+                    Match.elo_needs_recompute.is_(True),
+                )
+            )
+        )
+        if player_ids:
+            stmt = stmt.where(
+                or_(
+                    Match.player_a_id.in_(player_ids),
+                    Match.player_b_id.in_(player_ids),
+                )
+            )
+        return int(session.execute(stmt).scalar() or 0)
 
     def _find_by_ids(
         self,
@@ -399,6 +615,9 @@ class EloUpdater:
                 Match.temporal_order,
                 Match.match_date,
                 Match.score_structured,
+                TournamentEdition.surface.label("edition_surface"),
+                Tournament.surface.label("tournament_surface"),
+                Tournament.indoor_outdoor,
                 Tournament.level,
                 Tournament.tour,
             )
@@ -435,6 +654,11 @@ class EloUpdater:
                     match_date=match_date,
                     score_structured=row.score_structured,
                     level_code=level_code,
+                    surface=resolve_surface_bucket(
+                        row.edition_surface,
+                        row.tournament_surface,
+                        row.indoor_outdoor,
+                    ),
                 )
             )
         return result
@@ -479,6 +703,34 @@ class EloUpdater:
 
         return states
 
+    def _load_surface_states(
+        self,
+        session: Session,
+        player_ids: set[int],
+    ) -> dict[tuple[int, str], _SurfaceState]:
+        """Bulk load surface ELO states for players in one query."""
+        if not player_ids:
+            return {}
+
+        rows = (
+            session.query(PlayerSurfaceEloState)
+            .filter(PlayerSurfaceEloState.player_id.in_(player_ids))
+            .all()
+        )
+
+        return {
+            (row.player_id, row.surface): _SurfaceState(
+                player_id=row.player_id,
+                surface=row.surface,
+                rating=float(row.rating),
+                match_count=row.match_count,
+                last_temporal_order=row.last_temporal_order,
+                last_match_date=row.last_match_date,
+                career_peak=float(row.career_peak),
+            )
+            for row in rows
+        }
+
     # ------------------------------------------------------------------
     # Backfill handling
     # ------------------------------------------------------------------
@@ -522,6 +774,7 @@ class EloUpdater:
         session: Session,
         backfill_temporal: int,
         states: dict[int, _PlayerState],
+        surface_states: dict[tuple[int, str], _SurfaceState],
     ) -> None:
         """
         Prepare for reprocessing from a backfill point.
@@ -548,6 +801,11 @@ class EloUpdater:
                 elo_needs_recompute=False,
                 elo_processed_at=None,
             )
+            .execution_options(synchronize_session=False)
+        )
+        session.execute(
+            delete(MatchSurfaceEloSnapshot)
+            .where(MatchSurfaceEloSnapshot.temporal_order >= backfill_temporal)
             .execution_options(synchronize_session=False)
         )
 
@@ -615,6 +873,27 @@ class EloUpdater:
             ) sub
             GROUP BY player_id
         """)
+        peak_sql = text("""
+            SELECT player_id, MAX(elo_post) AS career_peak
+            FROM (
+                SELECT
+                    m.player_a_id       AS player_id,
+                    m.elo_post_player_a AS elo_post
+                FROM matches m
+                WHERE m.player_a_id = ANY(:player_ids)
+                  AND m.temporal_order < :backfill_temporal
+                  AND m.elo_post_player_a IS NOT NULL
+                UNION ALL
+                SELECT
+                    m.player_b_id       AS player_id,
+                    m.elo_post_player_b AS elo_post
+                FROM matches m
+                WHERE m.player_b_id = ANY(:player_ids)
+                  AND m.temporal_order < :backfill_temporal
+                  AND m.elo_post_player_b IS NOT NULL
+            ) sub
+            GROUP BY player_id
+        """)
 
         recovery_rows = session.execute(
             recovery_sql,
@@ -628,21 +907,25 @@ class EloUpdater:
                 "terminal_statuses": list(TERMINAL_STATUSES),
             },
         ).all()
+        peak_rows = session.execute(
+            peak_sql,
+            {"player_ids": affected_ids, "backfill_temporal": backfill_temporal},
+        ).all()
 
         count_by_player = {row.player_id: int(row.match_count) for row in count_rows}
+        peak_by_player = {row.player_id: float(row.career_peak) for row in peak_rows}
         recovered_pids: set[int] = set()
 
         for row in recovery_rows:
             pid = row.player_id
             rating = float(row.elo_post)
-            # career_peak is unknown from just the last match; will rebuild as we process
             states[pid] = _PlayerState(
                 player_id=pid,
                 rating=rating,
                 match_count=count_by_player.get(pid, 0),
                 last_temporal_order=int(row.temporal_order),
                 last_match_date=row.match_date,
-                career_peak=rating,
+                career_peak=peak_by_player.get(pid, rating),
             )
             recovered_pids.add(pid)
 
@@ -650,6 +933,82 @@ class EloUpdater:
         for pid in affected_ids:
             if pid not in recovered_pids:
                 states[pid] = _PlayerState(player_id=pid)
+
+        # Surface state rollback for affected players.
+        # We rebuild each (player, surface) anchor from the latest snapshot prior
+        # to the backfill point and drop stale rows that were computed after it.
+        for key in list(surface_states.keys()):
+            if key[0] in affected_ids:
+                del surface_states[key]
+
+        session.execute(
+            delete(PlayerSurfaceEloState)
+            .where(PlayerSurfaceEloState.player_id.in_(affected_ids))
+            .execution_options(synchronize_session=False)
+        )
+
+        surface_recovery_sql = text("""
+            SELECT DISTINCT ON (player_id, surface)
+                player_id,
+                surface,
+                elo_post,
+                temporal_order,
+                processed_at
+            FROM match_surface_elo_snapshots
+            WHERE player_id = ANY(:player_ids)
+              AND temporal_order < :backfill_temporal
+            ORDER BY player_id, surface, temporal_order DESC, processed_at DESC
+        """)
+
+        surface_count_sql = text("""
+            SELECT player_id, surface, COUNT(*) AS match_count
+            FROM match_surface_elo_snapshots
+            WHERE player_id = ANY(:player_ids)
+              AND temporal_order < :backfill_temporal
+            GROUP BY player_id, surface
+        """)
+        surface_peak_sql = text("""
+            SELECT player_id, surface, MAX(elo_post) AS career_peak
+            FROM match_surface_elo_snapshots
+            WHERE player_id = ANY(:player_ids)
+              AND temporal_order < :backfill_temporal
+            GROUP BY player_id, surface
+        """)
+
+        surface_recovery_rows = session.execute(
+            surface_recovery_sql,
+            {"player_ids": affected_ids, "backfill_temporal": backfill_temporal},
+        ).all()
+        surface_count_rows = session.execute(
+            surface_count_sql,
+            {"player_ids": affected_ids, "backfill_temporal": backfill_temporal},
+        ).all()
+        surface_peak_rows = session.execute(
+            surface_peak_sql,
+            {"player_ids": affected_ids, "backfill_temporal": backfill_temporal},
+        ).all()
+
+        count_by_player_surface = {
+            (row.player_id, row.surface): int(row.match_count)
+            for row in surface_count_rows
+        }
+        peak_by_player_surface = {
+            (row.player_id, row.surface): float(row.career_peak)
+            for row in surface_peak_rows
+        }
+
+        for row in surface_recovery_rows:
+            key = (row.player_id, row.surface)
+            rating = float(row.elo_post)
+            surface_states[key] = _SurfaceState(
+                player_id=row.player_id,
+                surface=row.surface,
+                rating=rating,
+                match_count=count_by_player_surface.get(key, 0),
+                last_temporal_order=int(row.temporal_order),
+                last_match_date=date_from_temporal_order(int(row.temporal_order)),
+                career_peak=peak_by_player_surface.get(key, rating),
+            )
 
     # ------------------------------------------------------------------
     # Core ELO computation (pure in-memory, no DB calls)
@@ -659,7 +1018,10 @@ class EloUpdater:
         self,
         matches: list[_MatchRow],
         states: dict[int, _PlayerState],
-    ) -> tuple[list[_MatchUpdate], set[int]]:
+        surface_states: dict[tuple[int, str], _SurfaceState],
+        progress_callback: Callable[[int, int], None] | None = None,
+        progress_every: int = 0,
+    ) -> tuple[list[_MatchUpdate], set[int], list[_SurfaceSnapshotUpdate], set[tuple[int, str]]]:
         """
         Apply ELO updates for all matches in temporal order.
 
@@ -670,15 +1032,34 @@ class EloUpdater:
             states: In-memory player state dict, updated as we go.
 
         Returns:
-            (list of match updates to write to DB, set of touched player IDs)
+            (
+                list of overall match updates,
+                set of touched player IDs,
+                list of surface snapshot updates,
+                set of touched (player_id, surface) keys,
+            )
         """
         params = self.params
         updates: list[_MatchUpdate] = []
         touched: set[int] = set()
+        surface_updates: list[_SurfaceSnapshotUpdate] = []
+        touched_surface_keys: set[tuple[int, str]] = set()
 
-        for match in matches:
+        total_matches = len(matches)
+        for idx, match in enumerate(matches, start=1):
             pid_a = match.player_a_id
             pid_b = match.player_b_id
+
+            # Corrupt source rows occasionally produce self-vs-self matches.
+            # Skip these to avoid invalid Elo transitions and ON CONFLICT
+            # duplicate-key updates in snapshot inserts.
+            if pid_a == pid_b:
+                if progress_callback and (
+                    idx == total_matches
+                    or (progress_every > 0 and idx % progress_every == 0)
+                ):
+                    progress_callback(idx, total_matches)
+                continue
 
             # Initialise state for players we haven't seen yet.
             # This happens when player_ids filter was used and the opponent's
@@ -698,6 +1079,26 @@ class EloUpdater:
             state_b = states[pid_b]
             match_date = match.match_date
             initial_rating = initial_elo_for_level_code(params, match.level_code)
+            surface = match.surface
+            key_a = (pid_a, surface)
+            key_b = (pid_b, surface)
+
+            if key_a not in surface_states:
+                surface_states[key_a] = _SurfaceState(
+                    player_id=pid_a,
+                    surface=surface,
+                    rating=initial_rating,
+                    career_peak=initial_rating,
+                )
+            if key_b not in surface_states:
+                surface_states[key_b] = _SurfaceState(
+                    player_id=pid_b,
+                    surface=surface,
+                    rating=initial_rating,
+                    career_peak=initial_rating,
+                )
+            surface_state_a = surface_states[key_a]
+            surface_state_b = surface_states[key_b]
 
             # ---- Step 1: Inactivity decay ----
             # Ratings drift toward the tour baseline after 60+ days without a match.
@@ -798,11 +1199,118 @@ class EloUpdater:
                 )
             )
 
-        return updates, touched
+            # ---- Step 6: Surface-specific ELO update ----
+            s_before_a = surface_state_a.rating
+            s_before_b = surface_state_b.rating
+            s_days_a: int | None = None
+            s_days_b: int | None = None
+
+            if surface_state_a.last_match_date is not None and match_date is not None:
+                s_days_a = (match_date - surface_state_a.last_match_date).days
+                s_before_a = apply_inactivity_decay(
+                    s_before_a,
+                    s_days_a,
+                    decay_rate=params.decay_rate,
+                    decay_start_days=params.decay_start_days,
+                    target_rating=initial_rating,
+                )
+            if surface_state_b.last_match_date is not None and match_date is not None:
+                s_days_b = (match_date - surface_state_b.last_match_date).days
+                s_before_b = apply_inactivity_decay(
+                    s_before_b,
+                    s_days_b,
+                    decay_rate=params.decay_rate,
+                    decay_start_days=params.decay_start_days,
+                    target_rating=initial_rating,
+                )
+
+            s_boost_a = calculate_k_boost(
+                surface_state_a.match_count,
+                float(s_days_a) if s_days_a is not None else None,
+                new_threshold=params.new_threshold,
+                new_boost=params.new_boost,
+                returning_days=params.returning_days,
+                returning_boost=params.returning_boost,
+            )
+            s_boost_b = calculate_k_boost(
+                surface_state_b.match_count,
+                float(s_days_b) if s_days_b is not None else None,
+                new_threshold=params.new_threshold,
+                new_boost=params.new_boost,
+                returning_days=params.returning_days,
+                returning_boost=params.returning_boost,
+            )
+
+            s_new_a, s_new_b, _ = calculate_fast(
+                s_before_a,
+                s_before_b,
+                winner,
+                base_k * margin_mult * s_boost_a,
+                base_k * margin_mult * s_boost_b,
+                s,
+            )
+            s_new_a = round(s_new_a, 2)
+            s_new_b = round(s_new_b, 2)
+
+            surface_state_a.rating = s_new_a
+            surface_state_b.rating = s_new_b
+            surface_state_a.match_count += 1
+            surface_state_b.match_count += 1
+            surface_state_a.last_temporal_order = match.temporal_order
+            surface_state_b.last_temporal_order = match.temporal_order
+            if match_date is not None:
+                surface_state_a.last_match_date = match_date
+                surface_state_b.last_match_date = match_date
+            surface_state_a.career_peak = max(surface_state_a.career_peak, s_new_a)
+            surface_state_b.career_peak = max(surface_state_b.career_peak, s_new_b)
+
+            touched_surface_keys.add(key_a)
+            touched_surface_keys.add(key_b)
+            surface_updates.append(
+                _SurfaceSnapshotUpdate(
+                    match_id=match.id,
+                    player_id=pid_a,
+                    surface=surface,
+                    temporal_order=match.temporal_order,
+                    elo_pre=round(s_before_a, 2),
+                    elo_post=s_new_a,
+                    elo_change=round(s_new_a - s_before_a, 2),
+                )
+            )
+            surface_updates.append(
+                _SurfaceSnapshotUpdate(
+                    match_id=match.id,
+                    player_id=pid_b,
+                    surface=surface,
+                    temporal_order=match.temporal_order,
+                    elo_pre=round(s_before_b, 2),
+                    elo_post=s_new_b,
+                    elo_change=round(s_new_b - s_before_b, 2),
+                )
+            )
+            if progress_callback and (
+                idx == total_matches
+                or (progress_every > 0 and idx % progress_every == 0)
+            ):
+                progress_callback(idx, total_matches)
+
+        return updates, touched, surface_updates, touched_surface_keys
 
     # ------------------------------------------------------------------
     # Bulk DB writes
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _chunk_size_for_params(cols_per_row: int, max_params: int = 20000) -> int:
+        """
+        Compute a safe chunk size for INSERT ... VALUES (...) batches.
+
+        Different drivers/backends can enforce lower bind-parameter caps
+        (for example ~32767). Keep a conservative safety margin.
+        """
+        if cols_per_row <= 0:
+            return 1
+        return max(1, max_params // cols_per_row)
 
     def _bulk_write(
         self,
@@ -810,12 +1318,17 @@ class EloUpdater:
         match_updates: list[_MatchUpdate],
         states: dict[int, _PlayerState],
         touched_ids: set[int],
+        surface_states: dict[tuple[int, str], _SurfaceState],
+        surface_snapshots: list[_SurfaceSnapshotUpdate],
+        touched_surface_keys: set[tuple[int, str]],
     ) -> None:
         """
-        Persist ELO results in two bulk operations — one round trip each.
+        Persist ELO results in bulk operations.
 
         1. executemany UPDATE on matches (SQLAlchemy uses execute_batch internally)
         2. INSERT ... ON CONFLICT DO UPDATE on player_elo_states
+        3. INSERT ... ON CONFLICT DO UPDATE on player_surface_elo_states
+        4. INSERT ... ON CONFLICT DO UPDATE on match_surface_elo_snapshots
         """
         now = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -848,19 +1361,95 @@ class EloUpdater:
             }
             for pid in touched_ids
         ]
-        stmt = insert(PlayerEloState).values(state_rows)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[PlayerEloState.player_id],
-            set_={
-                "rating": stmt.excluded.rating,
-                "match_count": stmt.excluded.match_count,
-                "last_temporal_order": stmt.excluded.last_temporal_order,
-                "last_match_date": stmt.excluded.last_match_date,
-                "career_peak": stmt.excluded.career_peak,
-                "updated_at": stmt.excluded.updated_at,
-            },
-        )
-        session.execute(stmt)
+        state_chunk_size = self._chunk_size_for_params(cols_per_row=7)
+        for i in range(0, len(state_rows), state_chunk_size):
+            chunk = state_rows[i : i + state_chunk_size]
+            stmt = insert(PlayerEloState).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[PlayerEloState.player_id],
+                set_={
+                    "rating": stmt.excluded.rating,
+                    "match_count": stmt.excluded.match_count,
+                    "last_temporal_order": stmt.excluded.last_temporal_order,
+                    "last_match_date": stmt.excluded.last_match_date,
+                    "career_peak": stmt.excluded.career_peak,
+                    "updated_at": stmt.excluded.updated_at,
+                },
+            )
+            session.execute(stmt)
+
+        # -- Surface ELO states --
+        if touched_surface_keys:
+            surface_state_rows = [
+                {
+                    "player_id": pid,
+                    "surface": surface,
+                    "rating": Decimal(str(round(surface_states[(pid, surface)].rating, 2))),
+                    "match_count": surface_states[(pid, surface)].match_count,
+                    "last_temporal_order": surface_states[(pid, surface)].last_temporal_order,
+                    "last_match_date": surface_states[(pid, surface)].last_match_date,
+                    "career_peak": Decimal(str(round(surface_states[(pid, surface)].career_peak, 2))),
+                    "updated_at": now,
+                }
+                for (pid, surface) in touched_surface_keys
+            ]
+            surface_state_chunk_size = self._chunk_size_for_params(cols_per_row=8)
+            for i in range(0, len(surface_state_rows), surface_state_chunk_size):
+                chunk = surface_state_rows[i : i + surface_state_chunk_size]
+                surface_stmt = insert(PlayerSurfaceEloState).values(chunk)
+                surface_stmt = surface_stmt.on_conflict_do_update(
+                    index_elements=[PlayerSurfaceEloState.player_id, PlayerSurfaceEloState.surface],
+                    set_={
+                        "rating": surface_stmt.excluded.rating,
+                        "match_count": surface_stmt.excluded.match_count,
+                        "last_temporal_order": surface_stmt.excluded.last_temporal_order,
+                        "last_match_date": surface_stmt.excluded.last_match_date,
+                        "career_peak": surface_stmt.excluded.career_peak,
+                        "updated_at": surface_stmt.excluded.updated_at,
+                    },
+                )
+                session.execute(surface_stmt)
+
+        # -- Per-match surface snapshots --
+        if surface_snapshots:
+            # Deduplicate keys within the write payload so ON CONFLICT does not
+            # attempt to update the same target row multiple times in one stmt.
+            deduped_snapshot_rows: dict[tuple[int, int, str], dict[str, object]] = {}
+            for row in surface_snapshots:
+                key = (row.match_id, row.player_id, row.surface)
+                deduped_snapshot_rows[key] = {
+                    "match_id": row.match_id,
+                    "player_id": row.player_id,
+                    "surface": row.surface,
+                    "temporal_order": row.temporal_order,
+                    "elo_pre": Decimal(str(row.elo_pre)),
+                    "elo_post": Decimal(str(row.elo_post)),
+                    "elo_change": Decimal(str(row.elo_change)),
+                    "elo_params_version": self.params_version,
+                    "processed_at": now,
+                }
+
+            snapshot_rows = list(deduped_snapshot_rows.values())
+            snapshot_chunk_size = self._chunk_size_for_params(cols_per_row=9)
+            for i in range(0, len(snapshot_rows), snapshot_chunk_size):
+                chunk = snapshot_rows[i : i + snapshot_chunk_size]
+                snapshot_stmt = insert(MatchSurfaceEloSnapshot).values(chunk)
+                snapshot_stmt = snapshot_stmt.on_conflict_do_update(
+                    index_elements=[
+                        MatchSurfaceEloSnapshot.match_id,
+                        MatchSurfaceEloSnapshot.player_id,
+                        MatchSurfaceEloSnapshot.surface,
+                    ],
+                    set_={
+                        "temporal_order": snapshot_stmt.excluded.temporal_order,
+                        "elo_pre": snapshot_stmt.excluded.elo_pre,
+                        "elo_post": snapshot_stmt.excluded.elo_post,
+                        "elo_change": snapshot_stmt.excluded.elo_change,
+                        "elo_params_version": snapshot_stmt.excluded.elo_params_version,
+                        "processed_at": snapshot_stmt.excluded.processed_at,
+                    },
+                )
+                session.execute(snapshot_stmt)
 
     def _refresh_pre_snapshots(
         self,

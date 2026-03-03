@@ -60,6 +60,23 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Write a JSON summary to this path on completion.",
     )
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=5000,
+        help="Render one-line progress every N matches (0 disables live progress).",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=10000,
+        help="Process/write matches in batches of this size.",
+    )
+    parser.add_argument(
+        "--commit-every-batch",
+        action="store_true",
+        help="Commit after each batch (safer for very large rebuilds, less atomic).",
+    )
     return parser
 
 
@@ -86,11 +103,44 @@ def main() -> int:
 
     with get_session() as session:
         updater = EloUpdater.from_session(session)
+        progress_started = perf_counter()
+
+        def _progress(processed: int, total: int) -> None:
+            elapsed = perf_counter() - progress_started
+            rate = (processed / elapsed) if elapsed > 0 else 0.0
+            pct = (processed / total * 100.0) if total > 0 else 100.0
+            remaining = max(total - processed, 0)
+            eta_s = (remaining / rate) if rate > 0 else 0.0
+            bar_width = 24
+            filled = int((pct / 100.0) * bar_width)
+            bar = f"[{'#' * filled}{'.' * (bar_width - filled)}]"
+            print(
+                f"\r{bar} {processed:,}/{total:,} ({pct:5.1f}%)  "
+                f"{rate:,.0f} matches/s  ETA {eta_s:,.0f}s",
+                end="",
+                flush=True,
+            )
 
         if args.rebuild:
-            result = updater.rebuild(session)
+            result = updater.rebuild(
+                session,
+                progress_callback=_progress if args.progress_every > 0 else None,
+                progress_every=max(args.progress_every, 0),
+                batch_size=max(args.batch_size, 1),
+                commit_every_batch=bool(args.commit_every_batch and not args.dry_run),
+            )
         else:
-            result = updater.run(session, player_ids=player_ids)
+            result = updater.run(
+                session,
+                player_ids=player_ids,
+                progress_callback=_progress if args.progress_every > 0 else None,
+                progress_every=max(args.progress_every, 0),
+                batch_size=max(args.batch_size, 1),
+                commit_every_batch=bool(args.commit_every_batch and not args.dry_run),
+            )
+
+        if args.progress_every > 0 and result.processed > 0:
+            print()
 
         if args.dry_run:
             session.rollback()
