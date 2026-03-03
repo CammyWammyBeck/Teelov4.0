@@ -246,15 +246,18 @@ class EloUpdater:
             if not unprocessed:
                 return result
 
-            # Load states for any newly-involved players not already in our dict
+            # Load states for any newly-involved players not already in our dict.
+            # After a backfill, PlayerEloState still holds current ELO — recover
+            # pre-backfill state from match history instead.
             all_involved = (
                 {m.player_a_id for m in unprocessed}
                 | {m.player_b_id for m in unprocessed}
             )
             new_ids = all_involved - set(states.keys())
             if new_ids:
-                states.update(self._load_player_states(session, new_ids))
-                surface_states.update(self._load_surface_states(session, new_ids))
+                self._recover_states_before(
+                    session, list(new_ids), backfill_temporal, states, surface_states
+                )
 
         # 4. Process/write in bounded batches to avoid giant statements.
         touched_all: set[int] = set()
@@ -266,8 +269,15 @@ class EloUpdater:
             )
             new_ids = all_involved - set(states.keys())
             if new_ids:
-                states.update(self._load_player_states(session, new_ids))
-                surface_states.update(self._load_surface_states(session, new_ids))
+                if backfill_temporal is not None:
+                    # After a backfill, PlayerEloState still holds current ELO;
+                    # recover the correct pre-backfill state from match history.
+                    self._recover_states_before(
+                        session, list(new_ids), backfill_temporal, states, surface_states
+                    )
+                else:
+                    states.update(self._load_player_states(session, new_ids))
+                    surface_states.update(self._load_surface_states(session, new_ids))
 
             def _batch_progress(done_in_batch: int, total_in_batch: int) -> None:
                 if progress_callback is None:
@@ -819,6 +829,40 @@ class EloUpdater:
         if not affected_ids:
             return
 
+        # Delete stale PlayerSurfaceEloState rows before recovering surface states.
+        session.execute(
+            delete(PlayerSurfaceEloState)
+            .where(PlayerSurfaceEloState.player_id.in_(affected_ids))
+            .execution_options(synchronize_session=False)
+        )
+
+        # Recover overall and surface ELO states from match history.
+        self._recover_states_before(
+            session, affected_ids, backfill_temporal, states, surface_states
+        )
+
+    def _recover_states_before(
+        self,
+        session: Session,
+        player_ids: list[int],
+        backfill_temporal: int,
+        states: dict[int, _PlayerState],
+        surface_states: dict[tuple[int, str], _SurfaceState],
+    ) -> None:
+        """
+        Populate states/surface_states with each player's ELO as of just before
+        backfill_temporal, recovered from stored elo_post values on match rows.
+
+        Used when players are first encountered after a backfill has already been
+        handled, so PlayerEloState (which still holds current ELO) cannot be
+        trusted as a starting point.  Read-only: does not modify the database.
+
+        For players with no processed matches before backfill_temporal, falls back
+        to a default _PlayerState (rating=1500).
+        """
+        if not player_ids:
+            return
+
         # Recover each player's last ELO before the backfill point.
         # DISTINCT ON (player_id) with ORDER BY temporal_order DESC gives us
         # the most recent prior match per player in one round trip.
@@ -897,19 +941,19 @@ class EloUpdater:
 
         recovery_rows = session.execute(
             recovery_sql,
-            {"player_ids": affected_ids, "backfill_temporal": backfill_temporal},
+            {"player_ids": player_ids, "backfill_temporal": backfill_temporal},
         ).all()
         count_rows = session.execute(
             count_sql,
             {
-                "player_ids": affected_ids,
+                "player_ids": player_ids,
                 "backfill_temporal": backfill_temporal,
                 "terminal_statuses": list(TERMINAL_STATUSES),
             },
         ).all()
         peak_rows = session.execute(
             peak_sql,
-            {"player_ids": affected_ids, "backfill_temporal": backfill_temporal},
+            {"player_ids": player_ids, "backfill_temporal": backfill_temporal},
         ).all()
 
         count_by_player = {row.player_id: int(row.match_count) for row in count_rows}
@@ -929,23 +973,16 @@ class EloUpdater:
             )
             recovered_pids.add(pid)
 
-        # Players with no prior matches before the backfill point start from scratch
-        for pid in affected_ids:
+        # Players with no prior matches before the backfill point start from scratch.
+        for pid in player_ids:
             if pid not in recovered_pids:
                 states[pid] = _PlayerState(player_id=pid)
 
-        # Surface state rollback for affected players.
-        # We rebuild each (player, surface) anchor from the latest snapshot prior
-        # to the backfill point and drop stale rows that were computed after it.
+        # Surface state rollback: clear any existing in-memory entries for these
+        # players, then repopulate from the latest snapshot before backfill_temporal.
         for key in list(surface_states.keys()):
-            if key[0] in affected_ids:
+            if key[0] in set(player_ids):
                 del surface_states[key]
-
-        session.execute(
-            delete(PlayerSurfaceEloState)
-            .where(PlayerSurfaceEloState.player_id.in_(affected_ids))
-            .execution_options(synchronize_session=False)
-        )
 
         surface_recovery_sql = text("""
             SELECT DISTINCT ON (player_id, surface)
@@ -977,15 +1014,15 @@ class EloUpdater:
 
         surface_recovery_rows = session.execute(
             surface_recovery_sql,
-            {"player_ids": affected_ids, "backfill_temporal": backfill_temporal},
+            {"player_ids": player_ids, "backfill_temporal": backfill_temporal},
         ).all()
         surface_count_rows = session.execute(
             surface_count_sql,
-            {"player_ids": affected_ids, "backfill_temporal": backfill_temporal},
+            {"player_ids": player_ids, "backfill_temporal": backfill_temporal},
         ).all()
         surface_peak_rows = session.execute(
             surface_peak_sql,
-            {"player_ids": affected_ids, "backfill_temporal": backfill_temporal},
+            {"player_ids": player_ids, "backfill_temporal": backfill_temporal},
         ).all()
 
         count_by_player_surface = {
