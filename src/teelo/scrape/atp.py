@@ -19,7 +19,8 @@ URLs:
 import asyncio
 import re
 from datetime import datetime, timedelta
-from typing import AsyncGenerator, Optional
+from time import perf_counter
+from typing import Any, AsyncGenerator, Optional
 
 from bs4 import BeautifulSoup
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeout
@@ -131,12 +132,13 @@ class ATPScraper(BaseScraper):
                 url += "&tournamentType=ch"
 
             await self.navigate(page, url, wait_for="domcontentloaded")
-            # Wait for JS to render the tournament list
+            # Wait for JS to render the tournament list.
+            # wait_for_selector already guarantees the element is present, so
+            # no random_delay() is needed after it.
             try:
                 await page.wait_for_selector(".tournament-list, .results-archive-table", timeout=4000)
             except PlaywrightTimeout:
                 pass
-            await self.random_delay()
 
             # Get page content
             html = await page.content()
@@ -424,8 +426,16 @@ class ATPScraper(BaseScraper):
         if tour_type == "challenger":
             url += "&tournamentType=ch"
 
+        _t = perf_counter()
         await self.navigate(page, url, wait_for="domcontentloaded")
-        await self.random_delay()
+        print(f"  [nav] archive lookup → {perf_counter() - _t:.2f}s")
+        # No random_delay() — domcontentloaded is sufficient for reading archive links
+        try:
+            _t = perf_counter()
+            await page.wait_for_selector(".tournament-list, .results-archive-table", timeout=4000)
+            print(f"  [wait] archive selector → {perf_counter() - _t:.2f}s")
+        except PlaywrightTimeout:
+            pass
 
         html = await page.content()
         soup = BeautifulSoup(html, "lxml")
@@ -501,15 +511,19 @@ class ATPScraper(BaseScraper):
             results_url = f"{self.BASE_URL}/en/scores/archive/{tournament_id}/{tournament_number}/{year}/results"
             print(f"Scraping: {results_url}")
 
+            _t = perf_counter()
             await self.navigate(page, results_url, wait_for="domcontentloaded")
+            print(f"  [nav] results page → {perf_counter() - _t:.2f}s")
 
-            # Wait for match elements to load (ATP uses JavaScript rendering)
+            # Wait for match elements to load (ATP uses JavaScript rendering).
+            # Once wait_for_selector confirms .match is present, content is ready —
+            # no random_delay() needed (that was a redundant sleep after confirmation).
             try:
+                _t = perf_counter()
                 await page.wait_for_selector(".match", timeout=4000)
+                print(f"  [wait] .match selector → {perf_counter() - _t:.2f}s")
             except Exception:
                 print(f"Warning: No .match elements found on page for {tournament_id}")
-
-            await self.random_delay()
 
             html = await page.content()
 
@@ -573,15 +587,19 @@ class ATPScraper(BaseScraper):
             )
             print(f"Scraping draw: {draws_url}")
 
+            _t = perf_counter()
             await self.navigate(page, draws_url, wait_for="domcontentloaded")
+            print(f"  [nav] draw page → {perf_counter() - _t:.2f}s")
 
-            # Wait for draw-item elements (draws page uses .draw-item, not .match)
+            # Wait for draw-item elements (draws page uses .draw-item, not .match).
+            # wait_for_selector confirms the draw is rendered — no random_delay() needed.
             try:
+                _t = perf_counter()
                 await page.wait_for_selector(".draw-item", timeout=4000)
+                print(f"  [wait] .draw-item selector → {perf_counter() - _t:.2f}s")
             except Exception:
                 print(f"Warning: No .draw-item elements found on draws page for {tournament_id}")
 
-            await self.random_delay()
             html = await page.content()
 
             # Parse draw entries from the HTML
@@ -886,6 +904,45 @@ class ATPScraper(BaseScraper):
         result = " ".join(sets)
         return result if result.strip() else None
 
+    def seed_tournament_info_cache(
+        self,
+        params: Any,
+        tour_type: str = "main",
+    ) -> None:
+        """
+        Pre-populate the tournament info cache from TaskParams.
+
+        This avoids the ATP overview page navigation entirely when the caller
+        already has all the metadata from the tournament-list scrape (get_tournament_list
+        returns name, level, surface, location, dates). Called by pipeline.py before
+        draw/results scraping to skip the extra page load.
+
+        Args:
+            params: TaskParams with tournament metadata fields
+            tour_type: "main" or "challenger"
+        """
+        cache_key = (
+            params.tournament_id,
+            params.year,
+            tour_type,
+            params.tournament_number,
+        )
+        if cache_key in self._tournament_info_cache:
+            return  # Already cached — don't overwrite
+
+        info = {
+            "id": params.tournament_id,
+            "name": params.tournament_name or params.tournament_id.replace("-", " ").title(),
+            "year": params.year,
+            "level": params.tournament_level or self._detect_level_from_id(params.tournament_id, tour_type),
+            "surface": params.tournament_surface or "Hard",
+            "location": params.tournament_location or "",
+            "country_ioc": None,
+            "start_date": params.start_date,
+            "end_date": params.end_date,
+        }
+        self._tournament_info_cache[cache_key] = info
+
     async def _get_tournament_info(
         self,
         page: Page,
@@ -938,7 +995,9 @@ class ATPScraper(BaseScraper):
             url = f"{self.BASE_URL}/en/tournaments/{tournament_id}/overview"
 
         try:
+            _t = perf_counter()
             await self.navigate(page, url, wait_for="domcontentloaded")
+            print(f"  [nav] tournament overview → {perf_counter() - _t:.2f}s")
             await self.random_delay()
 
             html = await page.content()
@@ -1414,7 +1473,9 @@ class ATPScraper(BaseScraper):
             # Navigate to tournament schedule/order of play
             # URL: /en/scores/current/{slug}/{number}/daily-schedule
             url = f"{self.BASE_URL}/en/scores/current/{tournament_id}/{tournament_number}/daily-schedule"
+            _t = perf_counter()
             await self.navigate(page, url, wait_for="domcontentloaded")
+            print(f"  [nav] schedule page → {perf_counter() - _t:.2f}s")
             await self.random_delay()
 
             html = await page.content()

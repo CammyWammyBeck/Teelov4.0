@@ -29,6 +29,7 @@ URLs:
 import asyncio
 import re
 from datetime import datetime, timedelta
+from time import perf_counter
 from typing import AsyncGenerator, Optional
 
 from bs4 import BeautifulSoup
@@ -126,14 +127,18 @@ class ITFScraper(BaseScraper):
             draws_url = tournament_url.rstrip("/") + "/draws-and-results/"
             print(f"Scraping ITF tournament: {draws_url}")
 
+            _t = perf_counter()
             await self.navigate(page, draws_url, wait_for="domcontentloaded")
+            print(f"  [nav] results page → {perf_counter() - _t:.2f}s")
             try:
+                _t = perf_counter()
                 await page.wait_for_selector(
                     ".drawsheet-round-container, .drawsheet-widget",
                     timeout=4000,
                 )
+                print(f"  [wait] drawsheet selector → {perf_counter() - _t:.2f}s")
             except PlaywrightTimeout:
-                pass
+                print(f"  [wait] drawsheet selector → TIMEOUT")
             await self._accept_cookies(page)
 
             all_matches = []
@@ -177,11 +182,32 @@ class ITFScraper(BaseScraper):
                             "button.btn--chevron-next", timeout=4000
                         )
                         if next_btn and await next_btn.is_visible():
+                            # Snapshot current round titles before clicking
+                            current_titles = await page.evaluate(
+                                "() => Array.from("
+                                "document.querySelectorAll('.drawsheet-round-container__round-title')"
+                                ").map(el => el.textContent.trim())"
+                            )
+                            _t = perf_counter()
                             await next_btn.click()
+                            # Wait for DOM to update (title change = new column rendered)
+                            # rather than waiting for networkidle (all network requests to settle).
                             try:
-                                await page.wait_for_load_state("networkidle", timeout=4000)
+                                await page.wait_for_function(
+                                    "(prevTitles) => {"
+                                    "  const newTitles = Array.from("
+                                    "    document.querySelectorAll('.drawsheet-round-container__round-title')"
+                                    "  ).map(el => el.textContent.trim());"
+                                    "  return newTitles.some((t, i) => t !== prevTitles[i]);"
+                                    "}",
+                                    arg=current_titles,
+                                    timeout=4000,
+                                )
+                                await asyncio.sleep(0.1)
+                                print(f"  [carousel click {view_idx+1}] DOM change → {perf_counter() - _t:.2f}s")
                             except PlaywrightTimeout:
-                                pass
+                                await asyncio.sleep(0.3)
+                                print(f"  [carousel click {view_idx+1}] TIMEOUT → {perf_counter() - _t:.2f}s")
                         else:
                             break
                     except PlaywrightTimeout:
@@ -396,18 +422,22 @@ class ITFScraper(BaseScraper):
             draws_url = tournament_url.rstrip("/") + "/draws-and-results/"
             print(f"Scraping ITF draw: {draws_url}")
 
+            _t = perf_counter()
             await self.navigate(page, draws_url, wait_for="domcontentloaded")
+            print(f"  [nav] draw page → {perf_counter() - _t:.2f}s")
             try:
+                _t = perf_counter()
                 await page.wait_for_selector(
                     ".drawsheet-round-container, .drawsheet-widget",
                     timeout=4000,
                 )
+                print(f"  [wait] drawsheet selector → {perf_counter() - _t:.2f}s")
             except PlaywrightTimeout:
-                pass
+                print(f"  [wait] drawsheet selector → TIMEOUT")
             await self._accept_cookies(page)
 
             seen_rounds = set()
-            
+
             # Carousel iteration (similar to results scraping)
             for view_idx in range(3):
                 html = await page.content()
@@ -445,11 +475,33 @@ class ITFScraper(BaseScraper):
                             "button.btn--chevron-next", timeout=4000
                         )
                         if next_btn and await next_btn.is_visible():
+                            # Snapshot current round titles before clicking
+                            current_titles = await page.evaluate(
+                                "() => Array.from("
+                                "document.querySelectorAll('.drawsheet-round-container__round-title')"
+                                ").map(el => el.textContent.trim())"
+                            )
+                            _t = perf_counter()
                             await next_btn.click()
+                            # Wait for DOM to update (title change = new column rendered)
+                            # rather than waiting for networkidle (all network requests to settle).
                             try:
-                                await page.wait_for_load_state("networkidle", timeout=4000)
+                                await page.wait_for_function(
+                                    "(prevTitles) => {"
+                                    "  const newTitles = Array.from("
+                                    "    document.querySelectorAll('.drawsheet-round-container__round-title')"
+                                    "  ).map(el => el.textContent.trim());"
+                                    "  return newTitles.some((t, i) => t !== prevTitles[i]);"
+                                    "}",
+                                    arg=current_titles,
+                                    timeout=4000,
+                                )
+                                # 100ms buffer: title changed but new column may still be rendering
+                                await asyncio.sleep(0.1)
+                                print(f"  [carousel click {view_idx+1}] DOM change → {perf_counter() - _t:.2f}s")
                             except PlaywrightTimeout:
-                                pass
+                                await asyncio.sleep(0.3)
+                                print(f"  [carousel click {view_idx+1}] TIMEOUT → {perf_counter() - _t:.2f}s")
                         else:
                             break
                     except PlaywrightTimeout:
@@ -486,10 +538,15 @@ class ITFScraper(BaseScraper):
         
         try:
             print(f"Scraping ITF schedule: {oop_url}")
+            _t = perf_counter()
             await self.navigate(page, oop_url, wait_for="domcontentloaded")
+            print(f"  [nav] schedule page → {perf_counter() - _t:.2f}s")
             try:
+                _t = perf_counter()
                 await page.wait_for_selector(".orderop-widget-container", timeout=4000)
+                print(f"  [wait] schedule selector → {perf_counter() - _t:.2f}s")
             except PlaywrightTimeout:
+                print(f"  [wait] schedule selector → TIMEOUT (no matches scheduled)")
                 pass
             await self._accept_cookies(page)
 
