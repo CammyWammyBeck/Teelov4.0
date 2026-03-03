@@ -102,6 +102,9 @@ class PlayerIdentityService:
         self._alias_cache: dict[str, Optional[int]] = {}
         self._fuzzy_cache: dict[tuple[str, int], list[PlayerMatch]] = {}
         self._gender_cache: dict[int, Optional[str]] = {}
+        # Set of (alias, source) pairs we know already exist in player_aliases.
+        # Used by _ensure_alias to skip a DB round-trip per player.
+        self._alias_source_cache: set[tuple[str, str]] = set()
 
     def _normalized_source_key(self, source: str) -> str:
         s = (source or "").strip().lower()
@@ -187,6 +190,13 @@ class PlayerIdentityService:
 
         # Strategy 1: Try exact external ID match
         if external_id:
+            normalized_source = self._normalized_source_key(source)
+            cached_id = self._external_cache.get((normalized_source, external_id))
+            if cached_id is not None:
+                # Fast path: ID was pre-loaded by warm_cache_bulk — no DB round-trip.
+                self._ensure_alias(cached_id, normalized_name, source)
+                return cached_id, "matched"
+
             player = self._find_by_external_id(source, external_id)
             if player:
                 # Found by ID - ensure this name variation is stored as alias
@@ -697,6 +707,84 @@ class PlayerIdentityService:
         self.db.commit()
 
     # =========================================================================
+    # =========================================================================
+    # Bulk Cache Warming
+    # =========================================================================
+
+    def warm_cache_bulk(
+        self,
+        players: list[tuple[str, Optional[str], str]],
+    ) -> None:
+        """
+        Pre-populate caches using two batch queries instead of N per-player queries.
+
+        Before ingesting a tournament, call this with all (name, external_id, source)
+        tuples from the scraped data. The method runs:
+          1. One SELECT on players filtered by all known external IDs → fills _external_cache
+          2. One SELECT on player_aliases filtered by all normalized names → fills
+             _alias_cache and _alias_source_cache
+
+        After this call, find_or_queue_player() and _ensure_alias() serve all
+        already-known players from cache with zero additional DB round-trips.
+
+        Args:
+            players: List of (name, external_id, source) tuples to warm.
+        """
+        from teelo.players.aliases import normalize_name as _norm
+
+        atp_ids: list[str] = []
+        wta_ids: list[str] = []
+        itf_ids: list[str] = []
+        normalized_names: list[str] = []
+
+        for name, external_id, source in players:
+            if name:
+                normalized_names.append(_norm(name))
+            if not external_id:
+                continue
+            s = self._normalized_source_key(source)
+            if s == "atp":
+                atp_ids.append(external_id)
+            elif s == "wta":
+                wta_ids.append(external_id)
+            elif s == "itf":
+                itf_ids.append(external_id)
+
+        # --- Batch 1: load all matching players by external ID in one query ---
+        filters = []
+        if atp_ids:
+            filters.append(Player.atp_id.in_(atp_ids))
+        if wta_ids:
+            filters.append(Player.wta_id.in_(wta_ids))
+        if itf_ids:
+            filters.append(Player.itf_id.in_(itf_ids))
+
+        if filters:
+            found_players = self.db.query(Player).filter(or_(*filters)).all()
+            for p in found_players:
+                if p.atp_id:
+                    self._external_cache[("atp", p.atp_id)] = p.id
+                if p.wta_id:
+                    self._external_cache[("wta", p.wta_id)] = p.id
+                if p.itf_id:
+                    self._external_cache[("itf", p.itf_id)] = p.id
+
+        # --- Batch 2: load all matching aliases by name in one query ---
+        unique_names = list(set(n for n in normalized_names if n))
+        if unique_names:
+            found_aliases = (
+                self.db.query(PlayerAlias)
+                .filter(PlayerAlias.alias.in_(unique_names))
+                .all()
+            )
+            for a in found_aliases:
+                # Only populate cache with the first match per alias (consistent
+                # with the single-lookup behaviour in _find_by_exact_alias).
+                if a.alias not in self._alias_cache:
+                    self._alias_cache[a.alias] = a.player_id
+                self._alias_source_cache.add((a.alias, a.source))
+
+    # =========================================================================
     # Private Helper Methods
     # =========================================================================
 
@@ -1031,7 +1119,12 @@ class PlayerIdentityService:
                     # because we can't add it again due to the unique constraint.
                     return
 
-        # 2. Check committed data in database
+        # 2. Check in-memory cache of known (alias, source) pairs loaded by
+        # warm_cache_bulk — avoids a DB round-trip when the alias already exists.
+        if (normalized_name, source) in self._alias_source_cache:
+            return
+
+        # 3. Check committed data in database
         # Again, check if ANY player has this alias/source pair
         existing = self.db.query(PlayerAlias).filter(
             PlayerAlias.alias == normalized_name,
@@ -1046,6 +1139,8 @@ class PlayerIdentityService:
             )
             self.db.add(alias)
             self._alias_cache[normalized_name] = player_id
+            # Track in cache so subsequent calls within same batch skip the DB hit.
+            self._alias_source_cache.add((normalized_name, source))
             # Alias changes can affect fuzzy results for this exact normalized name.
             self._fuzzy_cache.pop((normalized_name, 1), None)
             self._fuzzy_cache.pop((normalized_name, 3), None)

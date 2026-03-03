@@ -476,6 +476,11 @@ def _preload_player_resolutions(
             seen_keys.add(key_b)
             unique_players.append(key_b)
 
+    # Warm the identity service caches with two batch queries before the
+    # per-player resolve loop — same optimisation as draw_ingestion.
+    warm_players = [(name, ext_id, source) for name, source, ext_id, nationality in unique_players]
+    identity_service.warm_cache_bulk(warm_players)
+
     for name, source, external_id, nationality in unique_players:
         _resolve_player(
             session=identity_service.db,

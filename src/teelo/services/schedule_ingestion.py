@@ -121,6 +121,15 @@ def ingest_schedule(
     """
     stats = ScheduleIngestionStats(total_fixtures=len(fixtures))
 
+    # Preload all matches for this edition so we can look them up by
+    # external_id without a DB round-trip per fixture.
+    all_edition_matches = session.query(Match).filter(
+        Match.tournament_edition_id == edition.id
+    ).all()
+    matches_by_external_id: dict[str, Match] = {
+        m.external_id: m for m in all_edition_matches if m.external_id
+    }
+
     for fixture in fixtures:
         try:
             # If external IDs are missing, try to resolve from DB using names
@@ -149,10 +158,9 @@ def ingest_schedule(
                 stats.skipped_no_player_ids += 1
                 continue
 
-            # Find the existing match
-            match = session.query(Match).filter(
-                Match.external_id == external_id
-            ).first()
+            # Find the existing match — use preloaded dict to avoid a DB
+            # round-trip per fixture (N queries → 1 query up front).
+            match = matches_by_external_id.get(external_id)
 
             if not match:
                 # Try finding by tournament + round + players (fallback)

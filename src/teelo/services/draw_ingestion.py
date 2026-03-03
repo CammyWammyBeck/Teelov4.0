@@ -367,6 +367,13 @@ def _build_ingestion_context(
                 seen_player_keys.add(key_b)
                 unique_players.append(key_b)
 
+    # Warm the identity service caches with two batch queries before the
+    # per-player resolve loop.  Without this, each find_or_queue_player call
+    # issues a DB round-trip for the external-ID lookup + another for
+    # _ensure_alias — multiplied by ~200 ms Heroku latency that adds up fast.
+    warm_players = [(name, ext_id, source) for name, source, ext_id in unique_players]
+    identity_service.warm_cache_bulk(warm_players)
+
     for name, source, external_id in unique_players:
         _resolve_player(
             session=session,
