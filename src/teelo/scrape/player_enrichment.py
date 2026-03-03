@@ -85,21 +85,69 @@ class PlayerEnrichmentScraper(BaseScraper):
 
         page = await self.new_page()
         try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            await asyncio.sleep(8)
-
-            html = await page.content()
-
-            # Handle Cloudflare challenge
-            if len(html) < 5000 or "challenge-platform" in html:
-                logger.info(f"Cloudflare challenge for {atp_id}, waiting 15s...")
-                await asyncio.sleep(15)
+            html = ""
+            for attempt in range(1, 4):
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                try:
+                    await page.wait_for_selector("div.personal_details", timeout=15000)
+                except Exception:
+                    pass  # will be caught by content check below
                 html = await page.content()
+
+                if len(html) >= 5000 and "personal_details" in html:
+                    break
+
+                # Cloudflare blocked (page too short or missing content)
+                if attempt < 3:
+                    wait_secs = 15 * attempt
+                    logger.info(
+                        f"Cloudflare challenge for {atp_id} (attempt {attempt}), "
+                        f"waiting {wait_secs}s..."
+                    )
+                    await asyncio.sleep(wait_secs)
+                else:
+                    # Final attempt: reset browser context then fetch
+                    logger.info(
+                        f"Cloudflare challenge for {atp_id} persists after 2 attempts, "
+                        "resetting browser context..."
+                    )
+                    await self._reset_browser_context()
+                    await page.close()
+                    page = await self.new_page()
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    try:
+                        await page.wait_for_selector("div.personal_details", timeout=15000)
+                    except Exception:
+                        pass  # will be caught by content check below
+                    html = await page.content()
+
+            if len(html) < 5000 or "personal_details" not in html:
+                logger.warning(
+                    f"Cloudflare block persists for {atp_id} after all retries; "
+                    "returning empty profile"
+                )
+                return PlayerProfile()
 
             return self._parse_atp_profile(html)
 
         finally:
             await page.close()
+
+    async def _reset_browser_context(self) -> None:
+        """Close and recreate the browser context to escape a Cloudflare block."""
+        if self._context:
+            await self._context.close()
+        self._context = await self._browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1920, "height": 1080},
+            locale="en-US",
+        )
+        self._context.set_default_timeout(self.timeout)
+        logger.info("Reset browser context to escape Cloudflare block")
 
     async def scrape_wta_profile(self, wta_id: str, slug: str = "player") -> PlayerProfile:
         """
