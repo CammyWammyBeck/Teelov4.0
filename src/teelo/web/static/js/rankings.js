@@ -36,6 +36,7 @@
 
     // Whether to include inactive players (no match in last 6 months)
     var includeInactive = false;
+    var selectedSurface = 'overall';
 
     // =========================================================================
     // DOM references
@@ -65,6 +66,7 @@
             emptyState: document.getElementById('rankings-empty'),
             tabs: document.querySelectorAll('.rankings-tab'),
             inactiveToggle: document.getElementById('include-inactive-toggle'),
+            surfaceButtons: document.querySelectorAll('.rankings-surface-btn'),
         };
     }
 
@@ -87,6 +89,7 @@
             var url = '/api/rankings?gender=' + gender
                     + '&page=' + st.page
                     + '&per_page=50'
+                    + '&surface=' + encodeURIComponent(selectedSurface)
                     + (includeInactive ? '&include_inactive=true' : '');
             var resp = await fetch(url);
             if (!resp.ok) throw new Error('API returned ' + resp.status);
@@ -105,7 +108,7 @@
                 return '<tr class="border-b border-gray-50 hover:bg-[#CCFF00]/10 transition-colors duration-75">'
                     + '<td class="px-3 py-2.5 text-sm text-gray-400 font-bold tabular-nums text-right">' + p.rank + '</td>'
                     + '<td class="px-3 py-2.5">'
-                    + '<span class="text-sm font-medium text-teelo-dark">' + esc(p.name) + '</span>'
+                    + '<a href="/players/' + p.id + '" class="text-sm font-medium text-teelo-dark hover:underline decoration-teelo-lime decoration-2">' + esc(p.name) + '</a>'
                     + (p.nationality ? '<span class="text-xs text-gray-400 ml-1 font-mono">' + esc(p.nationality) + '</span>' : '')
                     + '</td>'
                     + '<td class="px-3 py-2.5 text-right font-bold text-sm tabular-nums text-teelo-dark">' + p.rating + '</td>'
@@ -266,6 +269,21 @@
         });
     }
 
+    function setupSurfaceFilters() {
+        els.surfaceButtons.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var nextSurface = (btn.dataset.surface || 'overall').toLowerCase();
+                if (nextSurface === selectedSurface) return;
+                selectedSurface = nextSurface;
+                els.surfaceButtons.forEach(function (other) {
+                    other.classList.remove('active');
+                });
+                btn.classList.add('active');
+                resetAndReload();
+            });
+        });
+    }
+
     // =========================================================================
     // Initialization
     // =========================================================================
@@ -273,6 +291,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         cacheDom();
         setupTabs();
+        setupSurfaceFilters();
         setupInfiniteScroll();
 
         // Inactive players toggle
