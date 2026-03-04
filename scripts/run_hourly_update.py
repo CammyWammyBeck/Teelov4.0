@@ -142,8 +142,6 @@ def _run_script_stage(script_path: str):
             script_path,
             "--metrics-json",
             str(metrics_json),
-            "--status-jsonl",
-            str(status_jsonl),
         ]
         print(f"[Stage {ctx.stage_name}] Running: {' '.join(cmd)}")
         started_perf = perf_counter()
