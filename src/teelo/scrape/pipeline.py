@@ -6,10 +6,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any, Callable, Mapping, Optional
+
+from sqlalchemy import and_, or_
 
 from teelo.db import Match, PipelineCheckpoint, Tournament, TournamentEdition
 from teelo.db.models import estimate_match_date_from_round
@@ -25,6 +28,8 @@ from teelo.services.draw_ingestion import ingest_draw
 from teelo.services.results_ingestion import ResultsIngestionStats, _determine_winner_id, cancel_stale_pending_matches, ingest_results
 from teelo.services.schedule_ingestion import ingest_schedule
 from teelo.utils.geo import city_to_country, country_to_ioc
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -1021,7 +1026,42 @@ async def process_scraped_match(
     if existing_matches_by_external_id is not None and scraped_match.external_id:
         existing = existing_matches_by_external_id.get(scraped_match.external_id)
 
-    if existing and not overwrite:
+    terminal_statuses = {"completed", "retired", "walkover", "default"}
+    should_reconcile_cross_id = (
+        existing is None
+        and bool(scraped_match.round)
+        and scraped_match.status in terminal_statuses
+    )
+    reconciled_from_pending_pair = False
+    if should_reconcile_cross_id:
+        existing = (
+            session.query(Match)
+            .filter(
+                Match.tournament_edition_id == edition.id,
+                Match.round == scraped_match.round,
+                Match.status.in_(("upcoming", "scheduled")),
+                or_(
+                    and_(Match.player_a_id == player_a_id, Match.player_b_id == player_b_id),
+                    and_(Match.player_a_id == player_b_id, Match.player_b_id == player_a_id),
+                ),
+            )
+            .first()
+        )
+        reconciled_from_pending_pair = existing is not None
+        if reconciled_from_pending_pair:
+            logger.warning(
+                "Cross-id match reconciliation in edition=%s: matched pending placeholder id=%s by pair+round "
+                "(round=%s, players=%s/%s, old_external_id=%s, new_external_id=%s)",
+                edition.id,
+                existing.id,
+                scraped_match.round,
+                player_a_id,
+                player_b_id,
+                existing.external_id,
+                scraped_match.external_id,
+            )
+
+    if existing and not overwrite and not reconciled_from_pending_pair:
         return existing, False
 
     # Parse score
@@ -1050,7 +1090,7 @@ async def process_scraped_match(
         if match_date is not None:
             match_date_estimated = True
 
-    if existing and overwrite:
+    if existing and (overwrite or reconciled_from_pending_pair):
         # Update the existing match with fresh scraped data
         existing.source = scraped_match.source
         existing.tournament_edition_id = edition.id
@@ -1071,6 +1111,20 @@ async def process_scraped_match(
             tournament_start=edition.start_date,
             tournament_end=edition.end_date,
         )
+
+        if (
+            reconciled_from_pending_pair
+            and scraped_match.external_id
+            and existing.external_id
+            and existing.external_id.startswith("draw_")
+        ):
+            old_external_id = existing.external_id
+            existing.external_id = scraped_match.external_id
+            if existing_matches_by_external_id is not None:
+                existing_matches_by_external_id.pop(old_external_id, None)
+                existing_matches_by_external_id[scraped_match.external_id] = existing
+            if known_external_ids is not None:
+                known_external_ids.add(scraped_match.external_id)
 
         return existing, False
 

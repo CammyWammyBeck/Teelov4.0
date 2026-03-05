@@ -754,7 +754,8 @@ def _make_pair_match_key_from_values(
 def cancel_stale_pending_matches(session: Session, edition: TournamentEdition) -> int:
     """
     Cancel pending (upcoming/scheduled) matches that could not have been played
-    because a match 2+ rounds ahead of them has already completed.
+    because a match 2+ rounds ahead of them has already completed, or because
+    an exact same-round player-pair match is already completed.
 
     Example: if an R32 match is pending but a QF result exists, the R32 player
     could not have advanced, so the R32 match is stale and should be cancelled.
@@ -784,11 +785,14 @@ def cancel_stale_pending_matches(session: Session, edition: TournamentEdition) -
     # This tells us how far into the tournament results actually reached.
     RESULT_STATUSES = {"completed", "retired", "walkover", "default"}
     max_completed_index: int = -1
+    completed_same_round_pairs: set[tuple[str, int, int]] = set()
     for m in all_matches:
         if m.status in RESULT_STATUSES and m.round in round_index:
             idx = round_index[m.round]
             if idx > max_completed_index:
                 max_completed_index = idx
+            a_id, b_id = sorted([m.player_a_id, m.player_b_id])
+            completed_same_round_pairs.add((m.round, a_id, b_id))
 
     if max_completed_index < 0:
         # No completed matches yet — nothing to cancel.
@@ -802,6 +806,21 @@ def cancel_stale_pending_matches(session: Session, edition: TournamentEdition) -
             continue
         if match.round not in round_index:
             continue
+        pending_a_id, pending_b_id = sorted([match.player_a_id, match.player_b_id])
+        pending_pair_key = (match.round, pending_a_id, pending_b_id)
+        if pending_pair_key in completed_same_round_pairs:
+            match.status = "cancelled"
+            cancelled += 1
+            logger.info(
+                "Cancelled stale pending match id=%s (player_a=%s vs player_b=%s, round=%s) "
+                "reason=duplicate_pair_completed_same_round",
+                match.id,
+                match.player_a_id,
+                match.player_b_id,
+                match.round,
+            )
+            continue
+
         pending_index = round_index[match.round]
         if pending_index <= max_completed_index - 2:
             match.status = "cancelled"
