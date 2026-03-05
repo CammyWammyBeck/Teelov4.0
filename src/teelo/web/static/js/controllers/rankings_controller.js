@@ -1,6 +1,5 @@
 import { byId, queryAll } from '../lib/dom.js';
 import { getJson } from '../lib/http.js';
-import { escapeHtml } from '../lib/format.js';
 
 function createState() { return { page: 0, loading: false, hasMore: true }; }
 
@@ -24,8 +23,8 @@ export function initRankingsPage() {
       const data = await getJson(`/api/rankings?gender=${gender}&page=${st.page}&per_page=50&surface=${encodeURIComponent(state.surface)}${state.includeInactive ? '&include_inactive=true' : ''}`);
       st.hasMore = !!data.has_more;
       (gender === 'men' ? els.menBody : els.womenBody).insertAdjacentHTML('beforeend', data.table_rows_html || '');
-      const mobileHtml = (data.players || []).map((p) => `<tr><td>${p.rank}</td><td><a href="/players/${p.id}">${escapeHtml(p.name)}</a></td><td>${p.rating}</td></tr>`).join('');
-      (gender === 'men' ? els.mobileMenBody : els.mobileWomenBody).insertAdjacentHTML('beforeend', mobileHtml);
+      (gender === 'men' ? els.mobileMenBody : els.mobileWomenBody).insertAdjacentHTML('beforeend', data.table_rows_html || '');
+      window.lucide?.createIcons?.();
     } catch (e) { console.error(e); st.hasMore = false; }
     st.loading = false;
   }

@@ -19,6 +19,11 @@ export function toggleHidden(el, hidden) {
   el.classList.toggle('hidden', !!hidden);
 }
 
+export function setSectionLoading(spinnerId, contentIds, isLoading) {
+  toggleHidden(byId(spinnerId), !isLoading);
+  contentIds.forEach((id) => toggleHidden(byId(id), isLoading));
+}
+
 export function clearDomCache() {
   cache.clear();
 }

@@ -1,6 +1,7 @@
-import { byId, queryAll, toggleHidden } from '../lib/dom.js';
+import { byId, queryAll, setSectionLoading, toggleHidden } from '../lib/dom.js';
 import { getJson } from '../lib/http.js';
 import { escapeHtml, formatShortDate } from '../lib/format.js';
+import { buildFallbackCards, buildFallbackTableRows } from '../renderers/matches.js';
 
 export function initPlayerDetailPage() {
   const root = byId('player-page-root');
@@ -22,11 +23,6 @@ export function initPlayerDetailPage() {
   function setText(id, value) {
     const el = byId(id);
     if (el) el.textContent = value == null || value === '' ? '—' : String(value);
-  }
-
-  function setSectionLoading(spinnerId, contentIds, isLoading) {
-    toggleHidden(byId(spinnerId), !isLoading);
-    contentIds.forEach((id) => toggleHidden(byId(id), isLoading));
   }
 
   function renderRecord(id, block) {
@@ -71,40 +67,6 @@ export function initPlayerDetailPage() {
         `;
       })
       .join('');
-  }
-
-  function buildFallbackMatchHtml(matches) {
-    const tableHtml = matches
-      .map(
-        (m) => `
-          <tr class="hover:bg-gray-50/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime">
-            <td class="px-5 py-3">
-              <span class="text-sm font-semibold text-teelo-dark">${escapeHtml(m.tournament_name || 'Unknown')}</span>
-              <span class="text-xs text-gray-400 ml-2">${escapeHtml(m.round || '')}</span>
-            </td>
-            <td class="px-5 py-3 text-right"><span class="text-sm text-teelo-dark">${escapeHtml(m.player_a?.name || 'Unknown')}</span></td>
-            <td class="px-5 py-3 text-center"><span class="inline-block px-2.5 py-1 bg-gray-50 rounded-md text-xs font-mono text-teelo-dark">${escapeHtml(m.score || 'vs')}</span></td>
-            <td class="px-5 py-3"><span class="text-sm text-teelo-dark">${escapeHtml(m.player_b?.name || 'Unknown')}</span></td>
-            <td class="px-5 py-3 text-right"><span class="text-xs text-gray-400 whitespace-nowrap">${escapeHtml(m.match_date_display || '')}</span></td>
-          </tr>
-        `
-      )
-      .join('');
-
-    const cardHtml = matches
-      .map(
-        (m) => `
-          <div class="px-4 py-3 border-b border-gray-100 last:border-b-0">
-            <div class="text-[13px] font-semibold text-teelo-dark truncate">${escapeHtml(m.tournament_name || 'Unknown')}</div>
-            <div class="text-[11px] text-gray-400 mb-2">${escapeHtml(m.round || '')} · ${escapeHtml(m.match_date_display || '')}</div>
-            <div class="text-[13px] text-teelo-dark">${escapeHtml(m.player_a?.name || 'Unknown')}</div>
-            <div class="text-[13px] text-teelo-dark">${escapeHtml(m.player_b?.name || 'Unknown')}</div>
-          </div>
-        `
-      )
-      .join('');
-
-    return { tableHtml, cardHtml };
   }
 
   function renderHistoryChart(data) {
@@ -310,9 +272,8 @@ export function initPlayerDetailPage() {
     let tableHtml = data?.table_rows_html || '';
     let cardHtml = data?.cards_html || '';
     if (matches.length && (!tableHtml.trim() || !cardHtml.trim())) {
-      const fallback = buildFallbackMatchHtml(matches);
-      if (!tableHtml.trim()) tableHtml = fallback.tableHtml;
-      if (!cardHtml.trim()) cardHtml = fallback.cardHtml;
+      if (!tableHtml.trim()) tableHtml = buildFallbackTableRows(matches);
+      if (!cardHtml.trim()) cardHtml = buildFallbackCards(matches);
     }
 
     if (append) {
@@ -323,7 +284,7 @@ export function initPlayerDetailPage() {
       cardsContainer.innerHTML = cardHtml;
     }
 
-    if (typeof window.lucide !== 'undefined') window.lucide.createIcons();
+    window.lucide?.createIcons?.();
   }
 
   async function loadOverviewKpis() {
@@ -613,5 +574,5 @@ export function initPlayerDetailPage() {
   loadHistory();
   loadMatches(false);
   loadTournaments();
-  if (typeof window.lucide !== 'undefined') window.lucide.createIcons();
+  window.lucide?.createIcons?.();
 }
