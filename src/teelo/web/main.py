@@ -1682,6 +1682,7 @@ async def admin_home(
         .scalar()
         or 0
     )
+    invalid_match_count = db.query(func.count(Match.id)).filter(_invalid_match_filter()).scalar() or 0
     admin = _current_admin_user(request, db)
     return templates.TemplateResponse(
         "admin_home.html",
@@ -1689,6 +1690,7 @@ async def admin_home(
             "request": request,
             "admin": admin,
             "pending_count": pending_count,
+            "invalid_match_count": invalid_match_count,
             "now": datetime.utcnow(),
             "current_path": request.url.path,
         },
@@ -1746,6 +1748,223 @@ def _player_detail_map(db: Session, player_ids: set[int]) -> dict[int, dict]:
             ),
         }
     return details
+
+
+TERMINAL_MATCH_STATUSES = ("completed", "retired", "walkover", "default")
+
+
+def _invalid_match_conditions() -> dict[str, Any]:
+    return {
+        "same_players": Match.player_a_id == Match.player_b_id,
+        "winner_not_competitor": and_(
+            Match.winner_id.is_not(None),
+            Match.winner_id != Match.player_a_id,
+            Match.winner_id != Match.player_b_id,
+        ),
+        "terminal_without_winner": and_(
+            Match.status.in_(TERMINAL_MATCH_STATUSES),
+            Match.winner_id.is_(None),
+        ),
+        "winner_on_non_terminal": and_(
+            Match.status.notin_(TERMINAL_MATCH_STATUSES),
+            Match.winner_id.is_not(None),
+        ),
+    }
+
+
+def _invalid_match_filter() -> Any:
+    conditions = _invalid_match_conditions().values()
+    return or_(*conditions)
+
+
+def _invalid_match_reasons(match: Match) -> list[str]:
+    reasons: list[str] = []
+    if match.player_a_id == match.player_b_id:
+        reasons.append("player_a is the same as player_b")
+    if match.winner_id is not None and match.winner_id not in {match.player_a_id, match.player_b_id}:
+        reasons.append("winner is neither player_a nor player_b")
+    if match.status in TERMINAL_MATCH_STATUSES and match.winner_id is None:
+        reasons.append("terminal status with no winner")
+    if match.status not in TERMINAL_MATCH_STATUSES and match.winner_id is not None:
+        reasons.append("winner set on a non-terminal status")
+    return reasons
+
+
+def _invalid_matches_redirect(
+    message: str,
+    page: Optional[str],
+    per_page: Optional[str],
+) -> RedirectResponse:
+    query = f"notice={quote(message, safe='')}"
+    if page and page.isdigit():
+        query += f"&page={page}"
+    if per_page and per_page.isdigit():
+        query += f"&per_page={per_page}"
+    return RedirectResponse(url=f"/admin/invalid-matches?{query}", status_code=303)
+
+
+@app.get("/admin/invalid-matches", response_class=HTMLResponse)
+async def admin_invalid_matches(
+    request: Request,
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(25, ge=1, le=100),
+):
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    base_query = (
+        db.query(Match)
+        .outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+        .outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .options(
+            joinedload(Match.player_a),
+            joinedload(Match.player_b),
+            joinedload(Match.winner),
+            joinedload(Match.tournament_edition).joinedload(TournamentEdition.tournament),
+        )
+        .filter(_invalid_match_filter())
+    )
+
+    total = base_query.count()
+    matches = (
+        base_query
+        .order_by(Match.updated_at.desc().nullslast(), Match.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    match_rows = []
+    for match in matches:
+        match_rows.append(
+            {
+                "id": match.id,
+                "external_id": match.external_id,
+                "source": match.source,
+                "status": match.status,
+                "round": match.round,
+                "score": match.score,
+                "player_a_id": match.player_a_id,
+                "player_a_name": match.player_a.canonical_name if match.player_a else "Unknown",
+                "player_b_id": match.player_b_id,
+                "player_b_name": match.player_b.canonical_name if match.player_b else "Unknown",
+                "winner_id": match.winner_id,
+                "winner_name": match.winner.canonical_name if match.winner else None,
+                "tournament_name": (
+                    match.tournament_edition.tournament.name
+                    if match.tournament_edition and match.tournament_edition.tournament
+                    else None
+                ),
+                "match_date": match.match_date.strftime("%Y-%m-%d") if match.match_date else None,
+                "reasons": _invalid_match_reasons(match),
+            }
+        )
+
+    notice = request.query_params.get("notice")
+    admin = _current_admin_user(request, db)
+    return templates.TemplateResponse(
+        "admin_invalid_matches.html",
+        {
+            "request": request,
+            "admin": admin,
+            "match_rows": match_rows,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "has_more": (page * per_page) < total,
+            "notice": notice,
+            "now": datetime.utcnow(),
+            "current_path": request.url.path,
+        },
+    )
+
+
+@app.post("/admin/invalid-matches/{match_id}/update")
+async def admin_invalid_match_update(
+    request: Request,
+    match_id: int,
+    db: Session = Depends(get_db),
+):
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    form = await request.form()
+    page = str(form.get("page", "")).strip()
+    per_page = str(form.get("per_page", "")).strip()
+
+    player_a_raw = str(form.get("player_a_id", "")).strip()
+    player_b_raw = str(form.get("player_b_id", "")).strip()
+    winner_raw = str(form.get("winner_id", "")).strip()
+    status = str(form.get("status", "")).strip().lower()
+
+    if not player_a_raw.isdigit() or not player_b_raw.isdigit():
+        return _invalid_matches_redirect("Player IDs must be numeric.", page, per_page)
+
+    player_a_id = int(player_a_raw)
+    player_b_id = int(player_b_raw)
+
+    if player_a_id == player_b_id:
+        return _invalid_matches_redirect("Player A and Player B must be different.", page, per_page)
+
+    winner_id: Optional[int] = None
+    if winner_raw:
+        if not winner_raw.isdigit():
+            return _invalid_matches_redirect("Winner ID must be numeric.", page, per_page)
+        winner_id = int(winner_raw)
+        if winner_id not in {player_a_id, player_b_id}:
+            return _invalid_matches_redirect(
+                "Winner must match Player A or Player B.",
+                page,
+                per_page,
+            )
+
+    existing_players = {
+        pid
+        for (pid,) in db.query(Player.id)
+        .filter(Player.id.in_({player_a_id, player_b_id, winner_id} - {None}))
+        .all()
+    }
+    if player_a_id not in existing_players or player_b_id not in existing_players:
+        return _invalid_matches_redirect("Player A/B IDs must exist.", page, per_page)
+    if winner_id is not None and winner_id not in existing_players:
+        return _invalid_matches_redirect("Winner ID does not exist.", page, per_page)
+
+    match = db.query(Match).filter(Match.id == match_id).first()
+    if not match:
+        return _invalid_matches_redirect("Match not found.", page, per_page)
+
+    match.player_a_id = player_a_id
+    match.player_b_id = player_b_id
+    match.winner_id = winner_id
+    if status:
+        match.status = status
+    db.commit()
+    return _invalid_matches_redirect(f"Updated match #{match_id}.", page, per_page)
+
+
+@app.post("/admin/invalid-matches/{match_id}/delete")
+async def admin_invalid_match_delete(
+    request: Request,
+    match_id: int,
+    db: Session = Depends(get_db),
+):
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    form = await request.form()
+    page = str(form.get("page", "")).strip()
+    per_page = str(form.get("per_page", "")).strip()
+    match = db.query(Match).filter(Match.id == match_id).first()
+    if not match:
+        return _invalid_matches_redirect("Match not found.", page, per_page)
+
+    db.delete(match)
+    db.commit()
+    return _invalid_matches_redirect(f"Deleted match #{match_id}.", page, per_page)
 
 
 @app.get("/admin/duplicates", response_class=HTMLResponse)
