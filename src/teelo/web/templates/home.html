@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% import "partials/match_rows.html" as match_rows %}
 
 {% block content %}
 <div class="space-y-8">
@@ -32,14 +31,14 @@
     </div>
 
     <!-- Stat Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div id="home-stats-section" class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center gap-4 group hover:shadow-lg transition-all duration-300 cursor-pointer">
             <div class="bg-gray-50 p-3 rounded-xl group-hover:bg-teelo-lime group-hover:text-teelo-dark transition-colors duration-300">
                 <i data-lucide="database" class="w-6 h-6 text-gray-400 group-hover:text-teelo-dark"></i>
             </div>
             <div>
                 <p class="text-sm text-gray-500 font-medium">Matches In Database</p>
-                <h3 class="text-2xl font-bold text-teelo-dark">{{ "{:,}".format(stats.matches_total) }}</h3>
+                <h3 class="text-2xl font-bold text-teelo-dark"><span id="stat-matches">—</span></h3>
             </div>
         </div>
         <div class="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center gap-4 group hover:shadow-lg transition-all duration-300 cursor-pointer">
@@ -48,7 +47,7 @@
             </div>
             <div>
                 <p class="text-sm text-gray-500 font-medium">Players Tracked</p>
-                <h3 class="text-2xl font-bold text-teelo-dark">{{ "{:,}".format(stats.players_total) }}</h3>
+                <h3 class="text-2xl font-bold text-teelo-dark"><span id="stat-players">—</span></h3>
             </div>
         </div>
         <div class="bg-white p-6 rounded-2xl shadow-soft border border-gray-100 flex items-center gap-4 group hover:shadow-lg transition-all duration-300 cursor-pointer">
@@ -57,7 +56,7 @@
             </div>
             <div>
                 <p class="text-sm text-gray-500 font-medium">Tournament Editions</p>
-                <h3 class="text-2xl font-bold text-teelo-dark">{{ "{:,}".format(stats.editions_total) }}</h3>
+                <h3 class="text-2xl font-bold text-teelo-dark"><span id="stat-editions">—</span></h3>
             </div>
         </div>
     </div>
@@ -69,29 +68,33 @@
             <p class="text-sm text-gray-500 mt-1">Next matches from selected ATP, WTA, Challenger, WTA 125, and ITF rounds.</p>
         </div>
 
-        {% if upcoming_matches %}
-        <div class="hidden md:block overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
-                        <th class="px-5 py-3">Tournament</th>
-                        <th class="px-5 py-3 text-right">Player A</th>
-                        <th class="px-5 py-3 text-center">Score</th>
-                        <th class="px-5 py-3">Player B</th>
-                        <th class="px-5 py-3 text-right">Date</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100/70">{{ match_rows.render_table_rows(upcoming_matches) }}</tbody>
-            </table>
+        <div id="upcoming-loading" class="flex justify-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teelo-dark"></div>
         </div>
-        <div class="md:hidden divide-y divide-gray-100">{{ match_rows.render_cards(upcoming_matches) }}</div>
-        {% else %}
-        <div class="text-center py-16">
+
+        <div id="upcoming-content" class="hidden">
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
+                            <th class="px-5 py-3">Tournament</th>
+                            <th class="px-5 py-3 text-right">Player A</th>
+                            <th class="px-5 py-3 text-center">Score</th>
+                            <th class="px-5 py-3">Player B</th>
+                            <th class="px-5 py-3 text-right">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="upcoming-table-body" class="divide-y divide-gray-100/70"></tbody>
+                </table>
+            </div>
+            <div id="upcoming-cards" class="md:hidden divide-y divide-gray-100"></div>
+        </div>
+
+        <div id="upcoming-empty" class="text-center py-16 hidden">
             <i data-lucide="calendar-off" class="w-12 h-12 text-gray-200 mx-auto"></i>
             <h3 class="text-lg font-semibold text-gray-400 mt-4">No upcoming matches</h3>
             <p class="text-sm text-gray-400 mt-1">Check back soon for newly scheduled fixtures.</p>
         </div>
-        {% endif %}
     </div>
 
     <!-- Recently Completed Matches -->
@@ -101,29 +104,33 @@
             <p class="text-sm text-gray-500 mt-1">Latest completed results from the same tournament scope.</p>
         </div>
 
-        {% if completed_matches %}
-        <div class="hidden md:block overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
-                        <th class="px-5 py-3">Tournament</th>
-                        <th class="px-5 py-3 text-right">Player A</th>
-                        <th class="px-5 py-3 text-center">Score</th>
-                        <th class="px-5 py-3">Player B</th>
-                        <th class="px-5 py-3 text-right">Date</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100/70">{{ match_rows.render_table_rows(completed_matches) }}</tbody>
-            </table>
+        <div id="completed-loading" class="flex justify-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teelo-dark"></div>
         </div>
-        <div class="md:hidden divide-y divide-gray-100">{{ match_rows.render_cards(completed_matches) }}</div>
-        {% else %}
-        <div class="text-center py-16">
+
+        <div id="completed-content" class="hidden">
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
+                            <th class="px-5 py-3">Tournament</th>
+                            <th class="px-5 py-3 text-right">Player A</th>
+                            <th class="px-5 py-3 text-center">Score</th>
+                            <th class="px-5 py-3">Player B</th>
+                            <th class="px-5 py-3 text-right">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="completed-table-body" class="divide-y divide-gray-100/70"></tbody>
+                </table>
+            </div>
+            <div id="completed-cards" class="md:hidden divide-y divide-gray-100"></div>
+        </div>
+
+        <div id="completed-empty" class="text-center py-16 hidden">
             <i data-lucide="calendar-off" class="w-12 h-12 text-gray-200 mx-auto"></i>
-            <h3 class="text-lg font-semibold text-gray-400 mt-4">No completed matches yet</h3>
+            <h3 class="text-lg font-semibold text-gray-400 mt-4">No completed matches</h3>
             <p class="text-sm text-gray-400 mt-1">Completed matches will appear here once results are in.</p>
         </div>
-        {% endif %}
 
         <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/30">
             <a href="/matches" class="text-sm text-teelo-dark font-bold hover:underline decoration-teelo-lime decoration-2 flex items-center gap-1">
@@ -132,4 +139,5 @@
         </div>
     </div>
 </div>
+<script type="module" src="{{ url_for('static', path='/js/home.js') }}"></script>
 {% endblock %}
