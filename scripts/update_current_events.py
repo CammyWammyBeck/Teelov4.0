@@ -48,6 +48,14 @@ from teelo.scrape.utils import TOUR_TYPES
 from teelo.scrape.wta import WTAScraper
 
 
+def parse_year_range(year_str: str) -> list[int]:
+    """Parse '2024' or '2020-2024' into a list of years, newest first."""
+    if "-" in year_str:
+        start, end = year_str.split("-", 1)
+        return sorted(range(int(start), int(end) + 1), reverse=True)
+    return [int(year_str)]
+
+
 class _Tee:
     """Write to both the real stdout and a log file, prefixing each line with [HH:MM:SS]."""
 
@@ -206,6 +214,98 @@ def enqueue_current_tasks(
     queue_manager.enqueue_batch(queue_payload)
     session.commit()
     return len(queue_payload)
+
+
+async def populate_historical_queue(
+    session,
+    queue_manager: ScrapeQueueManager,
+    years: list[int],
+    tours: list[str],
+    overwrite: bool = False,
+) -> tuple[int, list[dict]]:
+    """Discover and enqueue historical tournaments for past years."""
+    from datetime import datetime, timedelta
+    from sqlalchemy import cast, Integer
+    from teelo.db.models import ScrapeQueue as _SQ
+
+    tasks_added = 0
+    discovery_metrics: list[dict] = []
+    today = date.today()
+    future_cutoff = today + timedelta(days=7)
+
+    for tour_key in tours:
+        tour_config = TOUR_TYPES[tour_key]
+        print(f"\n{'=' * 60}")
+        print(f"Historical discovery: {tour_config['description']}")
+        print("=" * 60)
+
+        for year in years:
+            base_priority = 7 + min(max(date.today().year - year, 0), 2)
+            tasks_to_add: list = []
+            skipped_future = 0
+
+            try:
+                existing_ids = set(
+                    tid for (tid,) in (
+                        session.query(_SQ.task_params["tournament_id"].astext)
+                        .filter(
+                            _SQ.task_type == "historical_tournament",
+                            _SQ.status.in_(["pending", "in_progress", "retry"]),
+                            _SQ.task_params["tour_key"].astext == tour_key,
+                            cast(_SQ.task_params["year"].astext, Integer) == year,
+                        )
+                        .all()
+                    )
+                    if tid
+                )
+
+                discovery_start = perf_counter()
+                tasks = await discover_tournament_tasks(
+                    tour_key, year, task_type="historical_tournament"
+                )
+                discovery_elapsed = perf_counter() - discovery_start
+                discovery_metrics.append({
+                    "tour_key": tour_key, "year": year,
+                    "duration_s": discovery_elapsed, "tasks_found": len(tasks),
+                })
+
+                for task in tasks:
+                    start_date_str = task.params.start_date
+                    if start_date_str:
+                        try:
+                            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                            if start_date > future_cutoff:
+                                skipped_future += 1
+                                continue
+                        except (ValueError, TypeError):
+                            pass
+                    if task.params.tournament_id in existing_ids:
+                        continue
+                    tasks_to_add.append(
+                        _SQ(
+                            task_type="historical_tournament",
+                            task_params=task.params.to_dict(),
+                            priority=base_priority,
+                            max_attempts=3,
+                            status="pending",
+                        )
+                    )
+                    tasks_added += 1
+
+                msg = f"  {year}: Found {len(tasks)} tournaments, added {len(tasks_to_add)} to queue"
+                if skipped_future:
+                    msg += f" ({skipped_future} skipped as future)"
+                print(msg)
+
+            except Exception as e:
+                print(f"  Error loading {year} tournaments: {e}")
+                continue
+
+            if tasks_to_add:
+                session.bulk_save_objects(tasks_to_add)
+            session.commit()
+
+    return tasks_added, discovery_metrics
 
 
 def _queue_event(
@@ -668,7 +768,18 @@ async def main():
         default="ATP,WTA,CHALLENGER,WTA_125,ITF_MEN,ITF_WOMEN",
         help="Comma-separated tours",
     )
-    parser.add_argument("--year", type=int, default=date.today().year, help="Season year to scan")
+    parser.add_argument(
+        "--years",
+        type=str,
+        default=str(date.today().year),
+        help="Year or year range to scrape (e.g. '2025' or '2023-2025'). "
+             "Current year uses windowed current-event discovery; past years use full historical discovery.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing matches instead of skipping duplicates (historical mode only).",
+    )
     parser.add_argument("--max-parallel-tours", type=int, default=3, help="Max tour workers to run concurrently")
     parser.add_argument("--headed", action="store_true", help="Force headed browser mode (slower)")
     parser.add_argument("--discover-only", action="store_true", help="Discover current tournaments only")
@@ -769,6 +880,11 @@ async def _main_impl(args, original_stdout) -> None:
 
     tours = [t.strip().upper() for t in args.tours.split(",")]
     apply_fast_scrape_profile(True)
+    years = parse_year_range(args.years)
+    current_year = date.today().year
+    current_years = [year for year in years if year == current_year]
+    past_years = [year for year in years if year < current_year]
+    future_years = [year for year in years if year > current_year]
 
     # Validate tours
     tours = [t for t in tours if t in TOUR_TYPES]
@@ -776,6 +892,7 @@ async def _main_impl(args, original_stdout) -> None:
     print("=" * 60)
     print("UPDATE CURRENT EVENTS")
     print(f"Tours: {tours}")
+    print(f"Years: {years}")
     headless = False if args.headed else settings.scrape_headless
     print(
         "Settings: "
@@ -785,6 +902,8 @@ async def _main_impl(args, original_stdout) -> None:
         f"delays={settings.scrape_delay_min}-{settings.scrape_delay_max}s"
     )
     print("=" * 60)
+    if future_years:
+        print(f"Skipping future years: {future_years}")
 
     if args.clear_queue:
         with get_session() as session:
@@ -814,44 +933,65 @@ async def _main_impl(args, original_stdout) -> None:
     }
 
     if not args.process_only:
-        discovered = await asyncio.gather(
-            *(
-                discover_tour_tasks(
-                    tour_key=t,
-                    year=args.year,
-                    today=today,
-                    headless=headless,
-                    semaphore=semaphore,
-                    lookback_days=args.lookback_days,
-                )
-                for t in tours
-            ),
-            return_exceptions=True,
-        )
-        all_tasks = []
-        for tour_key, result in zip(tours, discovered):
-            if isinstance(result, Exception):
-                print(f"[{tour_key}] Discovery failed: {result}")
-                continue
-            tasks, discovery_elapsed = result
-            # Optionally cap the number of tasks per tour for quick test runs.
-            if args.max_per_tour > 0 and len(tasks) > args.max_per_tour:
-                print(f"[{tour_key}] Limiting to {args.max_per_tour} of {len(tasks)} tasks (--max-per-tour)")
-                tasks = tasks[: args.max_per_tour]
-            metrics_payload["discovery"].append(
-                {
-                    "tour_key": tour_key,
-                    "duration_s": discovery_elapsed,
-                    "tasks_found": len(tasks),
-                }
+        total_tasks_added = 0
+
+        if current_years:
+            discovered = await asyncio.gather(
+                *(
+                    discover_tour_tasks(
+                        tour_key=t,
+                        year=current_year,
+                        today=today,
+                        headless=headless,
+                        semaphore=semaphore,
+                        lookback_days=args.lookback_days,
+                    )
+                    for t in tours
+                ),
+                return_exceptions=True,
             )
-            all_tasks.extend(tasks)
+            all_tasks = []
+            for tour_key, result in zip(tours, discovered):
+                if isinstance(result, Exception):
+                    print(f"[{tour_key}] Discovery failed: {result}")
+                    continue
+                tasks, discovery_elapsed = result
+                # Optionally cap the number of tasks per tour for quick test runs.
+                if args.max_per_tour > 0 and len(tasks) > args.max_per_tour:
+                    print(f"[{tour_key}] Limiting to {args.max_per_tour} of {len(tasks)} tasks (--max-per-tour)")
+                    tasks = tasks[: args.max_per_tour]
+                metrics_payload["discovery"].append(
+                    {
+                        "tour_key": tour_key,
+                        "year": current_year,
+                        "task_type": "current_tournament",
+                        "duration_s": discovery_elapsed,
+                        "tasks_found": len(tasks),
+                    }
+                )
+                all_tasks.extend(tasks)
 
-        with get_session() as session:
-            queue_manager = ScrapeQueueManager(session)
-            tasks_added = enqueue_current_tasks(session, queue_manager, all_tasks, force=args.force_enqueue)
+            with get_session() as session:
+                queue_manager = ScrapeQueueManager(session)
+                current_tasks_added = enqueue_current_tasks(session, queue_manager, all_tasks, force=args.force_enqueue)
+            total_tasks_added += current_tasks_added
+            print(f"\nAdded {current_tasks_added} current tasks to the queue")
 
-        print(f"\nAdded {tasks_added} current tasks to the queue")
+        if past_years:
+            with get_session() as session:
+                queue_manager = ScrapeQueueManager(session)
+                historical_tasks_added, historical_metrics = await populate_historical_queue(
+                    session,
+                    queue_manager,
+                    past_years,
+                    tours,
+                    overwrite=args.overwrite,
+                )
+            total_tasks_added += historical_tasks_added
+            metrics_payload["discovery"].extend(historical_metrics)
+            print(f"\nAdded {historical_tasks_added} historical tasks to the queue")
+
+        print(f"\nTotal tasks added to queue: {total_tasks_added}")
 
         if args.discover_only:
             print("\nDiscovery complete (--discover-only).")

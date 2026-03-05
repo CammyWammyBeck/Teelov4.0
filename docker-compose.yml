@@ -13,6 +13,7 @@ services:
     build: .
     env_file:
       - .env
+    # --years defaults to the current year; override at runtime when needed.
     command: ["python", "scripts/update_current_events.py", "--workers", "3"]
     ports:
       - "5900:5900"
