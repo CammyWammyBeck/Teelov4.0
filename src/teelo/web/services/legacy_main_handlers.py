@@ -43,13 +43,13 @@ app.add_middleware(
 )
 
 # Mount static files
-static_path = Path(__file__).parent / "static"
+static_path = Path(__file__).parent.parent / "static"
 app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # Setup templates
-templates_path = Path(__file__).parent / "templates"
+templates_path = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=templates_path)
-content_path = Path(__file__).parent / "content"
+content_path = Path(__file__).parent.parent / "content"
 MATCHES_PAGE_STATUS_FILTERS = get_status_group("all")
 
 # Inject settings (for feature flags) into all templates
@@ -1450,9 +1450,7 @@ async def api_rankings(
     """
     Paginated ELO rankings as JSON.
 
-    Players are assigned to a gender based on the tournaments they've played in,
-    since the Player model doesn't have a gender field. Uses a subquery to find
-    all players who have appeared in tournaments of the requested gender.
+    Players are filtered by the `gender` column on the Player model ('men' or 'women').
 
     By default, only "active" players (last match within 6 months) are shown.
     Pass include_inactive=true to include all ranked players.
@@ -1478,14 +1476,12 @@ async def api_rankings(
             status_code=400,
         )
 
-    gender_counts = _build_gender_counts_subquery(db)
-
     if resolved_surface is None:
         # Main query: join Player + PlayerEloState, filter by gender, rank by ELO
         query = (
             db.query(Player, PlayerEloState)
             .join(PlayerEloState, PlayerEloState.player_id == Player.id)
-            .join(gender_counts, gender_counts.c.pid == Player.id)
+            .filter(Player.gender == gender_param)
         )
     else:
         # Surface-specific query: rank from surface Elo table, active status from overall Elo table.
@@ -1493,14 +1489,9 @@ async def api_rankings(
             db.query(Player, PlayerSurfaceEloState, PlayerEloState)
             .join(PlayerSurfaceEloState, PlayerSurfaceEloState.player_id == Player.id)
             .join(PlayerEloState, PlayerEloState.player_id == Player.id)
-            .join(gender_counts, gender_counts.c.pid == Player.id)
             .filter(PlayerSurfaceEloState.surface == resolved_surface)
+            .filter(Player.gender == gender_param)
         )
-
-    if gender_param == "men":
-        query = query.filter(gender_counts.c.men_matches > gender_counts.c.women_matches)
-    else:
-        query = query.filter(gender_counts.c.women_matches > gender_counts.c.men_matches)
 
     # By default, exclude inactive players (no match in the last 6 months)
     if not include_inactive:
