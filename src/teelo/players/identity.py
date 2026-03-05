@@ -106,6 +106,18 @@ class PlayerIdentityService:
         # Used by _ensure_alias to skip a DB round-trip per player.
         self._alias_source_cache: set[tuple[str, str]] = set()
 
+    def _gender_from_source(self, source: str) -> Optional[str]:
+        s = (source or "").strip().lower()
+        if s in {"atp"}:
+            return "men"
+        if s in {"wta", "wta_125", "wta125"}:
+            return "women"
+        if s in {"itf_men", "itf-men"}:
+            return "men"
+        if s in {"itf_women", "itf-women"}:
+            return "women"
+        return None
+
     def _normalized_source_key(self, source: str) -> str:
         s = (source or "").strip().lower()
         if s in {"atp"}:
@@ -426,6 +438,9 @@ class PlayerIdentityService:
             canonical_name=name,  # Store original casing for display
             nationality_ioc=nationality,
         )
+
+        # Infer gender from source
+        player.gender = self._gender_from_source(source)
 
         # Set the appropriate external ID based on source
         normalized_source = self._normalized_source_key(source)

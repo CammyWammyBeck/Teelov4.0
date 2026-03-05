@@ -83,6 +83,28 @@ def test_find_or_queue_player_batch_consistency(db_session):
     assert pid2 == player_id
     assert status2 == "matched"
 
+@pytest.mark.parametrize("source,expected_gender", [
+    ("atp", "men"),
+    ("ATP", "men"),
+    ("wta", "women"),
+    ("wta_125", "women"),
+    ("wta125", "women"),
+    ("itf_men", "men"),
+    ("itf-men", "men"),
+    ("ITF_MEN", "men"),
+    ("itf_women", "women"),
+    ("itf-women", "women"),
+    ("itf", None),
+    ("unknown", None),
+])
+def test_create_player_sets_gender(db_session, source, expected_gender):
+    """create_player infers gender from source string."""
+    service = PlayerIdentityService(db_session)
+    player_id = service.create_player(name="Test Player", source=source)
+    player = db_session.query(Player).filter_by(id=player_id).one()
+    assert player.gender == expected_gender
+
+
 def test_fuzzy_match_sees_pending_aliases(db_session):
     """Test that fuzzy search considers aliases pending in the session."""
     service = PlayerIdentityService(db_session)
