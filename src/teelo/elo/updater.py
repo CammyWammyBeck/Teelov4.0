@@ -526,6 +526,13 @@ class EloUpdater:
             .where(Match.status.in_(TERMINAL_STATUSES))
             .where(Match.winner_id.isnot(None))
             .where(Match.temporal_order.isnot(None))
+            .where(Match.player_a_id != Match.player_b_id)
+            .where(
+                or_(
+                    Match.winner_id == Match.player_a_id,
+                    Match.winner_id == Match.player_b_id,
+                )
+            )
             .where(
                 or_(
                     Match.elo_post_player_a.is_(None),
@@ -582,6 +589,13 @@ class EloUpdater:
             .where(Match.status.in_(TERMINAL_STATUSES))
             .where(Match.winner_id.isnot(None))
             .where(Match.temporal_order.isnot(None))
+            .where(Match.player_a_id != Match.player_b_id)
+            .where(
+                or_(
+                    Match.winner_id == Match.player_a_id,
+                    Match.winner_id == Match.player_b_id,
+                )
+            )
             .where(
                 or_(
                     Match.elo_post_player_a.is_(None),
@@ -637,6 +651,13 @@ class EloUpdater:
             .where(Match.status.in_(TERMINAL_STATUSES))
             .where(Match.winner_id.isnot(None))
             .where(Match.temporal_order.isnot(None))
+            .where(Match.player_a_id != Match.player_b_id)
+            .where(
+                or_(
+                    Match.winner_id == Match.player_a_id,
+                    Match.winner_id == Match.player_b_id,
+                )
+            )
             .where(
                 or_(
                     Match.elo_post_player_a.is_(None),
@@ -1087,10 +1108,10 @@ class EloUpdater:
             pid_a = match.player_a_id
             pid_b = match.player_b_id
 
-            # Corrupt source rows occasionally produce self-vs-self matches.
-            # Skip these to avoid invalid Elo transitions and ON CONFLICT
-            # duplicate-key updates in snapshot inserts.
-            if pid_a == pid_b:
+            # Skip invalid matches: self-vs-self, or winner not matching
+            # either player.  These are filtered at the query level too, but
+            # we keep this guard for defence-in-depth.
+            if pid_a == pid_b or match.winner_id not in (pid_a, pid_b):
                 if progress_callback and (
                     idx == total_matches
                     or (progress_every > 0 and idx % progress_every == 0)
