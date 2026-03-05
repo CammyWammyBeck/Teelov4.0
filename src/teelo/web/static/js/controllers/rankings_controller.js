@@ -8,6 +8,7 @@ export function initRankingsPage() {
   const els = {
     menBody: byId('men-body'), womenBody: byId('women-body'),
     mobileMenBody: byId('mobile-men-body'), mobileWomenBody: byId('mobile-women-body'),
+    mobileMenPanel: byId('mobile-men'), mobileWomenPanel: byId('mobile-women'),
     menSentinel: byId('men-sentinel'), womenSentinel: byId('women-sentinel'),
     mobileMenSentinel: byId('mobile-men-sentinel'), mobileWomenSentinel: byId('mobile-women-sentinel'),
     tabs: queryAll('.rankings-tab'), inactiveToggle: byId('include-inactive-toggle'),
@@ -34,9 +35,33 @@ export function initRankingsPage() {
     fetchGender('men'); fetchGender('women');
   }
 
-  els.tabs.forEach((tab) => tab.addEventListener('click', () => { state.activeMobileTab = tab.dataset.gender; }));
+  els.tabs.forEach((tab) => tab.addEventListener('click', () => {
+    const gender = tab.dataset.gender;
+    if (!gender) return;
+
+    state.activeMobileTab = gender;
+
+    els.tabs.forEach((t) => {
+      t.classList.remove('bg-teelo-lime', 'text-teelo-dark', 'shadow-sm');
+      t.classList.add('text-gray-400');
+    });
+    tab.classList.remove('text-gray-400');
+    tab.classList.add('bg-teelo-lime', 'text-teelo-dark', 'shadow-sm');
+
+    const showMen = gender === 'men';
+    els.mobileMenPanel?.classList.toggle('hidden', !showMen);
+    els.mobileWomenPanel?.classList.toggle('hidden', showMen);
+
+    if (showMen && !els.mobileMenBody?.innerHTML.trim()) fetchGender('men');
+    if (!showMen && !els.mobileWomenBody?.innerHTML.trim()) fetchGender('women');
+  }));
   els.inactiveToggle?.addEventListener('change', () => { state.includeInactive = els.inactiveToggle.checked; reset(); });
-  els.surfaceButtons.forEach((btn) => btn.addEventListener('click', () => { state.surface = btn.dataset.surface || 'overall'; reset(); }));
+  els.surfaceButtons.forEach((btn) => btn.addEventListener('click', () => {
+    state.surface = btn.dataset.surface || 'overall';
+    els.surfaceButtons.forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    reset();
+  }));
 
   const obs = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting) {
