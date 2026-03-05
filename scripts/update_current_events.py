@@ -846,11 +846,6 @@ async def main():
         help="Limit tasks enqueued per tour (0 = unlimited). Useful for quick timing tests.",
     )
     parser.add_argument(
-        "--force-enqueue",
-        action="store_true",
-        help="Enqueue all discovered tournaments even if their Final is already completed.",
-    )
-    parser.add_argument(
         "--log-file",
         type=str,
         default=None,
@@ -973,7 +968,7 @@ async def _main_impl(args, original_stdout) -> None:
 
             with get_session() as session:
                 queue_manager = ScrapeQueueManager(session)
-                current_tasks_added = enqueue_current_tasks(session, queue_manager, all_tasks, force=args.force_enqueue)
+                current_tasks_added = enqueue_current_tasks(session, queue_manager, all_tasks, force=args.overwrite)
             total_tasks_added += current_tasks_added
             print(f"\nAdded {current_tasks_added} current tasks to the queue")
 
@@ -1020,7 +1015,7 @@ async def _main_impl(args, original_stdout) -> None:
             process = ctx.Process(
                 target=run_worker,
                 args=(worker_id, headless, True, event_queue, args.quiet_worker_logs, args.log_file),
-                kwargs={"force": args.force_enqueue},
+                kwargs={"force": args.overwrite},
             )
             process.start()
             processes.append(process)
@@ -1113,7 +1108,7 @@ async def _main_impl(args, original_stdout) -> None:
         stats = aggregated
     else:
         with get_session() as session:
-            stats = await process_queue(session, headless=headless, fast_mode=True, force=args.force_enqueue)
+            stats = await process_queue(session, headless=headless, fast_mode=True, force=args.overwrite)
         metrics_payload["workers"].append(stats)
 
     metrics_payload["aggregate"] = stats
