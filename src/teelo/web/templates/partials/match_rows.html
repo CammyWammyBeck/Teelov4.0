@@ -73,7 +73,7 @@
     </td>
     <td class="px-5 py-3 text-right">
         <div class="flex items-center justify-end gap-2">
-            <span class="text-sm {% if is_winner_a %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_a.name }}</span>
+            <a href="/players/{{ m.player_a.id }}" class="text-sm hover:underline decoration-teelo-lime decoration-2 {% if is_winner_a %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_a.name }}</a>
             {{ elo_badge(m.player_a) }}
             {% if is_winner_a %}
             <i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>
@@ -88,7 +88,7 @@
             {% if is_winner_b %}
             <i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>
             {% endif %}
-            <span class="text-sm {% if is_winner_b %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_b.name }}</span>
+            <a href="/players/{{ m.player_b.id }}" class="text-sm hover:underline decoration-teelo-lime decoration-2 {% if is_winner_b %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_b.name }}</a>
             {{ elo_badge(m.player_b) }}
         </div>
     </td>
@@ -132,13 +132,13 @@
             {# Player A #}
             <div class="flex items-center gap-1.5">
                 <div class="w-0.5 h-4 rounded-full {{ 'bg-teelo-lime' if is_winner_a else 'bg-transparent' }} flex-shrink-0"></div>
-                <span class="text-[13px] truncate {{ 'font-bold text-teelo-dark' if is_winner_a else ('text-gray-400' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_a.name }}</span>
+                <a href="/players/{{ m.player_a.id }}" class="text-[13px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_a else ('text-gray-400' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_a.name }}</a>
                 {{ elo_compact(m.player_a) }}
             </div>
             {# Player B #}
             <div class="flex items-center gap-1.5">
                 <div class="w-0.5 h-4 rounded-full {{ 'bg-teelo-lime' if is_winner_b else 'bg-transparent' }} flex-shrink-0"></div>
-                <span class="text-[13px] truncate {{ 'font-bold text-teelo-dark' if is_winner_b else ('text-gray-400' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_b.name }}</span>
+                <a href="/players/{{ m.player_b.id }}" class="text-[13px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_b else ('text-gray-400' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_b.name }}</a>
                 {{ elo_compact(m.player_b) }}
             </div>
         </div>
