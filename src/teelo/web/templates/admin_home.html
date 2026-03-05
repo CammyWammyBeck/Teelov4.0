@@ -24,6 +24,13 @@
             <div class="mt-2 text-3xl font-bold text-teelo-dark">{{ pending_count }}</div>
             <div class="text-sm text-gray-500 mt-1">Pending review items</div>
         </a>
+
+        <a href="/admin/invalid-matches"
+           class="block bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition">
+            <div class="text-sm font-semibold text-gray-500">Invalid Matches</div>
+            <div class="mt-2 text-3xl font-bold text-teelo-dark">{{ invalid_match_count }}</div>
+            <div class="text-sm text-gray-500 mt-1">Matches needing data correction</div>
+        </a>
     </div>
 </section>
 {% endblock %}

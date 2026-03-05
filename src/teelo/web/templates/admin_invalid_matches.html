@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Invalid Matches | Teelo Ratings{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+    <div class="flex items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-teelo-dark">Invalid Matches</h1>
+            <p class="text-sm text-gray-500 mt-1">Detected matches: {{ total }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="/admin"
+               class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                Admin Home
+            </a>
+            <form method="post" action="/admin/logout">
+                <button type="submit"
+                        class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                    Log out
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% if notice %}
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm px-3 py-2">
+        {{ notice }}
+    </div>
+    {% endif %}
+
+    {% if match_rows %}
+        <div class="space-y-5">
+            {% for row in match_rows %}
+            <article class="bg-white border border-gray-200 rounded-xl shadow-sm p-5 space-y-4">
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+                    <span class="font-semibold text-teelo-dark">Match #{{ row.id }}</span>
+                    <span class="text-gray-600">{{ row.player_a_name }} ({{ row.player_a_id }}) vs {{ row.player_b_name }} ({{ row.player_b_id }})</span>
+                    <span class="text-gray-600">Status: {{ row.status }}</span>
+                    {% if row.winner_id %}<span class="text-gray-600">Winner: {{ row.winner_name or row.winner_id }} ({{ row.winner_id }})</span>{% endif %}
+                    {% if row.tournament_name %}<span class="text-gray-600">Tournament: {{ row.tournament_name }}</span>{% endif %}
+                    {% if row.match_date %}<span class="text-gray-600">Date: {{ row.match_date }}</span>{% endif %}
+                    {% if row.external_id %}<span class="text-gray-500">External ID: {{ row.external_id }}</span>{% endif %}
+                </div>
+
+                <ul class="list-disc ml-5 text-sm text-red-700">
+                    {% for reason in row.reasons %}
+                        <li>{{ reason }}</li>
+                    {% endfor %}
+                </ul>
+
+                <form method="post" action="/admin/invalid-matches/{{ row.id }}/update"
+                      class="rounded-lg border border-gray-200 p-3 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Player A ID</label>
+                        <input name="player_a_id" value="{{ row.player_a_id }}" required
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teelo-lime focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Player B ID</label>
+                        <input name="player_b_id" value="{{ row.player_b_id }}" required
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teelo-lime focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Winner ID (blank if none)</label>
+                        <input name="winner_id" value="{{ row.winner_id or '' }}"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teelo-lime focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Status</label>
+                        <input name="status" value="{{ row.status }}" required
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teelo-lime focus:border-transparent">
+                    </div>
+                    <div>
+                        <input type="hidden" name="page" value="{{ page }}">
+                        <input type="hidden" name="per_page" value="{{ per_page }}">
+                        <button type="submit"
+                                class="w-full rounded-lg bg-teelo-dark text-white py-2 text-sm font-semibold hover:opacity-90 transition">
+                            Save
+                        </button>
+                    </div>
+                </form>
+
+                <form method="post" action="/admin/invalid-matches/{{ row.id }}/delete"
+                      onsubmit="return confirm('Delete match #{{ row.id }}? This cannot be undone.');"
+                      class="flex justify-end">
+                    <input type="hidden" name="page" value="{{ page }}">
+                    <input type="hidden" name="per_page" value="{{ per_page }}">
+                    <button type="submit"
+                            class="rounded-lg bg-red-600 text-white px-4 py-2 text-sm font-semibold hover:bg-red-700 transition">
+                        Delete Match
+                    </button>
+                </form>
+            </article>
+            {% endfor %}
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+            <div class="text-sm text-gray-500">Page {{ page }}</div>
+            <div class="flex items-center gap-2">
+                {% if page > 1 %}
+                <a href="/admin/invalid-matches?page={{ page - 1 }}&per_page={{ per_page }}"
+                   class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                    Previous
+                </a>
+                {% endif %}
+                {% if has_more %}
+                <a href="/admin/invalid-matches?page={{ page + 1 }}&per_page={{ per_page }}"
+                   class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <div class="rounded-xl border border-gray-200 bg-white p-6 text-gray-600">
+            No invalid matches found.
+        </div>
+    {% endif %}
+</section>
+{% endblock %}
