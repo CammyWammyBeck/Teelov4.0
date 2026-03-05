@@ -227,6 +227,7 @@ class Player(Base):
     hand: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)  # 'Right', 'Left'
     backhand: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 'One-Handed', 'Two-Handed'
     height_cm: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    gender: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # 'men' or 'women'
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
