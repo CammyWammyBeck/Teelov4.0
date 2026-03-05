@@ -955,40 +955,6 @@ def _build_player_overall_elo_payload(db: Session, player: Player, player_id: in
     }
 
 
-def _build_gender_counts_subquery(db: Session):
-    events_a = (
-        db.query(
-            Match.player_a_id.label("pid"),
-            Tournament.gender.label("gender"),
-        )
-        .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
-        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
-        .filter(Tournament.gender.in_(("men", "women")))
-    )
-    events_b = (
-        db.query(
-            Match.player_b_id.label("pid"),
-            Tournament.gender.label("gender"),
-        )
-        .join(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
-        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
-        .filter(Tournament.gender.in_(("men", "women")))
-    )
-    gender_events = events_a.union_all(events_b).subquery()
-    return (
-        db.query(
-            gender_events.c.pid.label("pid"),
-            func.sum(
-                case((gender_events.c.gender == "men", 1), else_=0)
-            ).label("men_matches"),
-            func.sum(
-                case((gender_events.c.gender == "women", 1), else_=0)
-            ).label("women_matches"),
-        )
-        .group_by(gender_events.c.pid)
-        .subquery()
-    )
-
 
 def _build_player_surface_elo_payload(db: Session, player_id: int) -> list[dict[str, Any]]:
     surface_rows = (
@@ -1000,20 +966,7 @@ def _build_player_surface_elo_payload(db: Session, player_id: int) -> list[dict[
 
     player = db.query(Player).filter(Player.id == player_id).first()
     player_name = player.canonical_name if player else None
-    gender_counts = _build_gender_counts_subquery(db)
-    player_gender_row = (
-        db.query(gender_counts.c.men_matches, gender_counts.c.women_matches)
-        .filter(gender_counts.c.pid == player_id)
-        .first()
-    )
-    player_gender = None
-    if player_gender_row:
-        men_count = int(player_gender_row.men_matches or 0)
-        women_count = int(player_gender_row.women_matches or 0)
-        if men_count > women_count:
-            player_gender = "men"
-        elif women_count > men_count:
-            player_gender = "women"
+    player_gender = player.gender if player else None
 
     def compute_surface_rank(row: PlayerSurfaceEloState) -> Optional[int]:
         if not player_name or player_gender is None:
@@ -1021,13 +974,9 @@ def _build_player_surface_elo_payload(db: Session, player_id: int) -> list[dict[
         rank_query = (
             db.query(func.count(PlayerSurfaceEloState.id))
             .join(Player, Player.id == PlayerSurfaceEloState.player_id)
-            .join(gender_counts, gender_counts.c.pid == Player.id)
             .filter(PlayerSurfaceEloState.surface == row.surface)
+            .filter(Player.gender == player_gender)
         )
-        if player_gender == "men":
-            rank_query = rank_query.filter(gender_counts.c.men_matches > gender_counts.c.women_matches)
-        else:
-            rank_query = rank_query.filter(gender_counts.c.women_matches > gender_counts.c.men_matches)
 
         better_count = (
             rank_query.filter(
