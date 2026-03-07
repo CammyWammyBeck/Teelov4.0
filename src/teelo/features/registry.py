@@ -25,8 +25,9 @@ class FeatureGroup(ABC):
 
 
 class FeatureRegistry:
-    def __init__(self) -> None:
+    def __init__(self, exclude: set[str] | None = None) -> None:
         self._groups: list[FeatureGroup] = []
+        self._exclude: set[str] = exclude or set()
 
     def register(self, group: FeatureGroup) -> None:
         self._groups.append(group)
@@ -34,7 +35,7 @@ class FeatureRegistry:
     def all_feature_names(self) -> list[str]:
         names: list[str] = []
         for group in self._groups:
-            names.extend(group.feature_names())
+            names.extend(n for n in group.feature_names() if n not in self._exclude)
         return names
 
     def compute_all(
@@ -45,5 +46,9 @@ class FeatureRegistry:
     ) -> dict[str, float | None]:
         features: dict[str, float | None] = {}
         for group in self._groups:
-            features.update(group.compute(state_a, state_b, ctx))
+            result = group.compute(state_a, state_b, ctx)
+            if self._exclude:
+                features.update({k: v for k, v in result.items() if k not in self._exclude})
+            else:
+                features.update(result)
         return features
