@@ -660,6 +660,7 @@ class Match(Base):
         Index("idx_matches_match_date", "match_date"),
         Index("idx_matches_tournament", "tournament_edition_id"),
         Index("idx_matches_status", "status"),
+        Index("idx_matches_status_dates", "status", "scheduled_date", "match_date"),
         Index("idx_matches_draw", "tournament_edition_id", "round", "draw_position"),
         # Partial index for the ELO incremental query: finds terminal matches
         # that still need ELO processing. In steady state only a handful of

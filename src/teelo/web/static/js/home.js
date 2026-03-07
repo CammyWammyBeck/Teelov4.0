@@ -2,34 +2,6 @@ import { byId, toggleHidden } from './lib/dom.js';
 import { getJson } from './lib/http.js';
 import { buildFallbackCards, buildFallbackTableRows } from './renderers/matches.js';
 
-function normalizeSectionData(data, key) {
-  const section = data?.[key];
-  const topLevelTableHtml = data?.[`${key}_table_html`] || '';
-  const topLevelCardsHtml = data?.[`${key}_cards_html`] || '';
-
-  if (Array.isArray(section)) {
-    return {
-      matches: section,
-      table_rows_html: topLevelTableHtml,
-      cards_html: topLevelCardsHtml,
-    };
-  }
-
-  if (section && typeof section === 'object') {
-    return {
-      matches: Array.isArray(section.matches) ? section.matches : [],
-      table_rows_html: section.table_rows_html || topLevelTableHtml,
-      cards_html: section.cards_html || topLevelCardsHtml,
-    };
-  }
-
-  return {
-    matches: [],
-    table_rows_html: topLevelTableHtml,
-    cards_html: topLevelCardsHtml,
-  };
-}
-
 function statValue(value) {
   const numeric = Number(value ?? 0);
   return Number.isFinite(numeric) ? numeric.toLocaleString() : '0';
@@ -76,18 +48,33 @@ function updateStats(stats) {
 export async function initHomePage() {
   if (!byId('home-stats-section')) return;
 
-  try {
-    const data = await getJson('/api/home');
-    updateStats(data?.stats || {});
+  // Fire all 3 requests in parallel, render each as it resolves
+  const upcomingPromise = getJson('/api/home/upcoming')
+    .then(data => {
+      renderSection('upcoming', {
+        matches: data?.matches || [],
+        table_rows_html: data?.table_html || '',
+        cards_html: data?.cards_html || '',
+      });
+    })
+    .catch(() => renderSection('upcoming', { matches: [] }));
 
-    renderSection('upcoming', normalizeSectionData(data, 'upcoming'));
-    renderSection('completed', normalizeSectionData(data, 'completed'));
-  } catch {
-    renderSection('upcoming', { matches: [] });
-    renderSection('completed', { matches: [] });
-  } finally {
-    window.lucide?.createIcons?.();
-  }
+  const completedPromise = getJson('/api/home/completed')
+    .then(data => {
+      renderSection('completed', {
+        matches: data?.matches || [],
+        table_rows_html: data?.table_html || '',
+        cards_html: data?.cards_html || '',
+      });
+    })
+    .catch(() => renderSection('completed', { matches: [] }));
+
+  const statsPromise = getJson('/api/home/stats')
+    .then(stats => updateStats(stats || {}))
+    .catch(() => updateStats({}));
+
+  await Promise.allSettled([upcomingPromise, completedPromise, statsPromise]);
+  window.lucide?.createIcons?.();
 }
 
 document.addEventListener('DOMContentLoaded', initHomePage);

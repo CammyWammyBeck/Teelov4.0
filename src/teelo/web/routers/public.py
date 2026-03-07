@@ -4,7 +4,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import and_, func, or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, contains_eager, defer, joinedload
 
 from teelo.config import settings
 from teelo.db.models import Match, Player, Tournament, TournamentEdition
@@ -25,15 +25,128 @@ def require_feature(feature_flag: str):
     return check_feature
 
 
+def _home_base_query(db: Session):
+    home_scope_filter = or_(
+        Tournament.level == "Grand Slam",
+        Tournament.tour.in_(["ATP", "WTA"]),
+        and_(
+            Tournament.tour.in_(["CHALLENGER", "Challenger", "WTA 125", "WTA_125"]),
+            Match.round.in_(["SF", "F"]),
+        ),
+        and_(Tournament.tour == "ITF", Match.round == "F"),
+    )
+    return (
+        db.query(Match)
+        .outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
+        .outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .options(
+            # Use contains_eager for tables already joined (avoids duplicate joins)
+            contains_eager(Match.tournament_edition).contains_eager(TournamentEdition.tournament),
+            # Players still need joinedload (not part of the explicit joins)
+            joinedload(Match.player_a),
+            joinedload(Match.player_b),
+            # Skip heavy columns not needed by serialize_match
+            defer(Match.stats),
+            defer(Match.score_structured),
+        )
+        .filter(home_scope_filter)
+    )
+
+
+@router.get("/api/home/upcoming")
+async def home_api_upcoming(
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
+):
+    upcoming = (
+        _home_base_query(db)
+        .filter(Match.status.in_(get_status_group("upcoming")))
+        .order_by(
+            func.coalesce(Match.scheduled_date, Match.match_date).asc().nullslast(),
+            Match.scheduled_datetime.asc().nullslast(),
+            Match.id.asc(),
+        )
+        .limit(10)
+        .all()
+    )
+    upcoming_matches = [serialize_match(m) for m in upcoming]
+    match_rows_module = templates.get_template("partials/match_rows.html").module
+    return JSONResponse(
+        {
+            "matches": upcoming_matches,
+            "table_html": match_rows_module.render_table_rows(upcoming_matches),
+            "cards_html": match_rows_module.render_cards(upcoming_matches),
+        }
+    )
+
+
+@router.get("/api/home/completed")
+async def home_api_completed(
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
+):
+    completed = (
+        _home_base_query(db)
+        .filter(Match.status.in_(get_status_group("historical_default")))
+        .order_by(
+            func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
+            Match.id.desc(),
+        )
+        .limit(10)
+        .all()
+    )
+    completed_matches = [serialize_match(m) for m in completed]
+    match_rows_module = templates.get_template("partials/match_rows.html").module
+    return JSONResponse(
+        {
+            "matches": completed_matches,
+            "table_html": match_rows_module.render_table_rows(completed_matches),
+            "cards_html": match_rows_module.render_cards(completed_matches),
+        }
+    )
+
+
+@router.get("/api/home/stats")
+async def home_api_stats(
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
+):
+    return JSONResponse(
+        {
+            "matches_total": db.query(func.count(Match.id)).scalar() or 0,
+            "players_total": db.query(func.count(Player.id)).scalar() or 0,
+            "editions_total": db.query(func.count(TournamentEdition.id)).scalar() or 0,
+        }
+    )
+
+
 @router.get("/api/home")
 async def home_api(
     db: Session = Depends(get_db),
     _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
 ):
-    home_scope_filter = or_(Tournament.level == "Grand Slam", Tournament.tour.in_(["ATP", "WTA"]), and_(Tournament.tour.in_(["CHALLENGER", "Challenger", "WTA 125", "WTA_125"]), Match.round.in_(["SF", "F"])), and_(Tournament.tour == "ITF", Match.round == "F"))
-    home_base_query = db.query(Match).outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id).outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id).options(joinedload(Match.player_a), joinedload(Match.player_b), joinedload(Match.tournament_edition).joinedload(TournamentEdition.tournament)).filter(home_scope_filter)
-    upcoming = home_base_query.filter(Match.status.in_(get_status_group("upcoming"))).order_by(func.coalesce(Match.scheduled_date, Match.match_date).asc().nullslast(), Match.scheduled_datetime.asc().nullslast(), Match.id.asc()).limit(10).all()
-    completed = home_base_query.filter(Match.status.in_(get_status_group("historical_default"))).order_by(func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(), Match.id.desc()).limit(10).all()
+    home_base_query = _home_base_query(db)
+    upcoming = (
+        home_base_query
+        .filter(Match.status.in_(get_status_group("upcoming")))
+        .order_by(
+            func.coalesce(Match.scheduled_date, Match.match_date).asc().nullslast(),
+            Match.scheduled_datetime.asc().nullslast(),
+            Match.id.asc(),
+        )
+        .limit(10)
+        .all()
+    )
+    completed = (
+        home_base_query
+        .filter(Match.status.in_(get_status_group("historical_default")))
+        .order_by(
+            func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
+            Match.id.desc(),
+        )
+        .limit(10)
+        .all()
+    )
     upcoming_matches = [serialize_match(m) for m in upcoming]
     completed_matches = [serialize_match(m) for m in completed]
 
