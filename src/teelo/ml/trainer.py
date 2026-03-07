@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -64,21 +65,36 @@ class ModelTrainer:
                 .where(Match.temporal_order.is_not(None))
                 .order_by(Match.temporal_order.asc())
             )
-            rows = list(session.execute(stmt).all())
 
-        if not rows:
+            # Stream in chunks to avoid loading all JSONB dicts into memory
+            feature_chunks: list[pd.DataFrame] = []
+            y_vals: list[float] = []
+            date_vals: list[Any] = []
+            chunk_size = 50_000
+            total_loaded = 0
+
+            result = session.execute(stmt).yield_per(chunk_size)
+            for partition in result.partitions(chunk_size):
+                rows = list(partition)
+                if not rows:
+                    break
+                chunk_df = pd.DataFrame([r.features or {} for r in rows])
+                feature_chunks.append(chunk_df)
+                y_vals.extend(1.0 if r.winner_id == r.player_a_id else 0.0 for r in rows)
+                date_vals.extend(r.match_date for r in rows)
+                total_loaded += len(rows)
+                logger.info("trainer.loading_data", loaded=total_loaded)
+                del rows
+
+        if not feature_chunks:
             raise ValueError("No training rows found for the requested feature set and filters.")
 
-        feature_rows = [row.features or {} for row in rows]
-        X = pd.DataFrame(feature_rows)
-        X = X.apply(pd.to_numeric, errors="coerce")
-
-        y = pd.Series(
-            [1.0 if row.winner_id == row.player_a_id else 0.0 for row in rows],
-            dtype="float64",
-        )
-
-        years = pd.to_datetime(pd.Series([row.match_date for row in rows]), errors="coerce").dt.year
+        X = pd.concat(feature_chunks, ignore_index=True).apply(pd.to_numeric, errors="coerce")
+        del feature_chunks
+        y = pd.Series(y_vals, dtype="float64")
+        del y_vals
+        years = pd.to_datetime(pd.Series(date_vals), errors="coerce").dt.year
+        del date_vals
 
         valid_mask = years.notna()
         if not valid_mask.all():
@@ -102,6 +118,9 @@ class ModelTrainer:
         return X, y, years
 
     def _optimize(self, X: pd.DataFrame, y: pd.Series, years: pd.Series) -> dict[str, Any]:
+        n_trials = 50
+        t_start = time.monotonic()
+
         def objective(trial: optuna.Trial) -> float:
             params = {
                 "n_estimators": trial.suggest_int("n_estimators", 100, 1000),
@@ -113,11 +132,25 @@ class ModelTrainer:
                 "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
                 "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
             }
-            return self._temporal_cv_score(params, X, y, years)
+            score = self._temporal_cv_score(params, X, y, years)
+            done = trial.number + 1
+            elapsed = time.monotonic() - t_start
+            rate = elapsed / done if done > 0 else 0
+            eta_s = rate * (n_trials - done)
+            logger.info(
+                "trainer.trial_done",
+                trial=done,
+                total=n_trials,
+                pct=f"{done / n_trials * 100:.0f}%",
+                score=f"{score:.5f}",
+                eta=f"{eta_s / 60:.1f} min",
+            )
+            return score
 
-        logger.info("trainer.optimization_start", n_trials=50)
+        logger.info("trainer.optimization_start", n_trials=n_trials)
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
         study = optuna.create_study(direction="minimize")
-        study.optimize(objective, n_trials=50)
+        study.optimize(objective, n_trials=n_trials)
 
         best_params: dict[str, Any] = dict(study.best_params)
         self.cv_scores = self._temporal_cv_scores(best_params, X, y, years)

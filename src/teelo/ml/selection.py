@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -111,17 +112,39 @@ class FeatureSelector:
                 .where(Match.temporal_order.is_not(None))
                 .order_by(Match.temporal_order.asc())
             )
-            rows = list(session.execute(stmt).all())
 
-        if not rows:
+            # Stream in chunks to avoid loading all JSONB dicts into memory
+            feature_chunks: list[pd.DataFrame] = []
+            y_vals: list[float] = []
+            t_vals: list[int] = []
+            chunk_size = 50_000
+            total_loaded = 0
+
+            result = session.execute(stmt).yield_per(chunk_size)
+            for partition in result.partitions(chunk_size):
+                rows = list(partition)
+                if not rows:
+                    break
+                chunk_df = pd.DataFrame([r.features or {} for r in rows])
+                feature_chunks.append(chunk_df)
+                y_vals.extend(1.0 if r.winner_id == r.player_a_id else 0.0 for r in rows)
+                t_vals.extend(int(r.temporal_order) for r in rows)
+                total_loaded += len(rows)
+                logger.info(
+                    "selection.loading_data",
+                    loaded=total_loaded,
+                )
+                del rows
+
+        if not feature_chunks:
             raise ValueError("No rows found for feature selection.")
 
-        X = pd.DataFrame([row.features or {} for row in rows]).apply(pd.to_numeric, errors="coerce")
-        y = pd.Series(
-            [1.0 if row.winner_id == row.player_a_id else 0.0 for row in rows],
-            dtype="float64",
-        )
-        temporal_order = pd.Series([int(row.temporal_order) for row in rows], dtype="int64")
+        X = pd.concat(feature_chunks, ignore_index=True).apply(pd.to_numeric, errors="coerce")
+        del feature_chunks
+        y = pd.Series(y_vals, dtype="float64")
+        del y_vals
+        temporal_order = pd.Series(t_vals, dtype="int64")
+        del t_vals
 
         logger.info(
             "feature_selector.data_loaded",
@@ -133,13 +156,13 @@ class FeatureSelector:
 
     def _train_model(self, X: pd.DataFrame, y: pd.Series) -> xgb.XGBClassifier:
         model = xgb.XGBClassifier(
-            n_estimators=500,
+            n_estimators=200,
             max_depth=6,
-            learning_rate=0.05,
+            learning_rate=0.1,
+            subsample=0.5,
             use_label_encoder=False,
             eval_metric="logloss",
             enable_categorical=False,
-            n_jobs=-1,
         )
         model.fit(X, y)
         return model
@@ -181,27 +204,34 @@ class FeatureSelector:
             return results
 
         start = min(5, len(ranked_features))
-        for n_features in range(start, len(ranked_features) + 1, 5):
+        steps = list(range(start, len(ranked_features) + 1, 5))
+        if steps and steps[-1] != len(ranked_features):
+            steps.append(len(ranked_features))
+        total_steps = len(steps)
+        t_start = time.monotonic()
+
+        for step_i, n_features in enumerate(steps, 1):
             selected = ranked_features[:n_features]
             loss = self._temporal_split_log_loss(X[selected], y, temporal_order)
             results.append(
                 {
                     "n_features": n_features,
-                    "features": selected,
                     "log_loss": loss,
                 }
+            )
+            elapsed = time.monotonic() - t_start
+            rate = elapsed / step_i if step_i > 0 else 0
+            eta_s = rate * (total_steps - step_i)
+            logger.info(
+                "selection.cumulative_step",
+                step=step_i,
+                total=total_steps,
+                pct=f"{step_i / total_steps * 100:.0f}%",
+                n_features=n_features,
+                log_loss=f"{loss:.5f}",
+                eta=f"{eta_s / 60:.1f} min",
             )
 
-        if results[-1]["n_features"] != len(ranked_features):
-            selected = ranked_features
-            loss = self._temporal_split_log_loss(X[selected], y, temporal_order)
-            results.append(
-                {
-                    "n_features": len(ranked_features),
-                    "features": selected,
-                    "log_loss": loss,
-                }
-            )
         return results
 
     def _run_ablation(
@@ -214,7 +244,10 @@ class FeatureSelector:
         results: list[dict[str, Any]] = []
         columns = list(X.columns)
 
-        for prefix in ABLATION_GROUP_PREFIXES:
+        total_groups = len(ABLATION_GROUP_PREFIXES)
+        t_start = time.monotonic()
+
+        for group_i, prefix in enumerate(ABLATION_GROUP_PREFIXES, 1):
             removed = [column for column in columns if column.startswith(prefix)]
             if not removed or len(removed) >= len(columns):
                 continue
@@ -231,6 +264,18 @@ class FeatureSelector:
                     "degraded": degraded,
                     "keep_without_group": not degraded,
                 }
+            )
+            elapsed = time.monotonic() - t_start
+            rate = elapsed / group_i if group_i > 0 else 0
+            eta_s = rate * (total_groups - group_i)
+            logger.info(
+                "selection.ablation_step",
+                step=group_i,
+                total=total_groups,
+                pct=f"{group_i / total_groups * 100:.0f}%",
+                group=prefix,
+                delta=f"{ablated_loss - full_split_log_loss:+.5f}",
+                eta=f"{eta_s / 60:.1f} min",
             )
         return results
 

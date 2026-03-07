@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -26,6 +27,7 @@ logger = structlog.get_logger(__name__)
 
 TERMINAL_STATUSES = {"completed", "retired", "walkover", "default"}
 BATCH_SIZE = 5000
+PROGRESS_INTERVAL = 10000
 
 
 class FeatureEngine:
@@ -61,9 +63,27 @@ class FeatureEngine:
             processed = 0
             computed = 0
             updated_states = 0
+            total = len(match_rows)
+            t_start = time.monotonic()
 
             for row in match_rows:
                 processed += 1
+
+                if processed % PROGRESS_INTERVAL == 0:
+                    elapsed = time.monotonic() - t_start
+                    pct = processed / total * 100
+                    rate = processed / elapsed if elapsed > 0 else 0
+                    eta_s = (total - processed) / rate if rate > 0 else 0
+                    eta_min = eta_s / 60
+                    logger.info(
+                        "feature_engine.progress",
+                        processed=processed,
+                        total=total,
+                        pct=f"{pct:.1f}%",
+                        rate=f"{rate:.0f} matches/s",
+                        eta=f"{eta_min:.1f} min",
+                        computed=computed,
+                    )
 
                 state_a = self.player_states.setdefault(
                     row.player_a_id, PlayerState(player_id=row.player_a_id)
@@ -315,11 +335,7 @@ def _compute_games(score_structured: Any) -> tuple[int, int]:
 if __name__ == "__main__":
     import argparse
 
-    from teelo.features.groups.activity import ActivityFeatures
-    from teelo.features.groups.context import ContextFeatures
-    from teelo.features.groups.elo import EloCoreFeatures, EloHistoryFeatures, EloVarianceFeatures
-    from teelo.features.groups.form import FormFeatures
-    from teelo.features.groups.h2h import H2HFeatures
+    from teelo.features import build_registry
 
     parser = argparse.ArgumentParser(
         description="Compute and store match features in chronological order"
@@ -328,16 +344,14 @@ if __name__ == "__main__":
         "--backfill", action="store_true", help="Recompute and overwrite features for all matches"
     )
     parser.add_argument("--feature-set", default="baseline_v1", help="Feature set name")
+    parser.add_argument(
+        "--preset",
+        default="full",
+        choices=["full", "trimmed"],
+        help="Feature preset: full (110) or trimmed (90, drops match_count/seed)",
+    )
     args = parser.parse_args()
 
-    registry = FeatureRegistry()
-    registry.register(ContextFeatures())
-    registry.register(EloCoreFeatures())
-    registry.register(EloHistoryFeatures())
-    registry.register(EloVarianceFeatures())
-    registry.register(FormFeatures())
-    registry.register(H2HFeatures())
-    registry.register(ActivityFeatures())
-
+    registry = build_registry(args.preset)
     engine = FeatureEngine(registry=registry, feature_set_name=args.feature_set)
     engine.run(backfill=args.backfill)
