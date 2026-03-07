@@ -56,3 +56,6 @@ debug_*.py
 
 # Scratchpad
 scratchpad/
+
+# Git worktrees
+.worktrees/
