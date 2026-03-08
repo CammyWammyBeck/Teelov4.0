@@ -127,6 +127,18 @@ class Settings(BaseSettings):
         default="models",
         description="Directory for storing trained models",
     )
+    aws_access_key_id: str = Field(
+        default="",
+        description="AWS access key ID for S3 model storage",
+    )
+    aws_secret_access_key: str = Field(
+        default="",
+        description="AWS secret access key for S3 model storage",
+    )
+    s3_model_bucket: str = Field(
+        default="teelo-models",
+        description="S3 bucket name for model artifacts",
+    )
 
     # Retraining thresholds (see ml/monitor.py for usage)
     ml_accuracy_threshold: float = Field(
