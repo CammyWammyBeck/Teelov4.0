@@ -173,7 +173,7 @@ async def get_or_create_edition(
             gender=gender,
             level=task_params.tournament_level or "ATP 250",
             surface=task_params.tournament_surface or "Hard",
-            city=task_params.tournament_location.split(",")[0]
+            city=task_params.tournament_location.split(",")[0].strip().title()
             if task_params.tournament_location
             else None,
         )
@@ -896,10 +896,10 @@ async def update_tournament_metadata(
         loc = scraped_match.tournament_location
         if "," in loc:
             parts = loc.split(",")
-            tournament.city = parts[0].strip()
-            tournament.country = parts[1].strip()
+            tournament.city = parts[0].strip().title()
+            tournament.country = parts[1].strip().title()
         else:
-            tournament.city = loc
+            tournament.city = loc.strip().title()
 
     if scraped_match.tournament_country_ioc and not tournament.country_ioc:
         tournament.country_ioc = scraped_match.tournament_country_ioc

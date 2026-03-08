@@ -239,11 +239,12 @@ class WTAScraper(BaseScraper):
         surface = surface_elem.get_text(strip=True) if surface_elem else "Hard"
         surface = self._normalize_surface(surface)
 
-        # Location (city and country typically run together, e.g. "MELBOURNEAUSTRALIA")
+        # Location — child elements contain city and country separately;
+        # use separator so they don't merge into "ALBANYUNITED STATES".
         location = ""
         location_elem = card.select_one("[class*='location']")
         if location_elem:
-            location = location_elem.get_text(strip=True)
+            location = location_elem.get_text(separator=", ", strip=True)
 
         # Start date from first <time> element
         start_date = None
