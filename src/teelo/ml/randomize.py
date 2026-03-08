@@ -19,12 +19,23 @@ def randomize_ab(
     a_cols = [c for c in X.columns if c.endswith("_a")]
     pairs = [(c, c[:-2] + "_b") for c in a_cols if c[:-2] + "_b" in X.columns]
 
+    # Features computed as (a - b) that need sign-flipping
+    diff_cols = [c for c in X.columns if "diff" in c.lower()]
+    # Features computed as a / total that need complementing (1 - x)
+    complement_cols = [c for c in X.columns if c == "h2h_a_dominance"]
+
     X_out = X.copy()
     y_out = y.copy()
 
     for col_a, col_b in pairs:
         X_out.loc[mask, col_a] = X.loc[mask, col_b].values
         X_out.loc[mask, col_b] = X.loc[mask, col_a].values
+
+    for col in diff_cols:
+        X_out.loc[mask, col] = -X.loc[mask, col].values
+
+    for col in complement_cols:
+        X_out.loc[mask, col] = 1.0 - X.loc[mask, col].values
 
     y_out[mask] = 1 - y_out[mask]
     return X_out, y_out

@@ -38,13 +38,27 @@ class ModelTrainer:
         self.output_path = output_path
         self.cv_scores: dict[str, float] = {}
 
-    def train(self) -> dict[str, Any]:
+    def train(self, holdout_year: int | None = None) -> dict[str, Any]:
         logger.info("loading data")
         X, y, years = self._load_data()
-        logger.info("beginning traning")
-        best_params = self._optimize(X, y, years)
-        model = self._train_final(X, y, best_params)
-        return self._save(model, best_params, X, y, years)
+
+        if holdout_year is not None:
+            train_mask = years != holdout_year
+            X_train = X.loc[train_mask].reset_index(drop=True)
+            y_train = y.loc[train_mask].reset_index(drop=True)
+            years_train = years.loc[train_mask].reset_index(drop=True)
+            logger.info(
+                "trainer.holdout_excluded",
+                holdout_year=holdout_year,
+                excluded_rows=int((~train_mask).sum()),
+            )
+        else:
+            X_train, y_train, years_train = X, y, years
+
+        logger.info("beginning training")
+        best_params = self._optimize(X_train, y_train, years_train)
+        model = self._train_final(X_train, y_train, best_params)
+        return self._save(model, best_params, X_train, y_train, years_train)
 
     def _load_data(self) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
         with get_session() as session:
@@ -285,6 +299,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--feature-set", default="baseline_v1")
     parser.add_argument("--output", default="models/prediction_v1.json")
+    parser.add_argument("--holdout-year", type=int, default=None)
     args = parser.parse_args()
     trainer = ModelTrainer(args.feature_set, args.output)
-    trainer.train()
+    trainer.train(holdout_year=args.holdout_year)
