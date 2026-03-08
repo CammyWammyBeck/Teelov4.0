@@ -14,6 +14,7 @@ from teelo.config import settings
 from teelo.db.models import FeatureSet, Match, MatchFeatures, Tournament, TournamentEdition
 from teelo.db.session import get_session
 from teelo.ml.randomize import randomize_ab
+from teelo.ml.versioning import latest_feature_set, latest_model_path
 from teelo.ml.versioning import latest_model_path
 
 logger = structlog.get_logger(__name__)
@@ -22,9 +23,9 @@ TERMINAL_STATUSES = ("completed", "retired", "walkover", "default")
 
 
 class ModelEvaluator:
-    def __init__(self, model_path: str, feature_set_name: str) -> None:
-        self.model_path = model_path
-        self.feature_set_name = feature_set_name
+    def __init__(self, model_path: str | None = None, feature_set_name: str | None = None) -> None:
+        self.model_path = model_path or latest_model_path()
+        self.feature_set_name = feature_set_name or latest_feature_set()
 
     def evaluate(self, holdout_year: int = 2025) -> dict[str, Any]:
         model = xgb.XGBClassifier()
@@ -137,8 +138,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default=None)
-    parser.add_argument("--feature-set", default="baseline_v1")
+    parser.add_argument("--feature-set", default=None)
     parser.add_argument("--holdout-year", type=int, default=2025)
     args = parser.parse_args()
-    model_path = args.model or latest_model_path()
-    ModelEvaluator(model_path, args.feature_set).evaluate(args.holdout_year)
+    ModelEvaluator(args.model, args.feature_set).evaluate(args.holdout_year)
