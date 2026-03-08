@@ -1,6 +1,6 @@
 // Admin SQL Editor - client-side logic
 
-const editor = CodeMirror.fromTextArea(document.getElementById('sql-editor'), {
+var editor = CodeMirror.fromTextArea(document.getElementById('sql-editor'), {
     mode: 'text/x-sql',
     lineNumbers: true,
     matchBrackets: true,
@@ -11,32 +11,32 @@ const editor = CodeMirror.fromTextArea(document.getElementById('sql-editor'), {
 });
 
 // State
-let currentPage = 1;
-let currentQuery = '';
-let sortColumn = null;
-let sortDir = 'asc';
-let lastResultData = null;
+var currentPage = 1;
+var currentQuery = '';
+var sortColumn = null;
+var sortDir = 'asc';
+var currentData = null; // shared reference for event handlers
 
 // DOM refs
-const runBtn = document.getElementById('run-btn');
-const statusEl = document.getElementById('query-status');
-const resultsPanel = document.getElementById('results-panel');
-const resultsHead = document.getElementById('results-head');
-const resultsBody = document.getElementById('results-body');
-const resultsInfo = document.getElementById('results-info');
-const paginationEl = document.getElementById('pagination');
-const prevBtn = document.getElementById('prev-page');
-const nextBtn = document.getElementById('next-page');
-const pageInfo = document.getElementById('page-info');
-const errorPanel = document.getElementById('error-panel');
-const errorMessage = document.getElementById('error-message');
-const successPanel = document.getElementById('success-panel');
-const successMessage = document.getElementById('success-message');
-const previewPanel = document.getElementById('preview-panel');
-const previewInfo = document.getElementById('preview-info');
-const confirmBtn = document.getElementById('confirm-btn');
-const cancelBtn = document.getElementById('cancel-btn');
-const copyToast = document.getElementById('copy-toast');
+var runBtn = document.getElementById('run-btn');
+var statusEl = document.getElementById('query-status');
+var resultsPanel = document.getElementById('results-panel');
+var resultsHead = document.getElementById('results-head');
+var resultsBody = document.getElementById('results-body');
+var resultsInfo = document.getElementById('results-info');
+var paginationEl = document.getElementById('pagination');
+var prevBtn = document.getElementById('prev-page');
+var nextBtn = document.getElementById('next-page');
+var pageInfo = document.getElementById('page-info');
+var errorPanel = document.getElementById('error-panel');
+var errorMessage = document.getElementById('error-message');
+var successPanel = document.getElementById('success-panel');
+var successMessage = document.getElementById('success-message');
+var previewPanel = document.getElementById('preview-panel');
+var previewInfo = document.getElementById('preview-info');
+var confirmBtn = document.getElementById('confirm-btn');
+var cancelBtn = document.getElementById('cancel-btn');
+var copyToast = document.getElementById('copy-toast');
 
 function hideAll() {
     resultsPanel.classList.add('hidden');
@@ -58,7 +58,7 @@ function showSuccess(msg) {
 }
 
 function escapeHtml(str) {
-    const div = document.createElement('div');
+    var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
 }
@@ -70,9 +70,10 @@ function showToast(msg, isError) {
     setTimeout(function() { copyToast.classList.remove('show'); }, 2000);
 }
 
+
 // Escape a SQL string value (basic quoting)
 function sqlEscape(val) {
-    if (val === '' || val === 'NULL') return 'NULL';
+    if (val === 'NULL') return 'NULL';
     return "'" + val.replace(/'/g, "''") + "'";
 }
 
@@ -102,7 +103,7 @@ async function runQuery(action, page) {
         }
 
         if (data.type === 'select') {
-            lastResultData = data;
+            currentData = data;
             renderResults(data);
             statusEl.textContent = data.total_rows + ' row' + (data.total_rows !== 1 ? 's' : '') + ' returned';
         } else if (data.type === 'preview') {
@@ -141,11 +142,14 @@ async function saveInlineEdit(tableName, pkColumns, columns, row, colIdx, newVal
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: sql, action: 'confirm' }),
     });
-    var data = await resp.json();
+    var result = await resp.json();
     if (!resp.ok) {
-        return { error: data.error || 'Update failed' };
+        return { error: result.error || 'Update failed' };
     }
-    return data;
+    if (result.affected_rows === 0) {
+        return { error: 'No rows matched — update had no effect.' };
+    }
+    return result;
 }
 
 function canInlineEdit(data) {
@@ -155,6 +159,8 @@ function canInlineEdit(data) {
 function renderResults(data) {
     hideAll();
     var editable = canInlineEdit(data);
+    // Update shared reference so event handlers always use latest data
+    currentData = data;
 
     // Header
     var headerHtml = '<tr>';
@@ -195,13 +201,13 @@ function renderResults(data) {
         paginationEl.classList.add('hidden');
     }
 
-    // Sort handlers on headers
+    // Sort handlers on headers (these are on fresh DOM elements, so no duplication)
     var ths = resultsHead.querySelectorAll('th');
     for (var t = 0; t < ths.length; t++) {
         (function(th) {
             th.addEventListener('click', function() {
                 var col = th.dataset.col;
-                var colIdx = data.columns.indexOf(col);
+                var colIdx = currentData.columns.indexOf(col);
                 if (colIdx === -1) return;
 
                 if (sortColumn === col) {
@@ -211,7 +217,7 @@ function renderResults(data) {
                     sortDir = 'asc';
                 }
 
-                data.rows.sort(function(a, b) {
+                currentData.rows.sort(function(a, b) {
                     var va = a[colIdx], vb = b[colIdx];
                     if (va === null) return 1;
                     if (vb === null) return -1;
@@ -221,114 +227,107 @@ function renderResults(data) {
                     va = String(va); vb = String(vb);
                     return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
                 });
-                renderResults(Object.assign({}, data));
+                renderResults(currentData);
             });
         })(ths[t]);
     }
-
-    // Cell interactions via event delegation on tbody
-    resultsBody.addEventListener('click', function(e) {
-        var td = e.target.closest('td');
-        if (!td) return;
-        // Single click = copy
-        navigator.clipboard.writeText(td.textContent).then(function() {
-            showToast('Copied!');
-        });
-    });
-
-    resultsBody.addEventListener('dblclick', function(e) {
-        var td = e.target.closest('td');
-        if (!td || !editable) return;
-
-        var colIdx = parseInt(td.dataset.colIdx, 10);
-        var isPk = data.pk_columns.indexOf(data.columns[colIdx]) !== -1;
-        if (isPk) return; // Don't allow editing PK columns
-
-        // Don't re-enter edit mode
-        if (td.querySelector('input')) return;
-
-        var tr = td.closest('tr');
-        var rowIdx = parseInt(tr.dataset.rowIdx, 10);
-        var currentVal = data.rows[rowIdx][colIdx];
-        var displayVal = currentVal === null ? '' : String(currentVal);
-
-        // Create input
-        var input = document.createElement('input');
-        input.type = 'text';
-        input.value = displayVal;
-        input.className = 'w-full px-1 py-0.5 text-sm border border-teelo-lime rounded focus:outline-none focus:ring-2 focus:ring-teelo-lime/50 bg-yellow-50';
-        input.style.minWidth = '60px';
-
-        td.innerHTML = '';
-        td.appendChild(input);
-        input.focus();
-        input.select();
-
-        var saving = false;
-
-        function commitEdit() {
-            if (saving) return;
-            var newVal = input.value;
-
-            // No change
-            if (newVal === displayVal) {
-                restoreCell();
-                return;
-            }
-
-            saving = true;
-            input.disabled = true;
-            td.style.opacity = '0.5';
-
-            saveInlineEdit(data.table_name, data.pk_columns, data.columns, data.rows[rowIdx], colIdx, newVal).then(function(result) {
-                if (result.error) {
-                    showToast(result.error, true);
-                    restoreCell();
-                } else {
-                    // Update local data
-                    var parsed = newVal === 'NULL' ? null : newVal;
-                    data.rows[rowIdx][colIdx] = parsed;
-                    var display = parsed === null ? '<span class="text-gray-300 italic">NULL</span>' : escapeHtml(String(parsed));
-                    td.innerHTML = display;
-                    td.style.opacity = '';
-                    td.style.background = '#f0fdf4';
-                    setTimeout(function() { td.style.background = ''; }, 1500);
-                    showToast('Saved');
-                }
-                saving = false;
-            }).catch(function(err) {
-                showToast('Error: ' + err.message, true);
-                restoreCell();
-                saving = false;
-            });
-        }
-
-        function restoreCell() {
-            var display = currentVal === null ? '<span class="text-gray-300 italic">NULL</span>' : escapeHtml(String(currentVal));
-            td.innerHTML = display;
-            td.style.opacity = '';
-        }
-
-        input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                commitEdit();
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                restoreCell();
-            }
-        });
-
-        input.addEventListener('blur', function() {
-            // Small delay to allow click on other elements
-            setTimeout(function() {
-                if (!saving) commitEdit();
-            }, 100);
-        });
-    });
 }
 
-// Event listeners
+// ---- Event delegation on resultsBody (set up ONCE, not per render) ----
+
+resultsBody.addEventListener('dblclick', function(e) {
+    var td = e.target.closest('td');
+    if (!td || !currentData) return;
+    if (!canInlineEdit(currentData)) return;
+
+    var colIdx = parseInt(td.dataset.colIdx, 10);
+    var isPk = currentData.pk_columns.indexOf(currentData.columns[colIdx]) !== -1;
+    if (isPk) return;
+
+    // Don't re-enter edit mode
+    if (td.querySelector('input')) return;
+
+    var tr = td.closest('tr');
+    var rowIdx = parseInt(tr.dataset.rowIdx, 10);
+    var currentVal = currentData.rows[rowIdx][colIdx];
+    var displayVal = currentVal === null ? '' : String(currentVal);
+
+    // Create input
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = displayVal;
+    input.className = 'w-full px-1 py-0.5 text-sm border border-teelo-lime rounded focus:outline-none focus:ring-2 focus:ring-teelo-lime/50 bg-yellow-50';
+    input.style.minWidth = '60px';
+
+    td.innerHTML = '';
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    var saving = false;
+
+    function commitEdit() {
+        if (saving) return;
+        var newVal = input.value;
+
+        // No change
+        if (newVal === displayVal) {
+            restoreCell();
+            return;
+        }
+
+        saving = true;
+        input.disabled = true;
+        td.style.opacity = '0.5';
+
+        saveInlineEdit(currentData.table_name, currentData.pk_columns, currentData.columns, currentData.rows[rowIdx], colIdx, newVal).then(function(result) {
+            if (result.error) {
+                showToast(result.error, true);
+                restoreCell();
+            } else {
+                // Update local data
+                var parsed = newVal === 'NULL' ? null : newVal;
+                currentData.rows[rowIdx][colIdx] = parsed;
+                var display = parsed === null ? '<span class="text-gray-300 italic">NULL</span>' : escapeHtml(String(parsed));
+                td.innerHTML = display;
+                td.style.opacity = '';
+                td.style.background = '#f0fdf4';
+                setTimeout(function() { td.style.background = ''; }, 1500);
+                showToast('Saved');
+            }
+            saving = false;
+        }).catch(function(err) {
+            showToast('Error: ' + err.message, true);
+            restoreCell();
+            saving = false;
+        });
+    }
+
+    function restoreCell() {
+        var display = currentVal === null ? '<span class="text-gray-300 italic">NULL</span>' : escapeHtml(String(currentVal));
+        td.innerHTML = display;
+        td.style.opacity = '';
+    }
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            commitEdit();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            restoreCell();
+        }
+    });
+
+    input.addEventListener('blur', function() {
+        setTimeout(function() {
+            if (!saving) commitEdit();
+        }, 100);
+    });
+});
+
+// ---- Other event listeners ----
+
 runBtn.addEventListener('click', function() { runQuery('execute'); });
 editor.setOption('extraKeys', {
     'Ctrl-Enter': function() { runQuery('execute'); },
