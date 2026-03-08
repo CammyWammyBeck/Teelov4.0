@@ -14,6 +14,7 @@ from teelo.web.routers.matches import router as matches_router
 from teelo.web.routers.players import router as players_router
 from teelo.web.routers.public import router as public_router
 from teelo.web.routers.rankings import router as rankings_router
+from teelo.web.routers.tournaments import router as tournaments_router
 
 app = FastAPI(title="Teelo Ratings")
 app.add_middleware(
@@ -39,6 +40,7 @@ app.include_router(public_router)
 app.include_router(matches_router)
 app.include_router(rankings_router)
 app.include_router(players_router)
+app.include_router(tournaments_router)
 app.include_router(blog_router)
 app.include_router(admin_router)
 

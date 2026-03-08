@@ -211,3 +211,23 @@
 /* Mobile tab bar — active/inactive styles toggled via JS using Tailwind classes:
    active:   bg-teelo-lime text-teelo-dark shadow-sm
    inactive: text-gray-400 */
+
+/* ==========================================================================
+   Tournament bracket
+   ========================================================================== */
+
+.teelo-bracket-content {
+    isolation: isolate;
+}
+
+.teelo-bracket-connectors {
+    overflow: visible;
+}
+
+.teelo-bracket-match {
+    min-height: 70px;
+}
+
+.teelo-bracket-placeholder {
+    border-style: dashed;
+}
