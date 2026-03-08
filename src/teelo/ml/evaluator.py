@@ -13,6 +13,7 @@ from sqlalchemy import select
 from teelo.config import settings
 from teelo.db.models import FeatureSet, Match, MatchFeatures, Tournament, TournamentEdition
 from teelo.db.session import get_session
+from teelo.ml.randomize import randomize_ab
 
 logger = structlog.get_logger(__name__)
 
@@ -65,6 +66,8 @@ class ModelEvaluator:
             dtype="int64",
         )
         tours = pd.Series([row.tour or "unknown" for row in rows], dtype="object")
+
+        X, y_true = randomize_ab(X, y_true)
 
         y_prob = model.predict_proba(X)[:, 1]
         y_pred = (y_prob > 0.5).astype(int)

@@ -33,12 +33,15 @@ class ModelTrainer:
     def __init__(
         self, feature_set_name: str, output_path: str = "models/prediction_v1.json"
     ) -> None:
+        logger.info("initialising trainer")
         self.feature_set_name = feature_set_name
         self.output_path = output_path
         self.cv_scores: dict[str, float] = {}
 
     def train(self) -> dict[str, Any]:
+        logger.info("loading data")
         X, y, years = self._load_data()
+        logger.info("beginning traning")
         best_params = self._optimize(X, y, years)
         model = self._train_final(X, y, best_params)
         return self._save(model, best_params, X, y, years)
