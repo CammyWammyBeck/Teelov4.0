@@ -14,6 +14,7 @@ from teelo.config import settings
 from teelo.db.models import FeatureSet, Match, MatchFeatures, Tournament, TournamentEdition
 from teelo.db.session import get_session
 from teelo.ml.randomize import randomize_ab
+from teelo.ml.versioning import latest_model_path
 
 logger = structlog.get_logger(__name__)
 
@@ -135,8 +136,9 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="models/prediction_v1.json")
+    parser.add_argument("--model", default=None)
     parser.add_argument("--feature-set", default="baseline_v1")
     parser.add_argument("--holdout-year", type=int, default=2025)
     args = parser.parse_args()
-    ModelEvaluator(args.model, args.feature_set).evaluate(args.holdout_year)
+    model_path = args.model or latest_model_path()
+    ModelEvaluator(model_path, args.feature_set).evaluate(args.holdout_year)

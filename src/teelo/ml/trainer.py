@@ -16,6 +16,7 @@ from sqlalchemy import select
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
 from teelo.ml.randomize import randomize_ab
+from teelo.ml.versioning import next_model_path
 
 logger = structlog.get_logger(__name__)
 
@@ -31,11 +32,11 @@ TEMPORAL_FOLDS: list[tuple[int, int]] = [
 
 class ModelTrainer:
     def __init__(
-        self, feature_set_name: str, output_path: str = "models/prediction_v1.json"
+        self, feature_set_name: str, output_path: str | None = None
     ) -> None:
         logger.info("initialising trainer")
         self.feature_set_name = feature_set_name
-        self.output_path = output_path
+        self.output_path = output_path or next_model_path()
         self.cv_scores: dict[str, float] = {}
 
     def train(self, holdout_year: int | None = None) -> dict[str, Any]:
@@ -298,8 +299,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--feature-set", default="baseline_v1")
-    parser.add_argument("--output", default="models/prediction_v1.json")
+    parser.add_argument("--output", default=None)
     parser.add_argument("--holdout-year", type=int, default=None)
     args = parser.parse_args()
-    trainer = ModelTrainer(args.feature_set, args.output)
+    output_path = args.output or next_model_path()
+    trainer = ModelTrainer(args.feature_set, output_path)
     trainer.train(holdout_year=args.holdout_year)
