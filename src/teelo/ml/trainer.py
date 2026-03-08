@@ -17,6 +17,7 @@ from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
 from teelo.ml.randomize import randomize_ab
 from teelo.ml.versioning import latest_feature_set, next_model_path
+from teelo.storage import upload_model
 
 logger = structlog.get_logger(__name__)
 
@@ -59,7 +60,19 @@ class ModelTrainer:
         logger.info("beginning training")
         best_params = self._optimize(X_train, y_train, years_train)
         model = self._train_final(X_train, y_train, best_params)
-        return self._save(model, best_params, X_train, y_train, years_train)
+        metadata = self._save(model, best_params, X_train, y_train, years_train)
+
+        try:
+            upload_model(self.output_path)
+            logger.info("trainer.s3_upload_done", model_path=self.output_path)
+        except Exception as exc:
+            logger.warning(
+                "trainer.s3_upload_failed",
+                model_path=self.output_path,
+                error=str(exc),
+            )
+
+        return metadata
 
     def _load_data(self) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
         with get_session() as session:

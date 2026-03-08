@@ -15,7 +15,7 @@ from teelo.db.models import FeatureSet, Match, MatchFeatures, Tournament, Tourna
 from teelo.db.session import get_session
 from teelo.ml.randomize import randomize_ab
 from teelo.ml.versioning import latest_feature_set, latest_model_path
-from teelo.ml.versioning import latest_model_path
+from teelo.storage import download_model
 
 logger = structlog.get_logger(__name__)
 
@@ -28,6 +28,22 @@ class ModelEvaluator:
         self.feature_set_name = feature_set_name or latest_feature_set()
 
     def evaluate(self, holdout_year: int = 2025) -> dict[str, Any]:
+        model_path = Path(self.model_path)
+        if not model_path.exists():
+            try:
+                downloaded_model_path, _ = download_model(
+                    model_path.name,
+                    local_dir=str(model_path.parent) if str(model_path.parent) != "." else "models",
+                )
+                self.model_path = downloaded_model_path
+                logger.info("model_evaluator.model_downloaded", model_path=self.model_path)
+            except Exception as exc:
+                logger.warning(
+                    "model_evaluator.model_download_failed",
+                    model_path=self.model_path,
+                    error=str(exc),
+                )
+
         model = xgb.XGBClassifier()
         model.load_model(self.model_path)
         metadata = self._load_metadata()

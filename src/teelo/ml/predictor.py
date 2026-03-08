@@ -12,6 +12,7 @@ from sqlalchemy import bindparam, select, update
 
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
+from teelo.storage import download_model
 
 logger = structlog.get_logger(__name__)
 
@@ -22,6 +23,22 @@ class BatchPredictor:
         self.feature_set_name = feature_set_name
 
     def predict(self) -> int:
+        model_path = Path(self.model_path)
+        if not model_path.exists():
+            try:
+                downloaded_model_path, _ = download_model(
+                    model_path.name,
+                    local_dir=str(model_path.parent) if str(model_path.parent) != "." else "models",
+                )
+                self.model_path = downloaded_model_path
+                logger.info("batch_predictor.model_downloaded", model_path=self.model_path)
+            except Exception as exc:
+                logger.warning(
+                    "batch_predictor.model_download_failed",
+                    model_path=self.model_path,
+                    error=str(exc),
+                )
+
         model = xgb.XGBClassifier()
         model.load_model(self.model_path)
         metadata = self._load_metadata()
