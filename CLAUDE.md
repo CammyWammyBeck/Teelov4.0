@@ -1,102 +1,129 @@
 # CLAUDE.md - Teelo v4.0 Agent Workflow
 
-Last updated: 2026-03-03
+Last updated: 2026-03-08
 
 This document defines how to run Claude Code and Codex together in this repository.
 
 ## Goal
 
-Use Claude as the orchestrator and verifier. Use Codex as the implementation worker for all code/file edits.
+Claude is a **prompt engineer and reviewer**. Codex CLI does the heavy lifting: research, planning, and implementation. Claude's job is to craft good prompts, review outputs, request revisions, and run verification. All work flows through an iterative loop: Codex drafts, Claude reviews, Codex revises.
 
-## Standard Role Split
+## Role Split
 
-### Claude (primary agent)
-- Clarifies scope and constraints.
-- Produces implementation plans.
-- Runs terminal commands for setup, testing, linting, and verification.
-- Delegates implementation tasks to the Codex subagent.
-- Reviews diffs and validates behavior.
-- Reports results, risks, and next steps.
+### Claude (prompt engineer / reviewer)
+- Crafts precise prompts for Codex (research, planning, and implementation).
+- Reviews all Codex output (always read generated/changed files).
+- Provides feedback and requests revisions (iterative loop).
+- Makes final accept/reject decisions on plans and code.
+- Runs verification commands (pytest, ruff, black, mypy).
+- Git operations (commit, push, PR creation).
+- Communicates with user and reports results.
 
-### Codex subagent (`codex-implementer`)
-- Performs code edits only when delegated.
+### Claude does NOT:
+- Write or edit code directly (unless Codex is unavailable/broken).
+- Read files for research (delegate to Codex instead).
+- Write plans from scratch (Codex drafts, Claude critiques).
+
+### Codex CLI (drafter / implementer)
+- **Research**: Reads files, searches codebase, summarizes findings.
+- **Planning**: Drafts implementation plans with file lists, approach, and tradeoffs.
+- **Architecture**: Proposes design options with pros/cons for Claude to choose.
+- **Implementation**: Creates new files, edits existing files, refactors code.
 - Keeps diffs minimal and scoped.
-- Applies changes and reports files touched and commands run.
-- Does not broaden scope or make product decisions.
+- Does not broaden scope or make product decisions without Claude's approval.
 
-## One-Time MCP Setup
+## The Iterative Loop
 
-Run these once on your machine:
+Every task follows this cycle:
+
+```
+1. Claude prompts Codex (research / plan / implement)
+2. Claude reviews output
+3. If not satisfied → Claude gives specific feedback → Codex revises (go to 2)
+4. If satisfied → Claude accepts and moves to next phase
+```
+
+Phases for a typical task:
+1. **Research** — Codex explores codebase, reports findings
+2. **Plan** — Codex drafts plan, Claude reviews/refines (1-3 rounds)
+3. **Implement** — Codex implements approved plan, Claude reviews code
+4. **Verify** — Claude runs tests/lint, Codex fixes any issues
+
+## MCP Setup
 
 ```bash
-# 1) Install Codex CLI
+# Install Codex CLI
 npm install -g @openai/codex
 codex login
-codex --version
 
-# 2) Add Codex MCP server to Claude Code
+# Add Codex MCP server to Claude Code
 claude mcp add codex-cli-mcp-tool --scope user -- npx -y codex-cli-mcp-tool
 
-# 3) Verify MCP registration
+# Verify
 claude mcp list
 ```
 
-Optional fallback MCP server:
+## Codex CLI Usage Patterns
 
-```bash
-claude mcp add codex-bridge --scope user -- uvx codex-bridge
+### For research:
+```
+mcp__codex-cli__codex(
+  prompt="Read these files and answer the following questions: [specific questions]. Do NOT make changes.
+  Files: [list files]
+  Report: [what to summarize]",
+  workingDirectory="/path/to/project",
+  fullAuto=true
+)
 ```
 
-## Subagent Setup (Claude Code)
-
-In Claude Code, run `/agents` and create a user-level subagent:
-
-- Name: `codex-implementer`
-- Description: `Implements all code and file changes via Codex MCP tools.`
-- Tools: only Codex MCP tools (no direct local edit tools)
-
-Suggested system prompt:
-
-```md
-You are the implementation worker for this repository.
-Execute only the delegated implementation scope.
-Prefer the smallest safe diff.
-If requirements are ambiguous, stop and return clarifying questions.
-After applying changes, report:
-- files changed
-- commands run
-- validation status
-- risks/follow-ups
+### For planning:
+```
+mcp__codex-cli__codex(
+  prompt="Draft an implementation plan for: [feature/task description].
+  Context: [relevant architecture, constraints, patterns]
+  Include: files to create/modify, approach, key decisions, risks.
+  Do NOT implement yet.",
+  workingDirectory="/path/to/project",
+  fullAuto=true
+)
 ```
 
-## Required Operating Policy
-
-Default behavior for this repository:
-
-1. Claude plans first.
-2. Claude delegates all implementation to `codex-implementer`.
-3. Claude performs verification (tests/lint/type checks/manual checks).
-4. Claude summarizes outcomes and any residual risk.
-
-Claude should not directly edit files unless explicitly told to bypass delegation.
-
-## Prompt Pattern To Reuse
-
-Use this prefix when starting implementation tasks:
-
-```text
-Plan first. Delegate all implementation to codex-implementer.
-After implementation completes, run verification commands yourself,
-review the diff, and report final status with risks.
+### For plan revision:
 ```
+mcp__codex-cli__codex(
+  prompt="Revise the plan based on this feedback: [Claude's feedback].
+  Original plan: [paste or reference the plan]
+  Do NOT implement yet.",
+  workingDirectory="/path/to/project",
+  fullAuto=true
+)
+```
+
+### For implementation:
+```
+mcp__codex-cli__codex(
+  prompt="Implement the following plan: [approved plan details].
+  [Include full context: DB schemas, imports, conventions, signatures]",
+  workingDirectory="/path/to/project",
+  fullAuto=true
+)
+```
+
+### Key rules:
+- Always set `fullAuto=true` for sandboxed execution.
+- Set `workingDirectory` to the project root or worktree.
+- Include full context in prompts (DB schemas, imports, conventions) since Codex has no conversation history.
+- Parallelize independent tasks (multiple Codex calls in one message).
+- Always `Read` generated files to verify before proceeding.
+- When revising, include Claude's specific feedback — don't just say "fix it."
 
 ## Project Commands (Teelo v4.0)
 
 ### Environment setup
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 pip install -e ".[dev]"
 ```
 
@@ -137,8 +164,3 @@ Before Claude marks a task complete:
 - Do not silently skip failing checks; report them.
 - Keep changes focused; avoid unrelated refactors.
 - When blocked by missing context, ask targeted questions.
-
-## Notes
-
-- If MCP tools fail, verify `claude mcp list` output first.
-- Some older docs reference `@openai/codex-cli`; prefer `@openai/codex`.

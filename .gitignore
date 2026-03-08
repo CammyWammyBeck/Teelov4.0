@@ -35,6 +35,8 @@ htmlcov/
 models/*.keras
 models/*.joblib
 models/*.h5
+models/*.json
+models/*_meta.json
 
 # Logs
 logs/

@@ -63,16 +63,17 @@ class BatchPredictor:
                 }
                 for row, prob in zip(rows, probs)
             ]
+            from teelo.db.models import Match as MatchModel
             update_stmt = (
-                update(Match)
-                .where(Match.id == bindparam("b_match_id"))
+                MatchModel.__table__.update()
+                .where(MatchModel.__table__.c.id == bindparam("b_match_id"))
                 .values(
                     prediction_a=bindparam("b_prediction_a"),
                     prediction_model_version=bindparam("b_prediction_model_version"),
                     prediction_updated_at=bindparam("b_prediction_updated_at"),
                 )
             )
-            session.execute(update_stmt, payloads)
+            session.connection().execute(update_stmt, payloads)
 
         logger.info(
             "batch_predictor.predicted",

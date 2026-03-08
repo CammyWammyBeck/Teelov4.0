@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
+from teelo.ml.randomize import randomize_ab
 
 logger = structlog.get_logger(__name__)
 
@@ -145,6 +146,8 @@ class FeatureSelector:
         del y_vals
         temporal_order = pd.Series(t_vals, dtype="int64")
         del t_vals
+
+        X, y = randomize_ab(X, y)
 
         logger.info(
             "feature_selector.data_loaded",

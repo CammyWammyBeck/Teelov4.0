@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
+from teelo.ml.randomize import randomize_ab
 
 logger = structlog.get_logger(__name__)
 
@@ -108,6 +109,8 @@ class ModelTrainer:
 
         if X.empty:
             raise ValueError("No valid rows left after filtering missing match_date years.")
+
+        X, y = randomize_ab(X, y)
 
         logger.info(
             "trainer.data_loaded",
