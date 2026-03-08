@@ -11,7 +11,6 @@ var editor = CodeMirror.fromTextArea(document.getElementById('sql-editor'), {
 });
 
 // State
-var currentPage = 1;
 var currentQuery = '';
 var sortColumn = null;
 var sortDir = 'asc';
@@ -24,10 +23,6 @@ var resultsPanel = document.getElementById('results-panel');
 var resultsHead = document.getElementById('results-head');
 var resultsBody = document.getElementById('results-body');
 var resultsInfo = document.getElementById('results-info');
-var paginationEl = document.getElementById('pagination');
-var prevBtn = document.getElementById('prev-page');
-var nextBtn = document.getElementById('next-page');
-var pageInfo = document.getElementById('page-info');
 var errorPanel = document.getElementById('error-panel');
 var errorMessage = document.getElementById('error-message');
 var successPanel = document.getElementById('success-panel');
@@ -77,14 +72,13 @@ function sqlEscape(val) {
     return "'" + val.replace(/'/g, "''") + "'";
 }
 
-async function runQuery(action, page) {
+async function runQuery(action, options) {
     action = action || 'execute';
-    page = page || 1;
+    options = options || {};
     var sql = editor.getValue().trim();
     if (!sql) return;
 
     currentQuery = sql;
-    currentPage = page;
     statusEl.textContent = 'Running...';
     runBtn.disabled = true;
 
@@ -92,13 +86,38 @@ async function runQuery(action, page) {
         var resp = await fetch('/admin/sql/execute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: sql, action: action, page: page }),
+            body: JSON.stringify({ query: sql, action: action }),
         });
         var data = await resp.json();
 
         if (!resp.ok) {
             showError(data.error || 'Query failed');
             statusEl.textContent = 'Error';
+            return;
+        }
+
+        if (data.type === 'count_check') {
+            if (data.total_rows > 1000) {
+                hideAll();
+                previewInfo.textContent = 'This query will return ' + data.total_rows + ' rows. Load all results anyway?';
+                previewPanel.classList.remove('hidden');
+                // Temporarily rewire confirm button to force-load
+                confirmBtn.onclick = function() {
+                    confirmBtn.onclick = null;
+                    runQuery('force');
+                };
+                cancelBtn.onclick = function() {
+                    cancelBtn.onclick = null;
+                    previewPanel.classList.add('hidden');
+                    statusEl.textContent = 'Cancelled';
+                    // Restore default cancel behavior
+                    cancelBtn.addEventListener('click', defaultCancelHandler);
+                };
+                statusEl.textContent = data.total_rows + ' rows — confirm to load';
+            } else {
+                // Under threshold, just load
+                runQuery('force');
+            }
             return;
         }
 
@@ -190,16 +209,6 @@ function renderResults(data) {
         resultsInfo.textContent += ' (double-click to edit)';
     }
     resultsPanel.classList.remove('hidden');
-
-    // Pagination
-    if (data.total_pages > 1) {
-        paginationEl.classList.remove('hidden');
-        pageInfo.textContent = 'Page ' + data.page + ' of ' + data.total_pages;
-        prevBtn.disabled = data.page <= 1;
-        nextBtn.disabled = data.page >= data.total_pages;
-    } else {
-        paginationEl.classList.add('hidden');
-    }
 
     // Sort handlers on headers (these are on fresh DOM elements, so no duplication)
     var ths = resultsHead.querySelectorAll('th');
@@ -328,20 +337,19 @@ resultsBody.addEventListener('dblclick', function(e) {
 
 // ---- Other event listeners ----
 
-runBtn.addEventListener('click', function() { runQuery('execute'); });
+function defaultCancelHandler() {
+    previewPanel.classList.add('hidden');
+    statusEl.textContent = 'Cancelled';
+}
+
+runBtn.addEventListener('click', function() { runQuery('check_count'); });
 editor.setOption('extraKeys', {
-    'Ctrl-Enter': function() { runQuery('execute'); },
-    'Cmd-Enter': function() { runQuery('execute'); },
+    'Ctrl-Enter': function() { runQuery('check_count'); },
+    'Cmd-Enter': function() { runQuery('check_count'); },
 });
 
 confirmBtn.addEventListener('click', function() { runQuery('confirm'); });
-cancelBtn.addEventListener('click', function() {
-    previewPanel.classList.add('hidden');
-    statusEl.textContent = 'Cancelled';
-});
-
-prevBtn.addEventListener('click', function() { runQuery('execute', currentPage - 1); });
-nextBtn.addEventListener('click', function() { runQuery('execute', currentPage + 1); });
+cancelBtn.addEventListener('click', defaultCancelHandler);
 
 // Schema browser
 var schemaBtns = document.querySelectorAll('.schema-table-btn');

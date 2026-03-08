@@ -2160,7 +2160,6 @@ async def admin_sql_execute(
     body = await request.json()
     sql = body.get("query", "").strip()
     action = body.get("action", "execute")  # "execute" or "preview" or "confirm"
-    page = body.get("page", 1)
 
     if not sql:
         return JSONResponse({"error": "Empty query"}, status_code=400)
@@ -2181,7 +2180,10 @@ async def admin_sql_execute(
 
     try:
         if query_type == "select":
-            result = execute_select(db, sql, page=page)
+            if action == "check_count":
+                result = execute_select(db, sql, count_only=True)
+                return JSONResponse({"type": "count_check", **result})
+            result = execute_select(db, sql)
             return JSONResponse({"type": "select", **result})
 
         # Mutation query

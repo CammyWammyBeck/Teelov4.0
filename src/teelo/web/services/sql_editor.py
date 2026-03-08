@@ -74,21 +74,29 @@ def classify_query(sql: str) -> str:
     return "unknown"
 
 
-def execute_select(db: Session, sql: str, page: int = 1, page_size: int = 50) -> dict:
-    """Execute a SELECT query and return paginated results."""
+def execute_select(db: Session, sql: str, count_only: bool = False) -> dict:
+    """Execute a SELECT query and return all results.
+
+    If count_only=True, only return the row count (for large result warnings).
+    """
     db.execute(text(f"SET LOCAL statement_timeout = '{QUERY_TIMEOUT_MS}ms'"))
 
     result = db.execute(text(sql))
     columns = list(result.keys())
+
+    if count_only:
+        all_rows = result.fetchall()
+        return {
+            "count_only": True,
+            "total_rows": len(all_rows),
+            "columns": columns,
+        }
+
     all_rows = [list(row) for row in result.fetchall()]
     total = len(all_rows)
 
-    start = (page - 1) * page_size
-    end = start + page_size
-    page_rows = all_rows[start:end]
-
     # Convert non-serializable types to strings
-    for row in page_rows:
+    for row in all_rows:
         for i, val in enumerate(row):
             if val is not None and not isinstance(val, (str, int, float, bool)):
                 row[i] = str(val)
@@ -99,11 +107,8 @@ def execute_select(db: Session, sql: str, page: int = 1, page_size: int = 50) ->
 
     return {
         "columns": columns,
-        "rows": page_rows,
+        "rows": all_rows,
         "total_rows": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size if total > 0 else 1,
         "table_name": table_name,
         "pk_columns": pk_columns,
     }
