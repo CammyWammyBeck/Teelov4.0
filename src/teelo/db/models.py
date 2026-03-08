@@ -381,6 +381,30 @@ class AdminUser(Base):
         return f"<AdminUser(username='{self.username}', active={self.is_active})>"
 
 
+class AdminQueryLog(Base):
+    """Audit log for SQL queries executed via the admin SQL editor."""
+
+    __tablename__ = "admin_query_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    admin_user_id: Mapped[int] = mapped_column(
+        ForeignKey("admin_users.id", ondelete="CASCADE")
+    )
+    query_text: Mapped[str] = mapped_column(Text, nullable=False)
+    query_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    affected_rows: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    executed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    admin_user: Mapped["AdminUser"] = relationship()
+
+    __table_args__ = (
+        Index("idx_admin_query_log_user", "admin_user_id"),
+        Index("idx_admin_query_log_executed", "executed_at"),
+    )
+
+
 # =============================================================================
 # Tournament Models
 # =============================================================================
