@@ -14,3 +14,6 @@ router.add_api_route('/admin/duplicates', legacy.admin_duplicates_queue, methods
 router.add_api_route('/admin/duplicates/{review_id}/match', legacy.admin_duplicate_match, methods=['POST'])
 router.add_api_route('/admin/duplicates/{review_id}/create', legacy.admin_duplicate_create, methods=['POST'])
 router.add_api_route('/admin/duplicates/{review_id}/ignore', legacy.admin_duplicate_ignore, methods=['POST'])
+router.add_api_route('/admin/sql/execute', legacy.admin_sql_execute, methods=['POST'])
+router.add_api_route('/admin/sql/schema', legacy.admin_sql_schema, methods=['GET'])
+router.add_api_route('/admin/sql', legacy.admin_sql_editor, methods=['GET'], response_class=legacy.HTMLResponse)

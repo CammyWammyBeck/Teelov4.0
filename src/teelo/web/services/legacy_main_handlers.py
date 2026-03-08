@@ -35,6 +35,14 @@ from teelo.match_statuses import get_status_group, normalize_status_filter
 from teelo.players.identity import PlayerIdentityService
 from teelo.web.admin_auth import authenticate_admin, mark_admin_login
 from teelo.web.services.match_service import slugify_name
+from teelo.web.services.sql_editor import (
+    classify_query,
+    execute_mutation,
+    execute_select,
+    get_schema_info,
+    log_query,
+    preview_mutation,
+)
 
 app = FastAPI(title="Teelo Ratings")
 app.add_middleware(
@@ -2114,6 +2122,118 @@ async def admin_duplicate_ignore(
         resolved_by=admin.username if admin else "admin",
     )
     return _admin_action_redirect(f"Ignored review #{review_id}.", page, per_page)
+
+
+async def admin_sql_editor(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Render the SQL editor page."""
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    admin = _current_admin_user(request, db)
+    schema = get_schema_info(db)
+    return templates.TemplateResponse(
+        "admin_sql.html",
+        {
+            "request": request,
+            "admin": admin,
+            "schema": schema,
+            "now": datetime.utcnow(),
+            "current_path": request.url.path,
+        },
+    )
+
+
+async def admin_sql_execute(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Execute a SQL query and return JSON results."""
+    redirect = _require_admin(request, db)
+    if redirect:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    admin = _current_admin_user(request, db)
+    body = await request.json()
+    sql = body.get("query", "").strip()
+    action = body.get("action", "execute")  # "execute" or "preview" or "confirm"
+    page = body.get("page", 1)
+
+    if not sql:
+        return JSONResponse({"error": "Empty query"}, status_code=400)
+
+    query_type = classify_query(sql)
+
+    if query_type == "ddl":
+        return JSONResponse(
+            {"error": "DDL statements (CREATE, ALTER, DROP, etc.) are not allowed."},
+            status_code=400,
+        )
+
+    if query_type == "unknown":
+        return JSONResponse(
+            {"error": "Unrecognized query type. Only SELECT, INSERT, UPDATE, DELETE are supported."},
+            status_code=400,
+        )
+
+    try:
+        if query_type == "select":
+            result = execute_select(db, sql, page=page)
+            return JSONResponse({"type": "select", **result})
+
+        # Mutation query
+        if action == "preview":
+            result = preview_mutation(db, sql)
+            return JSONResponse({"type": "preview", **result})
+
+        if action == "confirm":
+            result = execute_mutation(db, sql)
+            log_query(
+                db,
+                admin_user_id=admin.id,
+                query_text=sql,
+                query_type=query_type,
+                affected_rows=result["affected_rows"],
+                success=True,
+            )
+            return JSONResponse({"type": "mutation", **result})
+
+        # Default for mutations: preview first
+        result = preview_mutation(db, sql)
+        return JSONResponse({"type": "preview", **result})
+
+    except Exception as e:
+        error_msg = str(e)
+        if query_type in ("update", "delete", "insert"):
+            try:
+                log_query(
+                    db,
+                    admin_user_id=admin.id,
+                    query_text=sql,
+                    query_type=query_type,
+                    affected_rows=None,
+                    success=False,
+                    error_message=error_msg,
+                )
+            except Exception:
+                pass
+        return JSONResponse({"error": error_msg}, status_code=400)
+
+
+async def admin_sql_schema(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Return database schema as JSON."""
+    redirect = _require_admin(request, db)
+    if redirect:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    schema = get_schema_info(db)
+    return JSONResponse({"tables": schema})
 
 
 # Only for debugging
