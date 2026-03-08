@@ -841,6 +841,7 @@ def _propagate_all(
         for match in existing_matches
         if match.round is not None and match.draw_position is not None
     }
+    propagated_source = _infer_draw_source(edition)
 
     to_insert: list[Match] = []
     for (next_round, next_position), (top_winner, bottom_winner) in candidates.items():
@@ -868,7 +869,7 @@ def _propagate_all(
         to_insert.append(
             Match(
                 external_id=external_id,
-                source="atp",  # Draw-propagated matches inherit the source
+                source=propagated_source,
                 tournament_edition_id=edition.id,
                 round=next_round,
                 draw_position=next_position,
@@ -891,6 +892,42 @@ def _propagate_all(
     if to_insert:
         session.add_all(to_insert)
     return len(to_insert)
+
+
+def _infer_draw_source(edition: TournamentEdition) -> str:
+    """
+    Infer the source for draw-propagated matches from edition/tournament metadata.
+
+    Preference order:
+    1. Edition-specific external IDs
+    2. Tournament tour
+    3. Tournament gender fallback
+    4. Conservative default to ATP
+    """
+    if edition.wta_edition_id:
+        return "wta"
+    if edition.atp_edition_id:
+        return "atp"
+    if edition.itf_edition_id:
+        return "itf"
+
+    tournament = edition.tournament
+    if tournament is not None:
+        tour = (tournament.tour or "").strip().lower()
+        if tour in {"wta", "wta 125"}:
+            return "wta"
+        if tour in {"atp", "challenger"}:
+            return "atp"
+        if tour == "itf":
+            return "itf"
+
+        gender = (tournament.gender or "").strip().lower()
+        if gender == "women":
+            return "wta"
+        if gender == "men":
+            return "atp"
+
+    return "atp"
 
 
 def propagate_draw_result(

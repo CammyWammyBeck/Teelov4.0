@@ -592,10 +592,6 @@ class WTAScraper(BaseScraper):
         if not name_a and not name_b and not is_bye_match:
             return None
 
-        # Treat missing opponent as a bye slot (common in WTA draws)
-        if (name_a and not name_b) or (name_b and not name_a):
-            is_bye_match = True
-
         # Scores
         scores_a = self._extract_scores_from_row(row_a)
         scores_b = self._extract_scores_from_row(row_b)

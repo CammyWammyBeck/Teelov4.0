@@ -18,6 +18,20 @@ def _parse_single_table(table_html: str):
     )
 
 
+def _parse_single_draw_table(table_html: str):
+    soup = BeautifulSoup(table_html, "lxml")
+    table = soup.select_one("table.match-table")
+    assert table is not None
+    scraper = WTAScraper()
+    return scraper._parse_draw_entry_table(
+        table=table,
+        tournament_id="indian-wells",
+        year=2026,
+        round_code="R64",
+        draw_position=1,
+    )
+
+
 def test_parse_match_table_uses_set_winner_markers_when_table_winner_class_missing():
     match = _parse_single_table(
         """
@@ -71,3 +85,47 @@ def test_parse_match_table_prefers_explicit_table_winner_class():
     )
     assert match is not None
     assert match.winner_name == "Player A"
+
+
+def test_parse_draw_entry_keeps_missing_opponent_as_incomplete_not_bye():
+    entry = _parse_single_draw_table(
+        """
+        <table class="match-table">
+          <tr class="match-table__row">
+            <td class="match-table__player-cell">
+              <a class="match-table__player--link" href="/players/100001/player-a">Player A(1)</a>
+            </td>
+          </tr>
+          <tr class="match-table__row">
+            <td class="match-table__player-cell"></td>
+          </tr>
+        </table>
+        """
+    )
+    assert entry is not None
+    assert entry.player_a_name == "Player A"
+    assert entry.player_b_name is None
+    assert entry.is_bye is False
+
+
+def test_parse_draw_entry_marks_explicit_bye_as_bye():
+    entry = _parse_single_draw_table(
+        """
+        <table class="match-table">
+          <tr class="match-table__row">
+            <td class="match-table__player-cell">
+              <a class="match-table__player--link" href="/players/100001/player-a">Player A(1)</a>
+            </td>
+          </tr>
+          <tr class="match-table__row">
+            <td class="match-table__player-cell">
+              <div class="match-table__player">Bye</div>
+            </td>
+          </tr>
+        </table>
+        """
+    )
+    assert entry is not None
+    assert entry.player_a_name == "Player A"
+    assert entry.player_b_name is None
+    assert entry.is_bye is True
