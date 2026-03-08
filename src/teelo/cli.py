@@ -1,10 +1,12 @@
 import argparse
 import subprocess
 from pathlib import Path
+from shutil import which
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 CSS_INPUT = PROJECT_ROOT / "src" / "teelo" / "web" / "static" / "css" / "input.css"
 CSS_OUTPUT = PROJECT_ROOT / "src" / "teelo" / "web" / "static" / "css" / "styles.css"
+TAILWIND_BINARY = PROJECT_ROOT / "tailwindcss"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,7 +49,15 @@ def main() -> int:
         return 0
 
     if args.command == "css":
-        cmd = ["npx", "tailwindcss", "-i", str(CSS_INPUT), "-o", str(CSS_OUTPUT), "--minify"]
+        if which("npx"):
+            cmd = ["npx", "tailwindcss"]
+        elif TAILWIND_BINARY.exists():
+            cmd = [str(TAILWIND_BINARY)]
+        else:
+            print("Tailwind CSS build tool not found. Install Node/npm or restore the local tailwindcss binary.")
+            return 1
+
+        cmd.extend(["-i", str(CSS_INPUT), "-o", str(CSS_OUTPUT), "--minify"])
         if args.watch:
             cmd.append("--watch")
         return subprocess.call(cmd, cwd=PROJECT_ROOT)
