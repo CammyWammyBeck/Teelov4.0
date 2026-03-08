@@ -34,6 +34,33 @@ _SELECT_PATTERN = re.compile(
 )
 
 
+_TABLE_FROM_PATTERN = re.compile(
+    r"\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\b",
+    re.IGNORECASE,
+)
+
+
+def parse_table_name(sql: str) -> Optional[str]:
+    """Extract the primary table name from a SELECT query."""
+    m = _TABLE_FROM_PATTERN.search(sql)
+    return m.group(1) if m else None
+
+
+def get_pk_columns(db: Session, table_name: str) -> list[str]:
+    """Return primary key column names for a table."""
+    pk_sql = text("""
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+            AND tc.table_schema = 'public'
+            AND tc.table_name = :table
+        ORDER BY kcu.ordinal_position
+    """)
+    return [row[0] for row in db.execute(pk_sql, {"table": table_name}).fetchall()]
+
+
 def classify_query(sql: str) -> str:
     """Return query type: 'ddl', 'select', 'update', 'delete', 'insert', or 'unknown'."""
     stripped = sql.strip().rstrip(";").strip()
@@ -66,6 +93,10 @@ def execute_select(db: Session, sql: str, page: int = 1, page_size: int = 50) ->
             if val is not None and not isinstance(val, (str, int, float, bool)):
                 row[i] = str(val)
 
+    # Include table/PK metadata for inline editing
+    table_name = parse_table_name(sql)
+    pk_columns = get_pk_columns(db, table_name) if table_name else []
+
     return {
         "columns": columns,
         "rows": page_rows,
@@ -73,6 +104,8 @@ def execute_select(db: Session, sql: str, page: int = 1, page_size: int = 50) ->
         "page": page,
         "page_size": page_size,
         "total_pages": (total + page_size - 1) // page_size if total > 0 else 1,
+        "table_name": table_name,
+        "pk_columns": pk_columns,
     }
 
 
