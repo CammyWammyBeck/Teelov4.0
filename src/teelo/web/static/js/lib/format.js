@@ -15,3 +15,12 @@ export function formatShortDate(value) {
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
+
+export function slugifyName(name) {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\u00C0-\u024F]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}

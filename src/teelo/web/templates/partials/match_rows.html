@@ -44,6 +44,8 @@
 {% for m in matches %}
 {% set is_winner_a = m.winner_id == m.player_a.id %}
 {% set is_winner_b = m.winner_id == m.player_b.id %}
+{% set player_a_url = m.player_a.player_url if m.player_a.player_url is defined and m.player_a.player_url else '/players/' ~ m.player_a.id %}
+{% set player_b_url = m.player_b.player_url if m.player_b.player_url is defined and m.player_b.player_url else '/players/' ~ m.player_b.id %}
 {% set score_display = 'W/O' if m.status == 'walkover' else (m.score or 'vs') %}
 <tr class="hover:bg-gray-50/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime">
     {% if m.player_result is defined and m.player_result %}
@@ -57,7 +59,11 @@
         <div class="flex items-center gap-2">
             <span class="{{ circuit_bg(m.tour, m.tournament_level) }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ circuit_label(m.tour, m.tournament_level) }}</span>
             <div class="min-w-0">
+                {% if m.tournament_url %}
+                <a href="{{ m.tournament_url }}" class="text-sm font-semibold text-teelo-dark truncate block hover:underline decoration-teelo-lime decoration-2" title="{{ m.tournament_name or 'Unknown' }}">{{ m.tournament_name or 'Unknown' }}</a>
+                {% else %}
                 <span class="text-sm font-semibold text-teelo-dark truncate block" title="{{ m.tournament_name or 'Unknown' }}">{{ m.tournament_name or 'Unknown' }}</span>
+                {% endif %}
                 <span class="text-xs text-gray-400 inline-flex items-center gap-1.5 flex-wrap">
                     <span>{{ m.round or '' }}</span>
                     <span>·</span>
@@ -73,7 +79,7 @@
     </td>
     <td class="px-5 py-3 text-right">
         <div class="flex items-center justify-end gap-2">
-            <a href="/players/{{ m.player_a.id }}" class="text-sm hover:underline decoration-teelo-lime decoration-2 {% if is_winner_a %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_a.name }}</a>
+            <a href="{{ player_a_url }}" class="text-sm hover:underline decoration-teelo-lime decoration-2 {% if is_winner_a %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_a.name }}</a>
             {{ elo_badge(m.player_a) }}
             {% if is_winner_a %}
             <i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>
@@ -88,7 +94,7 @@
             {% if is_winner_b %}
             <i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>
             {% endif %}
-            <a href="/players/{{ m.player_b.id }}" class="text-sm hover:underline decoration-teelo-lime decoration-2 {% if is_winner_b %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_b.name }}</a>
+            <a href="{{ player_b_url }}" class="text-sm hover:underline decoration-teelo-lime decoration-2 {% if is_winner_b %}text-teelo-dark font-bold{% else %}text-gray-400{% endif %}">{{ m.player_b.name }}</a>
             {{ elo_badge(m.player_b) }}
         </div>
     </td>
@@ -104,12 +110,18 @@
 {% set is_winner_a = m.winner_id == m.player_a.id %}
 {% set is_winner_b = m.winner_id == m.player_b.id %}
 {% set has_winner = is_winner_a or is_winner_b %}
+{% set player_a_url = m.player_a.player_url if m.player_a.player_url is defined and m.player_a.player_url else '/players/' ~ m.player_a.id %}
+{% set player_b_url = m.player_b.player_url if m.player_b.player_url is defined and m.player_b.player_url else '/players/' ~ m.player_b.id %}
 {% set score_display = 'W/O' if m.status == 'walkover' else (m.score or 'vs') %}
 <div class="px-4 py-3 border-b border-gray-100 last:border-b-0">
     {# Tournament header — badge + name get full width #}
     <div class="flex items-center gap-2 mb-0.5">
         <span class="{{ circuit_bg(m.tour, m.tournament_level) }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ circuit_label(m.tour, m.tournament_level) }}</span>
+        {% if m.tournament_url %}
+        <a href="{{ m.tournament_url }}" class="text-[13px] font-semibold text-teelo-dark truncate hover:underline decoration-teelo-lime decoration-2">{{ m.tournament_name or 'Unknown' }}</a>
+        {% else %}
         <span class="text-[13px] font-semibold text-teelo-dark truncate">{{ m.tournament_name or 'Unknown' }}</span>
+        {% endif %}
     </div>
 
     {# Meta line — compact: round · gender-dot surface · date #}
@@ -132,13 +144,13 @@
             {# Player A #}
             <div class="flex items-center gap-1.5">
                 <div class="w-0.5 h-4 rounded-full {{ 'bg-teelo-lime' if is_winner_a else 'bg-transparent' }} flex-shrink-0"></div>
-                <a href="/players/{{ m.player_a.id }}" class="text-[13px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_a else ('text-gray-400' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_a.name }}</a>
+                <a href="{{ player_a_url }}" class="text-[13px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_a else ('text-gray-400' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_a.name }}</a>
                 {{ elo_compact(m.player_a) }}
             </div>
             {# Player B #}
             <div class="flex items-center gap-1.5">
                 <div class="w-0.5 h-4 rounded-full {{ 'bg-teelo-lime' if is_winner_b else 'bg-transparent' }} flex-shrink-0"></div>
-                <a href="/players/{{ m.player_b.id }}" class="text-[13px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_b else ('text-gray-400' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_b.name }}</a>
+                <a href="{{ player_b_url }}" class="text-[13px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_b else ('text-gray-400' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_b.name }}</a>
                 {{ elo_compact(m.player_b) }}
             </div>
         </div>

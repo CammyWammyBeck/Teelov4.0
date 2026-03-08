@@ -1,6 +1,6 @@
 import { byId, queryAll, setSectionLoading, toggleHidden } from '../lib/dom.js';
 import { getJson } from '../lib/http.js';
-import { escapeHtml, formatShortDate } from '../lib/format.js';
+import { escapeHtml, formatShortDate, slugifyName } from '../lib/format.js';
 import { buildFallbackCards, buildFallbackTableRows } from '../renderers/matches.js';
 
 export function initPlayerDetailPage() {
@@ -433,6 +433,19 @@ export function initPlayerDetailPage() {
       return `<span class="inline-block w-2 h-2 rounded-full mr-1" style="background:${color}"></span>`;
     };
 
+    const getTournamentUrl = (tournament) => {
+      if (tournament?.tournament_url) return tournament.tournament_url;
+      if (!tournament?.tour || !tournament?.tournament_code || tournament?.year == null) return null;
+      return `/tournaments/${encodeURIComponent(String(tournament.tour).toLowerCase())}/${encodeURIComponent(String(tournament.tournament_code))}/${encodeURIComponent(String(tournament.year))}`;
+    };
+
+    const renderTournamentName = (tournament) => {
+      const name = escapeHtml(tournament?.tournament_name || '—');
+      const url = getTournamentUrl(tournament);
+      if (!url) return name;
+      return `<a href="${escapeHtml(url)}" class="hover:underline decoration-teelo-lime decoration-2">${name}</a>`;
+    };
+
     const renderTournamentTable = (tournaments) => {
       const body = byId('player-tournaments-body');
       const cards = byId('player-tournaments-cards');
@@ -444,12 +457,15 @@ export function initPlayerDetailPage() {
           body.innerHTML = tournaments
             .map((t) => {
               const oppPrefix = t.opponent_name ? (t.won_title ? 'def. ' : 'lost to ') : '';
-              const opponent = t.opponent_name ? `${oppPrefix}${escapeHtml(t.opponent_name)}` : '—';
+              const opponentUrl = t.opponent_url || (t.opponent_id ? `/players/${encodeURIComponent(String(t.opponent_id))}/${slugifyName(t.opponent_name || '')}` : null);
+              const opponent = t.opponent_name
+                ? `${oppPrefix}${opponentUrl ? `<a href="${escapeHtml(opponentUrl)}" class="hover:underline decoration-teelo-lime decoration-2">${escapeHtml(t.opponent_name)}</a>` : escapeHtml(t.opponent_name)}`
+                : '—';
               const surface = t.surface || '—';
               return `
                 <tr class="border-b border-gray-100 hover:bg-gray-50/50">
                   <td class="py-2 pr-4 tabular-nums text-gray-600">${t.year || '—'}</td>
-                  <td class="py-2 pr-4 font-medium text-gray-800">${escapeHtml(t.tournament_name || '—')}</td>
+                  <td class="py-2 pr-4 font-medium text-gray-800">${renderTournamentName(t)}</td>
                   <td class="py-2 pr-4 text-gray-500 text-xs">${escapeHtml(t.tournament_level || '—')}</td>
                   <td class="py-2 pr-4 text-gray-600 text-xs">${getSurfaceDot(surface)}${escapeHtml(surface)}</td>
                   <td class="py-2 pr-4">${getResultBadge(t.result, t.won_title)}</td>
@@ -468,12 +484,15 @@ export function initPlayerDetailPage() {
           cards.innerHTML = tournaments
             .map((t) => {
               const oppPrefix = t.opponent_name ? (t.won_title ? 'def. ' : 'lost to ') : '';
-              const opponent = t.opponent_name ? `${oppPrefix}${escapeHtml(t.opponent_name)}` : '—';
+              const opponentUrl = t.opponent_url || (t.opponent_id ? `/players/${encodeURIComponent(String(t.opponent_id))}/${slugifyName(t.opponent_name || '')}` : null);
+              const opponent = t.opponent_name
+                ? `${oppPrefix}${opponentUrl ? `<a href="${escapeHtml(opponentUrl)}" class="hover:underline decoration-teelo-lime decoration-2">${escapeHtml(t.opponent_name)}</a>` : escapeHtml(t.opponent_name)}`
+                : '—';
               const surface = t.surface || '—';
               return `
                 <div class="py-3">
                   <div class="flex items-center justify-between mb-1">
-                    <span class="font-semibold text-gray-800 text-sm">${escapeHtml(t.tournament_name || '—')}</span>
+                    <span class="font-semibold text-gray-800 text-sm">${renderTournamentName(t)}</span>
                     ${getResultBadge(t.result, t.won_title)}
                   </div>
                   <div class="text-xs text-gray-500 mb-0.5">${t.year || '—'} · ${escapeHtml(t.tournament_level || '—')} · ${getSurfaceDot(surface)}${escapeHtml(surface)}</div>

@@ -8,6 +8,8 @@ from teelo.db.models import Match
 
 
 _SET_SCORE_RE = re.compile(r"^(\d+)-(\d+)(\(\d+\))?$")
+_SLUG_NON_ALNUM_RE = re.compile(r"[^a-z0-9\u00C0-\u024F]+")
+_SLUG_MULTI_HYPHEN_RE = re.compile(r"-+")
 
 
 def round_elo(value: Any) -> Optional[int]:
@@ -47,6 +49,14 @@ def flip_score_for_display(score: Optional[str]) -> Optional[str]:
     return " ".join(flipped_parts)
 
 
+def slugify_name(name: Optional[str]) -> str:
+    if not name:
+        return ""
+    slug = _SLUG_NON_ALNUM_RE.sub("-", str(name).lower())
+    slug = _SLUG_MULTI_HYPHEN_RE.sub("-", slug)
+    return slug.strip("-")
+
+
 def serialize_match(match: Match) -> dict:
     te = match.tournament_edition
     tournament = te.tournament if te else None
@@ -57,6 +67,11 @@ def serialize_match(match: Match) -> dict:
     player_a_payload = {
         "id": pa.id if pa else match.player_a_id,
         "name": pa.canonical_name if pa else "Unknown",
+        "player_url": (
+            f"/players/{pa.id}/{slugify_name(pa.canonical_name)}"
+            if pa and pa.id is not None
+            else (f"/players/{match.player_a_id}" if match.player_a_id is not None else None)
+        ),
         "seed": match.player_a_seed,
         "elo_pre": round_elo(match.elo_pre_player_a),
         "elo_change": round_elo(match.elo_post_player_a - match.elo_pre_player_a) if match.elo_post_player_a is not None and match.elo_pre_player_a is not None else None,
@@ -64,6 +79,11 @@ def serialize_match(match: Match) -> dict:
     player_b_payload = {
         "id": pb.id if pb else match.player_b_id,
         "name": pb.canonical_name if pb else "Unknown",
+        "player_url": (
+            f"/players/{pb.id}/{slugify_name(pb.canonical_name)}"
+            if pb and pb.id is not None
+            else (f"/players/{match.player_b_id}" if match.player_b_id is not None else None)
+        ),
         "seed": match.player_b_seed,
         "elo_pre": round_elo(match.elo_pre_player_b),
         "elo_change": round_elo(match.elo_post_player_b - match.elo_pre_player_b) if match.elo_post_player_b is not None and match.elo_pre_player_b is not None else None,
@@ -79,6 +99,12 @@ def serialize_match(match: Match) -> dict:
         "tour": tournament.tour if tournament else None,
         "gender": tournament.gender if tournament else None,
         "tournament_name": tournament.name if tournament else None,
+        "tournament_code": tournament.tournament_code if tournament else None,
+        "tournament_url": (
+            f"/tournaments/{tournament.tour.lower()}/{tournament.tournament_code}/{te.year}"
+            if tournament and tournament.tour and te
+            else None
+        ),
         "tournament_level": tournament.level if tournament else None,
         "surface": surface,
         "round": match.round,
