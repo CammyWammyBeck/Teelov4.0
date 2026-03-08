@@ -26,6 +26,61 @@ ROUND_LABELS: dict[str, str] = {
 }
 
 
+def _build_edition_history_payload(
+    editions: list[TournamentEdition],
+    finals_by_edition: dict[int, Match],
+    tournament: Tournament,
+    tour_key: str,
+    tournament_code: str,
+) -> list[dict]:
+    payload = []
+    for edition in editions:
+        final = finals_by_edition.get(edition.id)
+        if final is None:
+            continue
+        champion = None
+        champion_id = None
+        runner_up = None
+        runner_up_id = None
+        score = final.score
+        if final.winner is not None:
+            champion = final.winner.canonical_name
+            champion_id = final.winner.id
+        elif final.winner_id == final.player_a_id and final.player_a is not None:
+            champion = final.player_a.canonical_name
+            champion_id = final.player_a.id
+        elif final.winner_id == final.player_b_id and final.player_b is not None:
+            champion = final.player_b.canonical_name
+            champion_id = final.player_b.id
+
+        if final.winner_id == final.player_a_id and final.player_b is not None:
+            runner_up = final.player_b.canonical_name
+            runner_up_id = final.player_b.id
+        elif final.winner_id == final.player_b_id and final.player_a is not None:
+            runner_up = final.player_a.canonical_name
+            runner_up_id = final.player_a.id
+        payload.append(
+            {
+                "year": edition.year,
+                "champion": champion,
+                "champion_id": champion_id,
+                "runner_up": runner_up,
+                "runner_up_id": runner_up_id,
+                "score": score,
+                "surface": edition.surface or tournament.surface,
+                "url": f"/tournaments/{tour_key.lower()}/{tournament_code}/{edition.year}",
+            }
+        )
+    return payload
+
+
+def _filter_editions_with_finals(
+    editions: list[TournamentEdition],
+    finals_by_edition: dict[int, Match],
+) -> list[TournamentEdition]:
+    return [edition for edition in editions if edition.id in finals_by_edition]
+
+
 def _normalize_tour(tour: str) -> str:
     return (tour or "").strip().upper()
 
@@ -144,13 +199,30 @@ async def tournament_detail_page(
         elif final_match.winner_id == final_match.player_b_id and final_match.player_b is not None:
             champion_name = final_match.player_b.canonical_name
 
-    years = [
-        row[0]
-        for row in db.query(TournamentEdition.year)
+    editions = (
+        db.query(TournamentEdition)
         .filter(TournamentEdition.tournament_id == tournament.id)
         .order_by(TournamentEdition.year.desc())
         .all()
-    ]
+    )
+    finals_by_edition: dict[int, Match] = {}
+    edition_ids = [item.id for item in editions]
+    if edition_ids:
+        finals = (
+            db.query(Match)
+            .filter(Match.tournament_edition_id.in_(edition_ids), Match.round == "F")
+            .order_by(
+                Match.tournament_edition_id.asc(),
+                func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
+                Match.id.desc(),
+            )
+            .all()
+        )
+        for final in finals:
+            if final.tournament_edition_id not in finals_by_edition:
+                finals_by_edition[final.tournament_edition_id] = final
+
+    years = [edition.year for edition in _filter_editions_with_finals(editions, finals_by_edition)]
 
     return templates.TemplateResponse(
         "tournament_detail.html",
@@ -346,43 +418,13 @@ async def api_tournament_editions(
             if final.tournament_edition_id not in finals_by_edition:
                 finals_by_edition[final.tournament_edition_id] = final
 
-    payload = []
-    for edition in editions:
-        final = finals_by_edition.get(edition.id)
-        champion = None
-        champion_id = None
-        runner_up = None
-        runner_up_id = None
-        score = None
-        if final is not None:
-            score = final.score
-            if final.winner is not None:
-                champion = final.winner.canonical_name
-                champion_id = final.winner.id
-            elif final.winner_id == final.player_a_id and final.player_a is not None:
-                champion = final.player_a.canonical_name
-                champion_id = final.player_a.id
-            elif final.winner_id == final.player_b_id and final.player_b is not None:
-                champion = final.player_b.canonical_name
-                champion_id = final.player_b.id
-
-            if final.winner_id == final.player_a_id and final.player_b is not None:
-                runner_up = final.player_b.canonical_name
-                runner_up_id = final.player_b.id
-            elif final.winner_id == final.player_b_id and final.player_a is not None:
-                runner_up = final.player_a.canonical_name
-                runner_up_id = final.player_a.id
-        payload.append(
-            {
-                "year": edition.year,
-                "champion": champion,
-                "champion_id": champion_id,
-                "runner_up": runner_up,
-                "runner_up_id": runner_up_id,
-                "score": score,
-                "surface": edition.surface or tournament.surface,
-                "url": f"/tournaments/{tour_key.lower()}/{tournament_code}/{edition.year}",
-            }
-        )
+    filtered_editions = _filter_editions_with_finals(editions, finals_by_edition)
+    payload = _build_edition_history_payload(
+        editions=filtered_editions,
+        finals_by_edition=finals_by_edition,
+        tournament=tournament,
+        tour_key=tour_key,
+        tournament_code=tournament_code,
+    )
 
     return JSONResponse({"editions": payload})
