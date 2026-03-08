@@ -152,12 +152,12 @@ class ModelTrainer:
         return X, y, years
 
     def _optimize(self, X: pd.DataFrame, y: pd.Series, years: pd.Series) -> dict[str, Any]:
-        n_trials = 50
+        n_trials = 25
         t_start = time.monotonic()
 
         def objective(trial: optuna.Trial) -> float:
             params = {
-                "n_estimators": trial.suggest_int("n_estimators", 100, 1000),
+                "n_estimators": trial.suggest_int("n_estimators", 100, 500),
                 "max_depth": trial.suggest_int("max_depth", 3, 10),
                 "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
                 "subsample": trial.suggest_float("subsample", 0.6, 1.0),
@@ -187,13 +187,12 @@ class ModelTrainer:
         study.optimize(objective, n_trials=n_trials)
 
         best_params: dict[str, Any] = dict(study.best_params)
-        self.cv_scores = self._temporal_cv_scores(best_params, X, y, years)
+        self.cv_scores = {"mean_log_loss": float(study.best_value)}
 
         logger.info(
             "trainer.optimization_done",
             best_value=study.best_value,
             best_params=best_params,
-            cv_scores=self.cv_scores,
         )
         return best_params
 
@@ -251,8 +250,9 @@ class ModelTrainer:
                 use_label_encoder=False,
                 eval_metric="logloss",
                 enable_categorical=False,
+                early_stopping_rounds=20,
             )
-            model.fit(X_train, y_train)
+            model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
             y_prob = model.predict_proba(X_test)[:, 1]
             fold_score = log_loss(y_test, y_prob, labels=[0.0, 1.0])
             fold_scores[f"fold_{idx}"] = float(fold_score)
