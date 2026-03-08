@@ -17,7 +17,7 @@
         </form>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <a href="/admin/duplicates"
            class="block bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition">
             <div class="text-sm font-semibold text-gray-500">Player Duplicate Queue</div>
@@ -30,6 +30,15 @@
             <div class="text-sm font-semibold text-gray-500">Invalid Matches</div>
             <div class="mt-2 text-3xl font-bold text-teelo-dark">{{ invalid_match_count }}</div>
             <div class="text-sm text-gray-500 mt-1">Matches needing data correction</div>
+        </a>
+
+        <a href="/admin/sql"
+           class="block bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition">
+            <div class="text-sm font-semibold text-gray-500">SQL Editor</div>
+            <div class="mt-2 text-3xl font-bold text-teelo-dark">
+                <i data-lucide="database" class="w-8 h-8"></i>
+            </div>
+            <div class="text-sm text-gray-500 mt-1">Query and update database tables</div>
         </a>
     </div>
 </section>
