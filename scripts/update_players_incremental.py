@@ -9,7 +9,8 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
+import structlog
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -18,6 +19,8 @@ from teelo.db import Player, get_session
 from teelo.scrape.player_enrichment import PlayerEnrichmentScraper, PlayerProfile
 from teelo.tasks import DBCheckpointStore
 from teelo.utils.geo import country_to_ioc
+
+logger = structlog.get_logger(__name__)
 
 
 def _utc_now_iso() -> str:
@@ -43,7 +46,7 @@ def _slugify(name: str) -> str:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Incremental player profile enrichment (ATP/WTA)."
+        description="Incremental player profile enrichment (gender-driven ATP/WTA)."
     )
     parser.add_argument("--batch-size", type=int, default=100, help="Maximum players per DB batch.")
     parser.add_argument("--max-players", type=int, default=0, help="Optional cap on processed players (0 = no cap).")
@@ -51,7 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--source",
         choices=["atp", "wta", "both"],
         default="both",
-        help="Profile source preference.",
+        help="Deprecated/ignored. Source is determined by player gender.",
     )
     parser.add_argument(
         "--checkpoint-key",
@@ -118,16 +121,16 @@ async def main_async() -> int:
         "started_at": started_at.isoformat(),
         "batch_size": args.batch_size,
         "max_players": args.max_players,
-        "source": args.source,
+        "source": "gender",
         "checkpoint_key": args.checkpoint_key,
         "resume": args.resume,
         "dry_run": args.dry_run,
         "processed": 0,
         "updated": 0,
-        "no_profile_data": 0,
         "unchanged": 0,
         "errors": 0,
         "batches": 0,
+        "total": 0,
         "checkpoint_in": None,
         "checkpoint_out": None,
     }
@@ -139,7 +142,7 @@ async def main_async() -> int:
             "timestamp": _utc_now_iso(),
             "batch_size": args.batch_size,
             "max_players": args.max_players,
-            "source": args.source,
+            "source": "gender",
             "resume": args.resume,
             "dry_run": args.dry_run,
         },
@@ -159,25 +162,35 @@ async def main_async() -> int:
         max_cap = args.max_players if args.max_players > 0 else None
 
         async with PlayerEnrichmentScraper(headless=args.headless) as scraper:
+            needs_fields = or_(
+                Player.birth_date.is_(None),
+                Player.height_cm.is_(None),
+                Player.hand.is_(None),
+                Player.backhand.is_(None),
+                Player.turned_pro_year.is_(None),
+                Player.nationality_ioc.is_(None),
+            )
+            source_filter = or_(
+                and_(Player.gender == "M", Player.atp_id.isnot(None)),
+                and_(Player.gender == "F", Player.wta_id.isnot(None)),
+            )
+            base_query = (
+                session.query(Player)
+                .filter(
+                    Player.id > cursor_id,
+                    source_filter,
+                    needs_fields,
+                )
+                .order_by(Player.id.asc())
+            )
+            total_available = int(base_query.count())
+            payload["total"] = (
+                min(total_available, max_cap) if max_cap is not None else total_available
+            )
+
             while True:
                 if max_cap is not None and payload["processed"] >= max_cap:
                     break
-
-                needs_fields = or_(
-                    Player.birth_date.is_(None),
-                    Player.height_cm.is_(None),
-                    Player.hand.is_(None),
-                    Player.backhand.is_(None),
-                    Player.turned_pro_year.is_(None),
-                    Player.nationality_ioc.is_(None),
-                )
-                source_filter = None
-                if args.source == "atp":
-                    source_filter = Player.atp_id.isnot(None)
-                elif args.source == "wta":
-                    source_filter = Player.wta_id.isnot(None)
-                else:
-                    source_filter = or_(Player.atp_id.isnot(None), Player.wta_id.isnot(None))
 
                 query = (
                     session.query(Player)
@@ -197,35 +210,81 @@ async def main_async() -> int:
                     break
 
                 payload["batches"] += 1
+                batch_processed = 0
+                batch_updated = 0
+                batch_unchanged = 0
+                batch_errors = 0
                 for player in players:
                     payload["processed"] += 1
+                    batch_processed += 1
                     cursor_id = int(player.id)
 
+                    player_name = player.canonical_name
+                    status = "failed"
                     try:
                         profile: PlayerProfile | None = None
-                        player_name = player.canonical_name
                         slug = _slugify(player_name)
 
-                        if args.source in {"atp", "both"} and player.atp_id:
+                        if player.gender == "M":
+                            if not player.atp_id:
+                                status = "failed"
+                                payload["errors"] += 1
+                                batch_errors += 1
+                                continue
                             profile = await scraper.scrape_atp_profile(player.atp_id, slug)
-                        if profile is None and args.source in {"wta", "both"} and player.wta_id:
+                        elif player.gender == "F":
+                            if not player.wta_id:
+                                status = "failed"
+                                payload["errors"] += 1
+                                batch_errors += 1
+                                continue
                             profile = await scraper.scrape_wta_profile(player.wta_id, slug)
+                        else:
+                            status = "failed"
+                            payload["errors"] += 1
+                            batch_errors += 1
+                            continue
 
                         if profile is None:
-                            payload["no_profile_data"] += 1
+                            status = "blocked_by_cloudflare"
+                            payload["errors"] += 1
+                            batch_errors += 1
                             continue
 
                         updates = _profile_updates(player, profile)
                         if not updates:
+                            status = "unchanged"
                             payload["unchanged"] += 1
+                            batch_unchanged += 1
                             continue
 
                         if not args.dry_run:
                             for field, value in updates.items():
                                 setattr(player, field, value)
+                        status = "updated"
                         payload["updated"] += 1
+                        batch_updated += 1
                     except Exception:
+                        status = "failed"
                         payload["errors"] += 1
+                        batch_errors += 1
+                    finally:
+                        remaining = max(payload["total"] - payload["processed"], 0)
+                        logger.info(
+                            "player_enrichment.progress",
+                            player=player_name,
+                            status=status,
+                            processed=payload["processed"],
+                            total=payload["total"],
+                            remaining=remaining,
+                        )
+                logger.info(
+                    "player_enrichment.batch_summary",
+                    updated=batch_updated,
+                    unchanged=batch_unchanged,
+                    errors=batch_errors,
+                    batch_size=batch_processed,
+                )
 
                 if args.dry_run:
                     session.rollback()
@@ -260,6 +319,13 @@ async def main_async() -> int:
             "duration_s": payload["duration_s"],
         },
     )
+    logger.info(
+        "player_enrichment.complete",
+        processed=payload["processed"],
+        updated=payload["updated"],
+        unchanged=payload["unchanged"],
+        errors=payload["errors"],
+    )
 
     if args.metrics_json:
         _write_json(Path(args.metrics_json), payload)
@@ -267,8 +333,7 @@ async def main_async() -> int:
     print(
         "Player enrichment incremental complete: "
         f"processed={payload['processed']} updated={payload['updated']} "
-        f"unchanged={payload['unchanged']} no_profile_data={payload['no_profile_data']} "
-        f"errors={payload['errors']}"
+        f"unchanged={payload['unchanged']} errors={payload['errors']}"
     )
     return 0
 

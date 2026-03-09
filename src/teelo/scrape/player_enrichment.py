@@ -63,7 +63,7 @@ class PlayerEnrichmentScraper(BaseScraper):
         return
         yield
 
-    async def scrape_atp_profile(self, atp_id: str, slug: str = "player") -> PlayerProfile:
+    async def scrape_atp_profile(self, atp_id: str, slug: str = "player") -> Optional[PlayerProfile]:
         """
         Scrape an ATP player profile page.
 
@@ -78,7 +78,8 @@ class PlayerEnrichmentScraper(BaseScraper):
             slug: URL slug for the player name (ignored by ATP, but included for clean URLs)
 
         Returns:
-            PlayerProfile with extracted data (fields may be None if not found)
+            PlayerProfile with extracted data (fields may be None if not found),
+            or None if scraping is blocked/fails due to persistent Cloudflare challenge.
         """
         url = f"https://www.atptour.com/en/players/{slug}/{atp_id}/overview"
         logger.info(f"Scraping ATP profile: {url}")
@@ -124,9 +125,9 @@ class PlayerEnrichmentScraper(BaseScraper):
             if len(html) < 5000 or "personal_details" not in html:
                 logger.warning(
                     f"Cloudflare block persists for {atp_id} after all retries; "
-                    "returning empty profile"
+                    "returning None"
                 )
-                return PlayerProfile()
+                return None
 
             return self._parse_atp_profile(html)
 

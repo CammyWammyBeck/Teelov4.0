@@ -133,7 +133,7 @@ def _run_update_current_events_stage(ctx: StageContext) -> StageResult:
     )
 
 
-def _run_script_stage(script_path: str):
+def _run_script_stage(script_path: str, extra_args: list[str] | None = None):
     def _runner(ctx: StageContext) -> StageResult:
         started_at = _utc_now()
         stage_dir = ctx.artifacts_dir / ctx.stage_name
@@ -147,6 +147,8 @@ def _run_script_stage(script_path: str):
             "--metrics-json",
             str(metrics_json),
         ]
+        if extra_args:
+            cmd.extend(extra_args)
         print(f"[Stage {ctx.stage_name}] Running: {' '.join(cmd)}")
         started_perf = perf_counter()
         completed = subprocess.run(cmd, check=False)
@@ -290,7 +292,10 @@ def _build_registry() -> StageRegistry:
     registry.register(
         StageDefinition(
             name="player_enrichment_incremental",
-            runner=_run_script_stage("scripts/update_players_incremental.py"),
+            runner=_run_script_stage(
+                "scripts/update_players_incremental.py",
+                ["--max-players", "10"],
+            ),
             description="Enrich players requiring profile metadata.",
             enabled_by_default=True,
         )
