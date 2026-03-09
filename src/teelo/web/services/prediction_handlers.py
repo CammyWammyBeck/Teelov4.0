@@ -11,12 +11,11 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from teelo.db.models import ModelEvaluationSnapshot
 from teelo.db.session import get_session
-from teelo.web.app_context import get_templates
+from teelo.web.app_context import templates
 from teelo.web.services.legacy_main_handlers import _require_admin, _current_admin_user
 from sqlalchemy import select
 
 logger = structlog.get_logger(__name__)
-templates = get_templates()
 
 
 async def admin_predictions_page(request: Request):
