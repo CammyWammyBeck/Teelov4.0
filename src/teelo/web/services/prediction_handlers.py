@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import structlog
@@ -39,7 +39,7 @@ async def admin_predictions_page(request: Request):
 
     return templates.TemplateResponse(
         "admin_predictions.html",
-        {"request": request, "admin": admin, "model_meta": model_meta},
+        {"request": request, "admin": admin, "model_meta": model_meta, "now": datetime.utcnow()},
     )
 
 
