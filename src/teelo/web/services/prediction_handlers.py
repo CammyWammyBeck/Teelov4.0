@@ -31,6 +31,9 @@ async def admin_predictions_page(request: Request):
         from teelo.ml.versioning import latest_model_path
         model_path = latest_model_path()
         meta_path = Path(f"{model_path}_meta.json")
+        if not meta_path.exists():
+            from teelo.storage import download_model
+            download_model(model_path)
         if meta_path.exists():
             with open(meta_path) as f:
                 model_meta = json.load(f)
