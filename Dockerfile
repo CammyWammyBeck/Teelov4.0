@@ -34,6 +34,6 @@ COPY alembic /app/alembic
 COPY alembic.ini /app/alembic.ini
 
 # Install local package after source copy; this layer is fast to rebuild.
-RUN python -m pip install -e .
+RUN python -m pip install --no-deps -e .
 
 CMD ["python", "scripts/update_current_events.py"]
