@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
 <style>
     .CodeMirror {
-        height: 200px;
+        height: 300px;
         border: 1px solid #e5e7eb;
         border-radius: 0.75rem;
         font-size: 14px;
@@ -44,31 +44,39 @@
 
     <div class="flex gap-4">
         <!-- Schema Sidebar -->
-        <div class="w-64 flex-shrink-0 schema-col bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-            <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Tables</h2>
-            <div id="schema-browser">
-                {% for table_info in schema %}
-                <div class="mb-1">
-                    <button class="schema-table-btn w-full text-left px-2 py-1.5 rounded-lg text-sm font-medium text-teelo-dark hover:bg-gray-100 transition flex items-center justify-between"
-                            data-table="{{ table_info.table }}">
-                        <span>{{ table_info.table }}</span>
-                        <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 schema-chevron transition-transform"></i>
-                    </button>
-                    <div class="schema-columns hidden pl-4 pb-2">
-                        {% for col in table_info.columns %}
-                        <div class="flex items-center gap-2 py-0.5 text-xs">
-                            {% if col.primary_key %}
-                            <i data-lucide="key" class="w-3 h-3 text-yellow-500"></i>
-                            {% else %}
-                            <span class="w-3"></span>
-                            {% endif %}
-                            <span class="font-medium text-gray-700">{{ col.name }}</span>
-                            <span class="text-gray-400">{{ col.type }}</span>
+        <div class="w-64 flex-shrink-0 schema-col space-y-4">
+            <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Tables</h2>
+                <div id="schema-browser">
+                    {% for table_info in schema %}
+                    <div class="mb-1">
+                        <button class="schema-table-btn w-full text-left px-2 py-1.5 rounded-lg text-sm font-medium text-teelo-dark hover:bg-gray-100 transition flex items-center justify-between"
+                                data-table="{{ table_info.table }}">
+                            <span>{{ table_info.table }}</span>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 schema-chevron transition-transform"></i>
+                        </button>
+                        <div class="schema-columns hidden pl-4 pb-2">
+                            {% for col in table_info.columns %}
+                            <div class="flex items-center gap-2 py-0.5 text-xs">
+                                {% if col.primary_key %}
+                                <i data-lucide="key" class="w-3 h-3 text-yellow-500"></i>
+                                {% else %}
+                                <span class="w-3"></span>
+                                {% endif %}
+                                <span class="font-medium text-gray-700">{{ col.name }}</span>
+                                <span class="text-gray-400">{{ col.type }}</span>
+                            </div>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
                     </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Recent Queries</h2>
+                <div id="recent-queries" class="space-y-1 max-h-64 overflow-y-auto">
+                    <p class="text-xs text-gray-400 italic">Loading...</p>
+                </div>
             </div>
         </div>
 
@@ -87,7 +95,29 @@
                         </button>
                     </div>
                 </div>
-                <textarea id="sql-editor">SELECT * FROM players LIMIT 50;</textarea>
+                <textarea id="sql-editor">SELECT
+  m.scheduled_date,
+  t.tour,
+  t.level,
+  t.name AS tournament,
+  COALESCE(te.surface, t.surface) AS surface,
+  m.round,
+  pa.canonical_name AS player_a,
+  pb.canonical_name AS player_b,
+  m.prediction_a,
+  ROUND(1.0 - m.prediction_a, 4) AS prediction_b,
+  m.odds_a,
+  m.odds_b,
+  m.prediction_model_version
+FROM matches m
+JOIN players pa ON pa.id = m.player_a_id
+JOIN players pb ON pb.id = m.player_b_id
+LEFT JOIN tournament_editions te ON te.id = m.tournament_edition_id
+LEFT JOIN tournaments t ON t.id = te.tournament_id
+WHERE m.status IN ('upcoming', 'scheduled')
+  AND m.prediction_a IS NOT NULL
+ORDER BY m.scheduled_date, t.name, m.round
+LIMIT 100;</textarea>
             </div>
 
             <!-- Mutation Preview -->

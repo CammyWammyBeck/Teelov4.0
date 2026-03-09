@@ -18,6 +18,7 @@ router.add_api_route('/admin/duplicates/{review_id}/create', legacy.admin_duplic
 router.add_api_route('/admin/duplicates/{review_id}/ignore', legacy.admin_duplicate_ignore, methods=['POST'])
 router.add_api_route('/admin/sql/execute', legacy.admin_sql_execute, methods=['POST'])
 router.add_api_route('/admin/sql/schema', legacy.admin_sql_schema, methods=['GET'])
+router.add_api_route('/admin/sql/recent', legacy.admin_sql_recent, methods=['GET'])
 router.add_api_route('/admin/sql', legacy.admin_sql_editor, methods=['GET'], response_class=legacy.HTMLResponse)
 router.add_api_route('/admin/predictions', pred.admin_predictions_page, methods=['GET'], response_class=HTMLResponse)
 router.add_api_route('/admin/api/predictions/summary', pred.admin_predictions_summary, methods=['GET'])

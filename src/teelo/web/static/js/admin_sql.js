@@ -372,5 +372,68 @@ for (var s = 0; s < schemaBtns.length; s++) {
     })(schemaBtns[s]);
 }
 
+// Recent queries
+var recentQueriesEl = document.getElementById('recent-queries');
+
+async function loadRecentQueries() {
+    try {
+        var resp = await fetch('/admin/sql/recent');
+        var data = await resp.json();
+        if (!resp.ok || !data.queries || data.queries.length === 0) {
+            recentQueriesEl.innerHTML = '<p class="text-xs text-gray-400 italic">No recent queries</p>';
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < data.queries.length; i++) {
+            var q = data.queries[i];
+            var truncated = q.query.length > 80 ? q.query.substring(0, 80) + '...' : q.query;
+            var ago = q.last_run ? timeAgo(new Date(q.last_run)) : '';
+            html += '<button class="recent-query-btn w-full text-left px-2 py-1.5 rounded-lg text-xs font-mono text-gray-600 hover:bg-gray-100 hover:text-teelo-dark transition truncate block" title="' + escapeHtml(q.query).replace(/"/g, '&quot;') + '">';
+            html += '<span class="block truncate">' + escapeHtml(truncated) + '</span>';
+            if (ago) html += '<span class="block text-[10px] text-gray-400 mt-0.5">' + escapeHtml(ago) + '</span>';
+            html += '</button>';
+        }
+        recentQueriesEl.innerHTML = html;
+
+        // Click handlers
+        var btns = recentQueriesEl.querySelectorAll('.recent-query-btn');
+        for (var b = 0; b < btns.length; b++) {
+            (function(btn, query) {
+                btn.addEventListener('click', function() {
+                    editor.setValue(query);
+                    editor.focus();
+                    editor.setCursor(editor.lineCount(), 0);
+                });
+            })(btns[b], data.queries[b].query);
+        }
+    } catch (e) {
+        recentQueriesEl.innerHTML = '<p class="text-xs text-gray-400 italic">Failed to load</p>';
+    }
+}
+
+function timeAgo(date) {
+    var seconds = Math.floor((new Date() - date) / 1000);
+    if (seconds < 60) return 'just now';
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + 'm ago';
+    var hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + 'h ago';
+    var days = Math.floor(hours / 24);
+    if (days < 7) return days + 'd ago';
+    return date.toLocaleDateString();
+}
+
+loadRecentQueries();
+
+// Reload recent queries after each successful query execution
+var _origRunQuery = runQuery;
+runQuery = async function(action, options) {
+    await _origRunQuery(action, options);
+    // Reload after force (full select) or confirm (mutation)
+    if (action === 'force' || action === 'confirm') {
+        loadRecentQueries();
+    }
+};
+
 // Re-init lucide icons
 lucide.createIcons();

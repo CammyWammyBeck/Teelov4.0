@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, aliased, joinedload
 
 from teelo.config import settings
 from teelo.db.models import (
+    AdminQueryLog,
     AdminUser,
     Match,
     MatchSurfaceEloSnapshot,
@@ -2184,6 +2185,14 @@ async def admin_sql_execute(
                 result = execute_select(db, sql, count_only=True)
                 return JSONResponse({"type": "count_check", **result})
             result = execute_select(db, sql)
+            log_query(
+                db,
+                admin_user_id=admin.id,
+                query_text=sql,
+                query_type=query_type,
+                affected_rows=None,
+                success=True,
+            )
             return JSONResponse({"type": "select", **result})
 
         # Mutation query
@@ -2236,6 +2245,41 @@ async def admin_sql_schema(
 
     schema = get_schema_info(db)
     return JSONResponse({"tables": schema})
+
+
+async def admin_sql_recent(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Return the 20 most recent distinct queries for this admin user."""
+    redirect = _require_admin(request, db)
+    if redirect:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    admin = _current_admin_user(request, db)
+
+    # Get the 20 most recently executed distinct queries
+    subq = (
+        db.query(
+            AdminQueryLog.query_text,
+            func.max(AdminQueryLog.executed_at).label("last_run"),
+        )
+        .filter(AdminQueryLog.admin_user_id == admin.id)
+        .filter(AdminQueryLog.success == True)
+        .group_by(AdminQueryLog.query_text)
+        .order_by(func.max(AdminQueryLog.executed_at).desc())
+        .limit(20)
+        .all()
+    )
+
+    queries = [
+        {
+            "query": row.query_text,
+            "last_run": row.last_run.isoformat() if row.last_run else None,
+        }
+        for row in subq
+    ]
+    return JSONResponse({"queries": queries})
 
 
 # Only for debugging
