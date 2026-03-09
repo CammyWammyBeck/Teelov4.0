@@ -1,6 +1,8 @@
 from fastapi import APIRouter
+from fastapi.responses import HTMLResponse
 
 from teelo.web.services import legacy_main_handlers as legacy
+from teelo.web.services import prediction_handlers as pred
 
 router = APIRouter()
 router.add_api_route('/admin/login', legacy.admin_login_page, methods=['GET'], response_class=legacy.HTMLResponse)
@@ -17,3 +19,9 @@ router.add_api_route('/admin/duplicates/{review_id}/ignore', legacy.admin_duplic
 router.add_api_route('/admin/sql/execute', legacy.admin_sql_execute, methods=['POST'])
 router.add_api_route('/admin/sql/schema', legacy.admin_sql_schema, methods=['GET'])
 router.add_api_route('/admin/sql', legacy.admin_sql_editor, methods=['GET'], response_class=legacy.HTMLResponse)
+router.add_api_route('/admin/predictions', pred.admin_predictions_page, methods=['GET'], response_class=HTMLResponse)
+router.add_api_route('/admin/api/predictions/summary', pred.admin_predictions_summary, methods=['GET'])
+router.add_api_route('/admin/api/predictions/breakdown', pred.admin_predictions_breakdown, methods=['GET'])
+router.add_api_route('/admin/api/predictions/charts/accuracy', pred.admin_predictions_charts_accuracy, methods=['GET'])
+router.add_api_route('/admin/api/predictions/charts/calibration', pred.admin_predictions_charts_calibration, methods=['GET'])
+router.add_api_route('/admin/api/predictions/charts/distribution', pred.admin_predictions_charts_distribution, methods=['GET'])
