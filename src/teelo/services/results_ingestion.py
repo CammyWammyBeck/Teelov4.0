@@ -636,6 +636,10 @@ def _update_match_with_result(
     if scraped.match_number is not None:
         match.match_number = scraped.match_number
 
+    # NOTE: Do NOT overwrite prediction_a, prediction_model_version,
+    # prediction_updated_at, or prediction_source here. These must be
+    # preserved for live prediction accuracy tracking.
+
     # Recompute temporal order
     match.update_temporal_order(
         tournament_start=edition.start_date,
