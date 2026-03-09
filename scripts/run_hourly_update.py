@@ -201,8 +201,10 @@ def _run_feature_computation_stage(ctx: StageContext) -> StageResult:
     try:
         from teelo.features import build_registry
         from teelo.features.engine import FeatureEngine
+        from teelo.ml.versioning import latest_feature_set
         registry = build_registry()
-        engine = FeatureEngine(registry)
+        feature_set_name = latest_feature_set()
+        engine = FeatureEngine(registry, feature_set_name)
         engine.run()
         logger.info("stage.feature_computation_done")
         return StageResult(
