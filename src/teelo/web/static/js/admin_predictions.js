@@ -257,7 +257,7 @@ function renderDistributionChart(source, confidenceData) {
         return;
     }
 
-    const labels = confidenceData.map((row) => row.bucket ?? row.confidence_bucket ?? 'Unknown');
+    const labels = confidenceData.map((row) => row.label ?? row.bucket ?? row.confidence_bucket ?? 'Unknown');
     const values = confidenceData.map((row) => Number(row.n_matches ?? 0));
 
     destroyChart(id);
@@ -450,9 +450,15 @@ async function loadCharts(source) {
         const calibrationData = await calibrationResponse.json();
         const distributionData = await distributionResponse.json();
 
-        renderAccuracyChart(source, accuracyData.daily || []);
+        // Convert daily object {date: {n_matches, accuracy}} to array
+        const dailyObj = accuracyData.daily || {};
+        const dailyArr = Object.entries(dailyObj).map(([date, v]) => ({date, ...v}));
+        renderAccuracyChart(source, dailyArr);
         renderCalibrationChart(source, calibrationData.calibration || []);
-        renderDistributionChart(source, distributionData.by_confidence || []);
+        // Convert confidence object to array
+        const confObj = distributionData.by_confidence || {};
+        const confArr = Object.entries(confObj).map(([label, v]) => ({label, ...v}));
+        renderDistributionChart(source, confArr);
         renderTourAccuracyChart(source, accuracyData.by_tour || {});
     } catch (error) {
         chartIds.forEach((id) => {
