@@ -28,6 +28,10 @@ logger = structlog.get_logger(__name__)
 TERMINAL_STATUSES = {"completed", "retired", "walkover", "default"}
 BATCH_SIZE = 5000
 PROGRESS_INTERVAL = 10000
+# Temporal orders at or above this threshold use the 9999-12-31 far-future
+# sentinel date (assigned when no real date is available).  Exclude them from
+# the incremental watermark so they don't permanently block new computations.
+SENTINEL_TEMPORAL_ORDER = 999900000000000
 
 
 class FeatureEngine:
@@ -214,6 +218,7 @@ class FeatureEngine:
             .select_from(Match)
             .join(MatchFeatures, MatchFeatures.match_id == Match.id)
             .where(MatchFeatures.feature_set_id == feature_set_id)
+            .where(Match.temporal_order < SENTINEL_TEMPORAL_ORDER)
         ).scalar_one()
 
     def _load_matches(self, session: Session) -> list[Any]:
