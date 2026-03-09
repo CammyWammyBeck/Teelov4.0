@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Prediction Tracker | Admin | Teelo{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+    <div class="flex items-center justify-between gap-4">
+        <div>
+            <a href="/admin" class="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-teelo-dark transition-colors">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                Back to Admin
+            </a>
+            <h1 class="text-3xl font-extrabold tracking-tight text-teelo-dark mt-2">Prediction Tracker</h1>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
+        <div class="border-b border-gray-100">
+            <div class="flex">
+                <button type="button" data-tab="live" class="px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-500 transition-colors">Live Predictions</button>
+                <button type="button" data-tab="backfill" class="px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-500 transition-colors">Historical (Backfill)</button>
+                <button type="button" data-tab="cv" class="px-6 py-4 text-sm font-semibold border-b-2 border-transparent text-gray-500 transition-colors">Training CV</button>
+            </div>
+        </div>
+
+        <div class="p-6">
+            {% for source in ['live', 'backfill'] %}
+            <div id="tab-content-{{ source }}" class="space-y-6 {% if source == 'backfill' %}hidden{% endif %}">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    {% set metrics = [
+                        ('accuracy', 'Accuracy'),
+                        ('log-loss', 'Log Loss'),
+                        ('ece', 'ECE'),
+                        ('brier', 'Brier Score'),
+                        ('matches', 'Matches')
+                    ] %}
+                    {% for metric_slug, metric_name in metrics %}
+                    <div id="{{ source }}-card-{{ metric_slug }}" class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4">
+                        <p class="text-xs uppercase tracking-wide font-semibold text-gray-500">{{ metric_name }}</p>
+                        <p class="text-3xl font-bold text-teelo-dark mt-2" data-role="value">—</p>
+                        <p class="text-sm mt-2" style="min-height: 1.25rem;" data-role="delta"></p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4">
+                        <h3 class="text-sm font-bold text-gray-700 mb-3">Accuracy Over Time</h3>
+                        <canvas id="chart-accuracy-time-{{ source }}" height="240"></canvas>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4">
+                        <h3 class="text-sm font-bold text-gray-700 mb-3">Calibration Curve</h3>
+                        <canvas id="chart-calibration-{{ source }}" height="240"></canvas>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4">
+                        <h3 class="text-sm font-bold text-gray-700 mb-3">Confidence Distribution</h3>
+                        <canvas id="chart-confidence-dist-{{ source }}" height="240"></canvas>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4">
+                        <h3 class="text-sm font-bold text-gray-700 mb-3">Per-Tour Accuracy</h3>
+                        <div class="flex flex-wrap gap-2 mb-3">
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white bg-[#002865]">ATP</span>
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white bg-[#E30066]">WTA</span>
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white bg-[#006B3F]">Challenger</span>
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white bg-gray-600">ITF</span>
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white bg-gray-500">WTA 125</span>
+                        </div>
+                        <canvas id="chart-tour-accuracy-{{ source }}" height="240"></canvas>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <details class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4" open>
+                        <summary class="cursor-pointer text-sm font-semibold text-teelo-dark">By Tour</summary>
+                        <div id="{{ source }}-table-tour" class="mt-3 overflow-x-auto text-sm text-gray-500">Loading...</div>
+                    </details>
+                    <details class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4">
+                        <summary class="cursor-pointer text-sm font-semibold text-teelo-dark">By Surface</summary>
+                        <div id="{{ source }}-table-surface" class="mt-3 overflow-x-auto text-sm text-gray-500">Loading...</div>
+                    </details>
+                    <details class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4">
+                        <summary class="cursor-pointer text-sm font-semibold text-teelo-dark">By Level</summary>
+                        <div id="{{ source }}-table-level" class="mt-3 overflow-x-auto text-sm text-gray-500">Loading...</div>
+                    </details>
+                    <details class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4">
+                        <summary class="cursor-pointer text-sm font-semibold text-teelo-dark">By Round</summary>
+                        <div id="{{ source }}-table-round" class="mt-3 overflow-x-auto text-sm text-gray-500">Loading...</div>
+                    </details>
+                    <details class="bg-white rounded-2xl shadow-soft border border-gray-100 p-4">
+                        <summary class="cursor-pointer text-sm font-semibold text-teelo-dark">By Confidence</summary>
+                        <div id="{{ source }}-table-confidence" class="mt-3 overflow-x-auto text-sm text-gray-500">Loading...</div>
+                    </details>
+                </div>
+            </div>
+            {% endfor %}
+
+            <div id="tab-content-cv" class="space-y-6 hidden">
+                <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+                    <h2 class="text-lg font-bold text-teelo-dark">Model Info</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
+                        <div>
+                            <p class="text-gray-500">Created At</p>
+                            <p class="font-semibold text-teelo-dark mt-1">{{ model_meta.created_at or '—' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-500">Date Range</p>
+                            <p class="font-semibold text-teelo-dark mt-1">{{ model_meta.date_range or '—' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-500">Training Size</p>
+                            <p class="font-semibold text-teelo-dark mt-1">{{ model_meta.train_size or '—' }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+                        <h3 class="text-base font-bold text-teelo-dark mb-3">Hyperparameters</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-gray-100 text-left text-gray-500">
+                                        <th class="py-2 pr-3 font-semibold">Parameter</th>
+                                        <th class="py-2 font-semibold">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for key, value in (model_meta.params or {}).items() %}
+                                    <tr class="border-b border-gray-50">
+                                        <td class="py-2 pr-3 font-medium text-teelo-dark">{{ key }}</td>
+                                        <td class="py-2 text-gray-700">{{ value }}</td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="2" class="py-3 text-gray-500">No parameters available</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+                        <h3 class="text-base font-bold text-teelo-dark mb-3">CV Scores</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-gray-100 text-left text-gray-500">
+                                        <th class="py-2 pr-3 font-semibold">Metric</th>
+                                        <th class="py-2 font-semibold">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for key, value in (model_meta.cv_scores or {}).items() %}
+                                    <tr class="border-b border-gray-50">
+                                        <td class="py-2 pr-3 font-medium text-teelo-dark">{{ key }}</td>
+                                        <td class="py-2 text-gray-700">{{ value }}</td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="2" class="py-3 text-gray-500">No CV scores available</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <details class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+                    <summary class="cursor-pointer text-base font-bold text-teelo-dark">Feature List</summary>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4">
+                        {% for feature in (model_meta.feature_names or []) %}
+                        <div class="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700">{{ feature }}</div>
+                        {% else %}
+                        <p class="text-sm text-gray-500">No features available</p>
+                        {% endfor %}
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin_predictions.js"></script>
+{% endblock %}
