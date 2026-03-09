@@ -195,32 +195,77 @@ def _run_script_stage(script_path: str, extra_args: list[str] | None = None):
     return _runner
 
 
-async def _run_predictions_stage(ctx: StageContext) -> None:
+def _run_feature_computation_stage(ctx: StageContext) -> StageResult:
+    """Compute features for matches missing them."""
+    started_at = _utc_now()
+    try:
+        from teelo.features import build_registry
+        from teelo.features.engine import FeatureEngine
+        registry = build_registry()
+        engine = FeatureEngine(registry)
+        engine.run()
+        logger.info("stage.feature_computation_done")
+        return StageResult(
+            stage_name=ctx.stage_name, status="success",
+            started_at=started_at, ended_at=_utc_now(),
+        )
+    except Exception as exc:
+        logger.error("stage.feature_computation_failed", error=str(exc))
+        return StageResult(
+            stage_name=ctx.stage_name, status="failed",
+            started_at=started_at, ended_at=_utc_now(), error=str(exc),
+        )
+
+
+def _run_predictions_stage(ctx: StageContext) -> StageResult:
     """Run batch predictions on upcoming matches."""
-    from teelo.ml.predictor import BatchPredictor
-    predictor = BatchPredictor()
-    count = predictor.predict()
-    logger.info("stage.predictions_done", count=count)
+    started_at = _utc_now()
+    try:
+        from teelo.ml.predictor import BatchPredictor
+        predictor = BatchPredictor()
+        count = predictor.predict()
+        logger.info("stage.predictions_done", count=count)
+        return StageResult(
+            stage_name=ctx.stage_name, status="success",
+            started_at=started_at, ended_at=_utc_now(),
+            metrics={"predicted_count": count},
+        )
+    except Exception as exc:
+        logger.error("stage.predictions_failed", error=str(exc))
+        return StageResult(
+            stage_name=ctx.stage_name, status="failed",
+            started_at=started_at, ended_at=_utc_now(), error=str(exc),
+        )
 
 
-async def _run_metrics_snapshot_stage(ctx: StageContext) -> None:
+def _run_metrics_snapshot_stage(ctx: StageContext) -> StageResult:
     """Compute and store prediction accuracy metrics."""
-    from teelo.ml.metrics import compute_snapshot
-    from teelo.ml.versioning import latest_model_path
-    from pathlib import Path
-    import json
+    started_at = _utc_now()
+    try:
+        from teelo.ml.metrics import compute_snapshot
+        from teelo.ml.versioning import latest_model_path
 
-    model_path = latest_model_path()
-    meta_path = Path(f"{model_path}_meta.json")
-    model_version = Path(model_path).stem
-    if meta_path.exists():
-        with open(meta_path) as f:
-            meta = json.load(f)
-            model_version = meta.get("created_at", model_version)
+        model_path = latest_model_path()
+        meta_path = Path(f"{model_path}_meta.json")
+        model_version = Path(model_path).stem
+        if meta_path.exists():
+            with open(meta_path) as f:
+                meta = json.load(f)
+                model_version = meta.get("created_at", model_version)
 
-    for source in ("live", "backfill", "all"):
-        compute_snapshot(model_version=model_version, source_filter=source)
-    logger.info("stage.metrics_snapshot_done")
+        for source in ("live", "backfill", "all"):
+            compute_snapshot(model_version=model_version, source_filter=source)
+        logger.info("stage.metrics_snapshot_done")
+        return StageResult(
+            stage_name=ctx.stage_name, status="success",
+            started_at=started_at, ended_at=_utc_now(),
+        )
+    except Exception as exc:
+        logger.error("stage.metrics_snapshot_failed", error=str(exc))
+        return StageResult(
+            stage_name=ctx.stage_name, status="failed",
+            started_at=started_at, ended_at=_utc_now(), error=str(exc),
+        )
 
 
 def _save_run_started(run_id: str, started_at: datetime) -> None:
@@ -297,6 +342,14 @@ def _build_registry() -> StageRegistry:
                 ["--max-players", "10"],
             ),
             description="Enrich players requiring profile metadata.",
+            enabled_by_default=True,
+        )
+    )
+    registry.register(
+        StageDefinition(
+            name="feature_computation",
+            runner=_run_feature_computation_stage,
+            description="Compute features for matches missing them.",
             enabled_by_default=True,
         )
     )

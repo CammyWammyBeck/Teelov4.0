@@ -4,6 +4,9 @@ services:
     env_file:
       - .env
     command: ["python", "scripts/run_hourly_update.py", "--workers", "3"]
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
     ports:
       - "5900:5900"
       - "6080:6080"
@@ -16,6 +19,8 @@ services:
     # entrypoint lets extra args pass through: docker compose run --rm update-current --lookback-days 60
     entrypoint: ["python", "scripts/update_current_events.py"]
     command: ["--workers", "3"]
+    volumes:
+      - ./logs:/app/logs
     ports:
       - "5900:5900"
       - "6080:6080"
@@ -26,6 +31,9 @@ services:
     env_file:
       - .env
     command: ["python", "scripts/backfill_historical.py"]
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
     ports:
       - "5900:5900"
       - "6080:6080"
