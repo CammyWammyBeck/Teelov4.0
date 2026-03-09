@@ -60,7 +60,7 @@ class BatchPredictor:
                 extra_filter = Match.prediction_a.is_(None)
             else:
                 status_filter = Match.status.in_(("upcoming", "scheduled"))
-                extra_filter = sa.true()
+                extra_filter = Match.prediction_a.is_(None)
 
             stmt = (
                 select(Match.id, MatchFeatures.features)
