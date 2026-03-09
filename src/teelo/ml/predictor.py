@@ -6,21 +6,24 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import sqlalchemy as sa
 import structlog
 import xgboost as xgb
 from sqlalchemy import bindparam, select, update
 
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
+from teelo.ml.versioning import latest_feature_set, latest_model_path
 from teelo.storage import download_model
 
 logger = structlog.get_logger(__name__)
 
 
 class BatchPredictor:
-    def __init__(self, model_path: str, feature_set_name: str) -> None:
-        self.model_path = model_path
-        self.feature_set_name = feature_set_name
+    def __init__(self, model_path: str | None = None, feature_set_name: str | None = None, backfill: bool = False) -> None:
+        self.model_path = model_path or latest_model_path()
+        self.feature_set_name = feature_set_name or latest_feature_set()
+        self.backfill = backfill
 
     def predict(self) -> int:
         model_path = Path(self.model_path)
@@ -52,12 +55,20 @@ class BatchPredictor:
             if feature_set is None:
                 raise ValueError(f"Feature set not found: {self.feature_set_name}")
 
+            if self.backfill:
+                status_filter = Match.status.in_(("completed", "retired", "walkover", "default"))
+                extra_filter = Match.prediction_a.is_(None)
+            else:
+                status_filter = Match.status.in_(("upcoming", "scheduled"))
+                extra_filter = sa.true()
+
             stmt = (
                 select(Match.id, MatchFeatures.features)
                 .select_from(Match)
                 .join(MatchFeatures, MatchFeatures.match_id == Match.id)
                 .where(MatchFeatures.feature_set_id == feature_set.id)
-                .where(Match.status.in_(("upcoming", "scheduled")))
+                .where(status_filter)
+                .where(extra_filter)
                 .order_by(Match.id.asc())
             )
             rows = list(session.execute(stmt).all())
@@ -71,12 +82,14 @@ class BatchPredictor:
             probs = model.predict_proba(X)[:, 1]
 
             now = datetime.utcnow()
+            source = "backfill" if self.backfill else "live"
             payloads = [
                 {
                     "b_match_id": row.id,
                     "b_prediction_a": float(prob),
                     "b_prediction_model_version": model_version,
                     "b_prediction_updated_at": now,
+                    "b_prediction_source": source,
                 }
                 for row, prob in zip(rows, probs)
             ]
@@ -88,6 +101,7 @@ class BatchPredictor:
                     prediction_a=bindparam("b_prediction_a"),
                     prediction_model_version=bindparam("b_prediction_model_version"),
                     prediction_updated_at=bindparam("b_prediction_updated_at"),
+                    prediction_source=bindparam("b_prediction_source"),
                 )
             )
             session.connection().execute(update_stmt, payloads)
@@ -110,7 +124,10 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="models/prediction_v1.json")
-    parser.add_argument("--feature-set", default="baseline_v1")
+    parser.add_argument("--model", default=None)
+    parser.add_argument("--feature-set", default=None)
+    parser.add_argument("--backfill", action="store_true")
     args = parser.parse_args()
-    BatchPredictor(args.model, args.feature_set).predict()
+    predictor = BatchPredictor(args.model, args.feature_set, backfill=args.backfill)
+    count = predictor.predict()
+    print(f"Predicted {count} matches")
