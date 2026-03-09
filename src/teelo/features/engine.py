@@ -61,7 +61,11 @@ class FeatureEngine:
                 return
 
             # Replay always starts from the beginning in both modes to rebuild state.
-            # In incremental mode, we only persist features for matches after the watermark.
+            # In incremental mode, we only persist features for matches after the watermark
+            # OR matches that don't have features yet (e.g. newly ingested with past dates).
+            existing_feature_ids = self._load_existing_feature_match_ids(
+                session, feature_set.id
+            )
             snapshot_by_match_player = self._load_surface_snapshots(session, match_rows, backfill)
 
             processed = 0
@@ -115,7 +119,10 @@ class FeatureEngine:
                 )
 
                 should_compute = (
-                    backfill or last_computed is None or row.temporal_order > last_computed
+                    backfill
+                    or last_computed is None
+                    or row.temporal_order > last_computed
+                    or row.id not in existing_feature_ids
                 )
                 if should_compute:
                     features = self.registry.compute_all(state_a, state_b, ctx)
@@ -220,6 +227,17 @@ class FeatureEngine:
             .where(MatchFeatures.feature_set_id == feature_set_id)
             .where(Match.temporal_order < SENTINEL_TEMPORAL_ORDER)
         ).scalar_one()
+
+    def _load_existing_feature_match_ids(
+        self, session: Session, feature_set_id: int
+    ) -> set[int]:
+        """Return the set of match IDs that already have features for this set."""
+        rows = session.execute(
+            select(MatchFeatures.match_id).where(
+                MatchFeatures.feature_set_id == feature_set_id
+            )
+        ).scalars().all()
+        return set(rows)
 
     def _load_matches(self, session: Session) -> list[Any]:
         stmt = (
