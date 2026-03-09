@@ -71,28 +71,9 @@ class BatchPredictor:
                 .where(extra_filter)
                 .order_by(Match.id.asc())
             )
-            rows = list(session.execute(stmt).all())
-            if not rows:
-                logger.info("batch_predictor.no_matches")
-                return 0
-
-            X = pd.DataFrame([row.features or {} for row in rows])
-            X = X.reindex(columns=feature_names)
-            X = X.apply(pd.to_numeric, errors="coerce")
-            probs = model.predict_proba(X)[:, 1]
-
-            now = datetime.utcnow()
+            CHUNK_SIZE = 10_000
+            total_predicted = 0
             source = "backfill" if self.backfill else "live"
-            payloads = [
-                {
-                    "b_match_id": row.id,
-                    "b_prediction_a": float(prob),
-                    "b_prediction_model_version": model_version,
-                    "b_prediction_updated_at": now,
-                    "b_prediction_source": source,
-                }
-                for row, prob in zip(rows, probs)
-            ]
             from teelo.db.models import Match as MatchModel
             update_stmt = (
                 MatchModel.__table__.update()
@@ -104,15 +85,54 @@ class BatchPredictor:
                     prediction_source=bindparam("b_prediction_source"),
                 )
             )
-            session.connection().execute(update_stmt, payloads)
+
+            result = session.execute(stmt)
+            chunk: list = []
+            for row in result.yield_per(CHUNK_SIZE):
+                chunk.append(row)
+                if len(chunk) >= CHUNK_SIZE:
+                    total_predicted += self._predict_chunk(
+                        chunk, model, feature_names, model_version, source, update_stmt, session
+                    )
+                    logger.info("batch_predictor.progress", predicted=total_predicted)
+                    chunk = []
+
+            if chunk:
+                total_predicted += self._predict_chunk(
+                    chunk, model, feature_names, model_version, source, update_stmt, session
+                )
+
+            if total_predicted == 0:
+                logger.info("batch_predictor.no_matches")
+                return 0
 
         logger.info(
             "batch_predictor.predicted",
             model_path=self.model_path,
             feature_set=self.feature_set_name,
-            count=len(rows),
+            count=total_predicted,
         )
-        return len(rows)
+        return total_predicted
+
+    def _predict_chunk(self, chunk, model, feature_names, model_version, source, update_stmt, session) -> int:
+        X = pd.DataFrame([row.features or {} for row in chunk])
+        X = X.reindex(columns=feature_names)
+        X = X.apply(pd.to_numeric, errors="coerce")
+        probs = model.predict_proba(X)[:, 1]
+
+        now = datetime.utcnow()
+        payloads = [
+            {
+                "b_match_id": row.id,
+                "b_prediction_a": float(prob),
+                "b_prediction_model_version": model_version,
+                "b_prediction_updated_at": now,
+                "b_prediction_source": source,
+            }
+            for row, prob in zip(chunk, probs)
+        ]
+        session.connection().execute(update_stmt, payloads)
+        return len(chunk)
 
     def _load_metadata(self) -> dict[str, Any]:
         path = Path(f"{self.model_path}_meta.json")
