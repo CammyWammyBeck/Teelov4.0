@@ -16,6 +16,8 @@ from typing import Any
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+import structlog
+
 from teelo.db import PipelineRun, PipelineStageRun, get_engine, get_session
 from teelo.tasks import (
     StageContext,
@@ -25,6 +27,8 @@ from teelo.tasks import (
     advisory_lock_key,
     postgres_advisory_lock,
 )
+
+logger = structlog.get_logger(__name__)
 
 
 def _utc_now() -> datetime:
@@ -189,6 +193,34 @@ def _run_script_stage(script_path: str):
     return _runner
 
 
+async def _run_predictions_stage(ctx: StageContext) -> None:
+    """Run batch predictions on upcoming matches."""
+    from teelo.ml.predictor import BatchPredictor
+    predictor = BatchPredictor()
+    count = predictor.predict()
+    logger.info("stage.predictions_done", count=count)
+
+
+async def _run_metrics_snapshot_stage(ctx: StageContext) -> None:
+    """Compute and store prediction accuracy metrics."""
+    from teelo.ml.metrics import compute_snapshot
+    from teelo.ml.versioning import latest_model_path
+    from pathlib import Path
+    import json
+
+    model_path = latest_model_path()
+    meta_path = Path(f"{model_path}_meta.json")
+    model_version = Path(model_path).stem
+    if meta_path.exists():
+        with open(meta_path) as f:
+            meta = json.load(f)
+            model_version = meta.get("created_at", model_version)
+
+    for source in ("live", "backfill", "all"):
+        compute_snapshot(model_version=model_version, source_filter=source)
+    logger.info("stage.metrics_snapshot_done")
+
+
 def _save_run_started(run_id: str, started_at: datetime) -> None:
     with get_session() as session:
         session.add(
@@ -260,6 +292,22 @@ def _build_registry() -> StageRegistry:
             name="player_enrichment_incremental",
             runner=_run_script_stage("scripts/update_players_incremental.py"),
             description="Enrich players requiring profile metadata.",
+            enabled_by_default=True,
+        )
+    )
+    registry.register(
+        StageDefinition(
+            name="predictions",
+            runner=_run_predictions_stage,
+            description="Run ML predictions on upcoming/scheduled matches.",
+            enabled_by_default=True,
+        )
+    )
+    registry.register(
+        StageDefinition(
+            name="metrics_snapshot",
+            runner=_run_metrics_snapshot_stage,
+            description="Compute and store prediction accuracy metric snapshots.",
             enabled_by_default=True,
         )
     )
