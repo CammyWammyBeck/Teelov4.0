@@ -26,7 +26,7 @@ Tables:
 - update_log: System audit trail
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -607,6 +607,7 @@ class Match(Base):
     prediction_a: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 4), nullable=True)
     prediction_model_version: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     prediction_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    prediction_source: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
     # ==========================================================================
     # ELO snapshots and processing metadata
@@ -990,6 +991,23 @@ class MatchFeatures(Base):
 
     def __repr__(self) -> str:
         return f"<MatchFeatures(match_id={self.match_id}, feature_set_id={self.feature_set_id})>"
+
+
+class ModelEvaluationSnapshot(Base):
+    """Daily snapshot of prediction accuracy metrics."""
+    __tablename__ = "model_evaluation_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    model_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
+    source_filter: Mapped[str] = mapped_column(String(20), nullable=False)
+    metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("model_version", "snapshot_date", "source_filter", name="uq_eval_snapshot"),
+        Index("idx_eval_snapshot_date", "snapshot_date"),
+    )
 
 
 # =============================================================================
