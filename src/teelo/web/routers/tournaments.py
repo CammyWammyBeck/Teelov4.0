@@ -85,17 +85,31 @@ def _normalize_tour(tour: str) -> str:
     return (tour or "").strip().upper()
 
 
+_TOUR_ALIASES: dict[str, list[str]] = {
+    "ATP": ["ATP"],
+    "WTA": ["WTA"],
+    "CHALLENGER": ["CHALLENGER", "Challenger"],
+    "ITF": ["ITF"],
+    "WTA_125": ["WTA_125", "WTA 125"],
+}
+
+
+def _resolve_tour_values(tour: str) -> list[str]:
+    """Return all DB-stored tour values matching the input."""
+    key = _normalize_tour(tour).replace(" ", "_")
+    return _TOUR_ALIASES.get(key, [(tour or "").strip()])
+
+
 def _get_tournament_edition_or_404(
     db: Session, tour: str, tournament_code: str, year: int
 ) -> TournamentEdition:
-    tour_key = _normalize_tour(tour)
     edition = (
         db.query(TournamentEdition)
         .outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
         .options(contains_eager(TournamentEdition.tournament))
         .filter(
             Tournament.tournament_code == tournament_code,
-            func.upper(Tournament.tour) == tour_key,
+            Tournament.tour.in_(_resolve_tour_values(tour)),
             TournamentEdition.year == year,
         )
         .first()
@@ -117,7 +131,7 @@ async def tournament_latest_redirect(
         .outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
         .filter(
             Tournament.tournament_code == tournament_code,
-            func.upper(Tournament.tour) == tour_key,
+            Tournament.tour.in_(_resolve_tour_values(tour)),
         )
         .order_by(TournamentEdition.year.desc().nullslast())
         .first()
@@ -147,36 +161,36 @@ async def tournament_detail_page(
     )
     surface = edition.surface or tournament.surface
 
-    has_draw = (
-        db.query(Match.id)
-        .filter(Match.tournament_edition_id == edition.id, Match.draw_position.isnot(None))
-        .first()
-        is not None
-    )
-    has_upcoming = (
-        db.query(Match.id)
-        .filter(
-            Match.tournament_edition_id == edition.id,
-            Match.status.in_(("upcoming", "scheduled")),
+    # Combined query for has_draw, has_upcoming counts
+    match_stats = (
+        db.query(
+            func.sum(case((Match.draw_position.isnot(None), 1), else_=0)).label("draw_count"),
+            func.sum(
+                case((Match.status.in_(("upcoming", "scheduled")), 1), else_=0)
+            ).label("upcoming_count"),
         )
-        .first()
-        is not None
-    )
-    round_sort = case(ROUND_ORDER, value=Match.round, else_=999)
-    first_draw_round = (
-        db.query(Match.round, func.count(Match.id).label("match_count"))
-        .filter(
-            Match.tournament_edition_id == edition.id,
-            Match.draw_position.isnot(None),
-            Match.round.in_(MAIN_DRAW_ROUNDS),
-        )
-        .group_by(Match.round)
-        .order_by(round_sort.asc())
+        .filter(Match.tournament_edition_id == edition.id)
         .first()
     )
+    has_draw = (match_stats is not None and (match_stats.draw_count or 0) > 0)
+    has_upcoming = (match_stats is not None and (match_stats.upcoming_count or 0) > 0)
+
     draw_size = edition.draw_size
-    if first_draw_round is not None and first_draw_round.match_count:
-        draw_size = first_draw_round.match_count * 2
+    if has_draw:
+        round_sort = case(ROUND_ORDER, value=Match.round, else_=999)
+        first_draw_round = (
+            db.query(Match.round, func.count(Match.id).label("match_count"))
+            .filter(
+                Match.tournament_edition_id == edition.id,
+                Match.draw_position.isnot(None),
+                Match.round.in_(MAIN_DRAW_ROUNDS),
+            )
+            .group_by(Match.round)
+            .order_by(round_sort.asc())
+            .first()
+        )
+        if first_draw_round is not None and first_draw_round.match_count:
+            draw_size = first_draw_round.match_count * 2
 
     final_match = (
         db.query(Match)
@@ -211,6 +225,11 @@ async def tournament_detail_page(
         finals = (
             db.query(Match)
             .filter(Match.tournament_edition_id.in_(edition_ids), Match.round == "F")
+            .options(
+                joinedload(Match.winner),
+                joinedload(Match.player_a),
+                joinedload(Match.player_b),
+            )
             .order_by(
                 Match.tournament_edition_id.asc(),
                 func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
@@ -383,7 +402,7 @@ async def api_tournament_editions(
         db.query(Tournament)
         .filter(
             Tournament.tournament_code == tournament_code,
-            func.upper(Tournament.tour) == tour_key,
+            Tournament.tour.in_(_resolve_tour_values(tour)),
         )
         .first()
     )

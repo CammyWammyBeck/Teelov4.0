@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import Numeric, and_, case, func, or_
 from sqlalchemy.orm import Session, aliased, joinedload
 
 from teelo.config import settings
@@ -794,6 +794,7 @@ async def api_player_elo_history(
                 Match.temporal_order.asc().nullslast(),
                 Match.id.asc(),
             )
+            .limit(10000)
             .all()
         )
         points = [
@@ -857,6 +858,7 @@ async def api_player_elo_history(
                 MatchSurfaceEloSnapshot.temporal_order.asc().nullslast(),
                 MatchSurfaceEloSnapshot.match_id.asc(),
             )
+            .limit(10000)
             .all()
         )
         points = [
@@ -991,41 +993,63 @@ def _build_player_surface_elo_payload(db: Session, player_id: int) -> list[dict[
         .order_by(PlayerSurfaceEloState.rating.desc(), PlayerSurfaceEloState.surface.asc())
         .all()
     )
+    if not surface_rows:
+        return []
 
     player = db.query(Player).filter(Player.id == player_id).first()
-    player_name = player.canonical_name if player else None
-    player_gender = player.gender if player else None
+    if not player or not player.canonical_name or player.gender is None:
+        return [
+            {
+                "surface": row.surface,
+                "rating": _round_elo(row.rating),
+                "rank": None,
+                "career_peak": _round_elo(row.career_peak),
+                "match_count": int(row.match_count),
+                "last_match_date": row.last_match_date.isoformat() if row.last_match_date else None,
+            }
+            for row in surface_rows
+        ]
 
-    def compute_surface_rank(row: PlayerSurfaceEloState) -> Optional[int]:
-        if not player_name or player_gender is None:
-            return None
-        rank_query = (
-            db.query(func.count(PlayerSurfaceEloState.id))
-            .join(Player, Player.id == PlayerSurfaceEloState.player_id)
-            .filter(PlayerSurfaceEloState.surface == row.surface)
-            .filter(Player.gender == player_gender)
+    surfaces = [row.surface for row in surface_rows]
+    rating_by_surface = {row.surface: row.rating for row in surface_rows}
+
+    # Build a CASE expression that maps each row's surface to the target player's rating on that surface.
+    # This lets us compare each competitor's rating against the player's rating on the same surface,
+    # all in a single query grouped by surface.
+    threshold_case = case(
+        *[(PlayerSurfaceEloState.surface == s, rating_by_surface[s]) for s in surfaces],
+        else_=0,
+    )
+
+    rank_counts = (
+        db.query(
+            PlayerSurfaceEloState.surface,
+            func.count(PlayerSurfaceEloState.id),
         )
-
-        better_count = (
-            rank_query.filter(
-                or_(
-                    PlayerSurfaceEloState.rating > row.rating,
-                    and_(
-                        PlayerSurfaceEloState.rating == row.rating,
-                        Player.canonical_name < player_name,
-                    ),
-                )
+        .join(Player, Player.id == PlayerSurfaceEloState.player_id)
+        .filter(
+            PlayerSurfaceEloState.surface.in_(surfaces),
+            Player.gender == player.gender,
+        )
+        .filter(
+            or_(
+                PlayerSurfaceEloState.rating > func.cast(threshold_case, Numeric),
+                and_(
+                    PlayerSurfaceEloState.rating == func.cast(threshold_case, Numeric),
+                    Player.canonical_name < player.canonical_name,
+                ),
             )
-            .scalar()
-            or 0
         )
-        return int(better_count) + 1
+        .group_by(PlayerSurfaceEloState.surface)
+        .all()
+    )
+    rank_map = {surface: int(count) + 1 for surface, count in rank_counts}
 
     return [
         {
             "surface": row.surface,
             "rating": _round_elo(row.rating),
-            "rank": compute_surface_rank(row),
+            "rank": rank_map.get(row.surface),
             "career_peak": _round_elo(row.career_peak),
             "match_count": int(row.match_count),
             "last_match_date": row.last_match_date.isoformat() if row.last_match_date else None,
@@ -1307,6 +1331,8 @@ async def api_player_tournaments(
             Match.status.in_(statuses),
             or_(Match.player_a_id == player_id, Match.player_b_id == player_id),
         )
+        .order_by(Match.match_date.desc().nullslast())
+        .limit(700)
         .all()
     )
 

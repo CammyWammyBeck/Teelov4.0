@@ -42,6 +42,7 @@ export function toApiQuery(state) {
     round: state.round,
     status: state.status,
     player_id: state.player_id,
+    player: state.player_id ? '' : state.player_name,
     tournament: state.tournament,
     date_from: state.date_from,
     date_to: state.date_to,

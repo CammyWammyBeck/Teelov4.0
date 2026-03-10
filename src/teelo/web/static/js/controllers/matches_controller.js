@@ -38,15 +38,21 @@ export function initMatchesPage() {
     return tags;
   }
 
+  let abortController = null;
+
   async function fetchMatches(append = false) {
-    if (state.loading) return;
-    state.loading = true;
+    // Cancel any in-flight request
+    if (abortController) abortController.abort();
+    abortController = new AbortController();
+
     if (!append) state.page = 1;
+    state.loading = true;
     try {
-      const data = await getJson(`/api/matches?${toApiQuery(state)}`);
+      const data = await getJson(`/api/matches?${toApiQuery(state)}`, { signal: abortController.signal });
       state.has_more = !!data.has_more;
       renderMatchesView(els, data, append);
     } catch (e) {
+      if (e.name === 'AbortError') return; // superseded by newer request
       console.error(e);
       els.emptyState.classList.remove('hidden');
     } finally {
@@ -74,11 +80,64 @@ export function initMatchesPage() {
   queryAll('.filter-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       const { filter, value } = chip.dataset;
-      if (filter === 'gender') state.gender = state.gender === value ? '' : value;
-      else if (MULTI_VALUE_FILTERS.includes(filter)) state[filter] = toggleValue(state[filter], value);
-      chip.classList.toggle('active');
+      if (filter === 'gender') {
+        state.gender = state.gender === value ? '' : value;
+        // Clear sibling gender chips so only one can appear active
+        queryAll('.filter-chip[data-filter="gender"]').forEach((c) => c.classList.remove('active'));
+        if (state.gender) chip.classList.add('active');
+      } else if (filter === 'date_preset') {
+        // Single-select toggle — clear sibling date_preset chips
+        const wasActive = state.date_preset === value;
+        state.date_preset = wasActive ? '' : value;
+        state.date_from = '';
+        state.date_to = '';
+        queryAll('.filter-chip[data-filter="date_preset"]').forEach((c) => c.classList.remove('active'));
+        if (!wasActive) chip.classList.add('active');
+        // Show/hide custom date row
+        const customRow = byId('custom-date-row');
+        if (customRow) customRow.classList.toggle('hidden', state.date_preset !== 'custom');
+      } else if (MULTI_VALUE_FILTERS.includes(filter)) {
+        state[filter] = toggleValue(state[filter], value);
+        chip.classList.toggle('active');
+      }
       onFilterChange();
     });
+  });
+
+  // Wire up custom date apply button (Bug 3)
+  byId('apply-custom-date')?.addEventListener('click', () => {
+    const from = byId('date-from')?.value || '';
+    const to = byId('date-to')?.value || '';
+    state.date_from = from;
+    state.date_to = to;
+    state.date_preset = '';
+    queryAll('.filter-chip[data-filter="date_preset"]').forEach((c) => c.classList.remove('active'));
+    onFilterChange();
+  });
+
+  // Bug 2: Wire "More Filters" drawer open/close/apply
+  const drawerOverlay = byId('filter-drawer-overlay');
+  byId('more-filters-btn')?.addEventListener('click', () => {
+    drawerOverlay?.classList.add('open');
+    window.lucide?.createIcons?.();
+  });
+  byId('close-drawer-btn')?.addEventListener('click', () => {
+    drawerOverlay?.classList.remove('open');
+  });
+  byId('apply-drawer-btn')?.addEventListener('click', () => {
+    drawerOverlay?.classList.remove('open');
+    onFilterChange();
+  });
+
+  // Bug 6: Wire H2H toggle to show/hide inputs
+  const h2hToggle = byId('h2h-toggle');
+  const h2hInputs = byId('h2h-inputs');
+  h2hToggle?.addEventListener('change', () => {
+    h2hInputs?.classList.toggle('hidden', !h2hToggle.checked);
+    if (!h2hToggle.checked) {
+      state.player_a_id = null;
+      state.player_b_id = null;
+    }
   });
 
   els.clearAllBtn?.addEventListener('click', () => {

@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from typing import Any, Optional
 
@@ -14,6 +15,10 @@ from teelo.web.app_context import MATCHES_PAGE_STATUS_FILTERS, templates
 from teelo.web.services.match_service import serialize_match, slugify_name
 
 router = APIRouter()
+
+_stats_cache: dict | None = None
+_stats_cache_time: float = 0.0
+_STATS_CACHE_TTL: float = 120.0  # seconds
 
 
 def require_feature(feature_flag: str):
@@ -241,13 +246,19 @@ async def home_api_stats(
     db: Session = Depends(get_db),
     _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
 ):
-    return JSONResponse(
-        {
-            "matches_total": db.query(func.count(Match.id)).scalar() or 0,
-            "players_total": db.query(func.count(Player.id)).scalar() or 0,
-            "editions_total": db.query(func.count(TournamentEdition.id)).scalar() or 0,
-        }
-    )
+    global _stats_cache, _stats_cache_time
+    now = time.monotonic()
+    if _stats_cache is not None and (now - _stats_cache_time) < _STATS_CACHE_TTL:
+        return JSONResponse(_stats_cache)
+
+    stats = {
+        "matches_total": db.query(func.count(Match.id)).scalar() or 0,
+        "players_total": db.query(func.count(Player.id)).scalar() or 0,
+        "editions_total": db.query(func.count(TournamentEdition.id)).scalar() or 0,
+    }
+    _stats_cache = stats
+    _stats_cache_time = now
+    return JSONResponse(stats)
 
 
 @router.get("/api/home")
@@ -283,13 +294,19 @@ async def home_api(
     match_rows_template = templates.get_template("partials/match_rows.html")
     match_rows_module = match_rows_template.module
 
+    global _stats_cache, _stats_cache_time
+    now = time.monotonic()
+    if _stats_cache is None or (now - _stats_cache_time) >= _STATS_CACHE_TTL:
+        _stats_cache = {
+            "matches_total": db.query(func.count(Match.id)).scalar() or 0,
+            "players_total": db.query(func.count(Player.id)).scalar() or 0,
+            "editions_total": db.query(func.count(TournamentEdition.id)).scalar() or 0,
+        }
+        _stats_cache_time = now
+
     return JSONResponse(
         {
-            "stats": {
-                "matches_total": db.query(func.count(Match.id)).scalar() or 0,
-                "players_total": db.query(func.count(Player.id)).scalar() or 0,
-                "editions_total": db.query(func.count(TournamentEdition.id)).scalar() or 0,
-            },
+            "stats": _stats_cache,
             "upcoming": upcoming_matches,
             "completed": completed_matches,
             "upcoming_table_html": match_rows_module.render_table_rows(upcoming_matches),

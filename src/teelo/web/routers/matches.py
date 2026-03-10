@@ -18,7 +18,7 @@ router = APIRouter()
 @router.get('/api/matches')
 async def api_matches(db: Session = Depends(get_db), tour: Optional[str] = Query(None), gender: Optional[str] = Query(None), surface: Optional[str] = Query(None), level: Optional[str] = Query(None), round: Optional[str] = Query(None), status: Optional[str] = Query(None), player: Optional[str] = Query(None), player_id: Optional[int] = Query(None), player_a_id: Optional[int] = Query(None), player_b_id: Optional[int] = Query(None), tournament: Optional[str] = Query(None), date_from: Optional[str] = Query(None), date_to: Optional[str] = Query(None), date_preset: Optional[str] = Query(None), page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=100)):
     # Track whether we need tournament/edition joins for filtering
-    needs_tournament_join = bool(tour or gender or level or tournament)
+    needs_tournament_join = bool(tour or gender or level or tournament or surface)
     needs_edition_join = bool(surface) or needs_tournament_join
 
     def _apply_joins(q, *, for_count=False):
@@ -28,7 +28,8 @@ async def api_matches(db: Session = Depends(get_db), tour: Optional[str] = Query
             q = q.outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
         return q
 
-    statuses = normalize_status_filter(status)
+    raw_statuses = status.split(",") if status else None
+    statuses = normalize_status_filter(raw_statuses)
 
     # Build shared filter predicates (applied to both count and fetch queries)
     def _apply_filters(q, player_subquery=None):
