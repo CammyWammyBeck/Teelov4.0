@@ -17,6 +17,7 @@ export function initMatchesPage() {
     clearAllBtn: byId('clear-all-btn'),
     playerSearch: byId('player-search'),
     tournamentSearch: byId('tournament-search'),
+    matchesWrapper: byId('matches-results-wrapper'),
   };
   if (!els.tableBody) return;
 
@@ -45,7 +46,14 @@ export function initMatchesPage() {
     if (abortController) abortController.abort();
     abortController = new AbortController();
 
-    if (!append) state.page = 1;
+    if (!append) {
+      state.page = 1;
+      // Grey out existing content during filter-triggered reloads
+      if (els.matchesWrapper && els.matchesWrapper.offsetHeight > 0) {
+        els.matchesWrapper.style.minHeight = `${Math.ceil(els.matchesWrapper.offsetHeight)}px`;
+        els.matchesWrapper.classList.add('opacity-60', 'pointer-events-none', 'transition-opacity', 'duration-150');
+      }
+    }
     state.loading = true;
     try {
       const data = await getJson(`/api/matches?${toApiQuery(state)}`, { signal: abortController.signal });
@@ -57,6 +65,10 @@ export function initMatchesPage() {
       els.emptyState.classList.remove('hidden');
     } finally {
       state.loading = false;
+      if (els.matchesWrapper) {
+        els.matchesWrapper.style.minHeight = '';
+        els.matchesWrapper.classList.remove('opacity-60', 'pointer-events-none');
+      }
     }
   }
 

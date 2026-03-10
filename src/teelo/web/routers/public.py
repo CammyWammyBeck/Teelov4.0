@@ -5,7 +5,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import and_, case, func, or_
-from sqlalchemy.orm import Session, contains_eager, defer, joinedload
+from sqlalchemy.orm import Session, aliased, contains_eager, defer
 
 from teelo.config import settings
 from teelo.db.models import Match, Player, PlayerEloState, Tournament, TournamentEdition
@@ -40,16 +40,20 @@ def _home_base_query(db: Session):
         ),
         and_(Tournament.tour == "ITF", Match.round == "F"),
     )
+    PlayerA = aliased(Player, flat=True)
+    PlayerB = aliased(Player, flat=True)
+
     return (
         db.query(Match)
         .outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
         .outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .outerjoin(PlayerA, Match.player_a_id == PlayerA.id)
+        .outerjoin(PlayerB, Match.player_b_id == PlayerB.id)
         .options(
-            # Use contains_eager for tables already joined (avoids duplicate joins)
+            # Use contains_eager for all already-joined tables (avoids extra SELECT queries)
             contains_eager(Match.tournament_edition).contains_eager(TournamentEdition.tournament),
-            # Players still need joinedload (not part of the explicit joins)
-            joinedload(Match.player_a),
-            joinedload(Match.player_b),
+            contains_eager(Match.player_a, alias=PlayerA),
+            contains_eager(Match.player_b, alias=PlayerB),
             # Skip heavy columns not needed by serialize_match
             defer(Match.stats),
             defer(Match.score_structured),

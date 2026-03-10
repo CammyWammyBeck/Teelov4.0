@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import and_, func, or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from teelo.db.models import Match, Player, PlayerAlias, Tournament, TournamentEdition
 from teelo.db.session import get_db
@@ -79,7 +79,7 @@ async def api_matches(db: Session = Depends(get_db), tour: Optional[str] = Query
     total = _apply_filters(count_q, player_subquery).scalar()
 
     # Fetch query: always join for eager loading
-    fetch_q = db.query(Match).outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id).outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id).options(joinedload(Match.player_a), joinedload(Match.player_b), joinedload(Match.tournament_edition).joinedload(TournamentEdition.tournament))
+    fetch_q = db.query(Match).outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id).outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id).options(joinedload(Match.player_a), joinedload(Match.player_b), contains_eager(Match.tournament_edition).contains_eager(TournamentEdition.tournament))
     fetch_q = _apply_filters(fetch_q, player_subquery)
 
     offset = (page - 1) * per_page
