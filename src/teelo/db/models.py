@@ -506,6 +506,8 @@ class TournamentEdition(Base):
 
     __table_args__ = (
         UniqueConstraint("tournament_id", "year", name="uq_tournament_year"),
+        Index("ix_tournament_edition_start_date", "start_date"),
+        Index("ix_tournament_edition_end_date", "end_date"),
     )
 
     def __repr__(self) -> str:
@@ -836,6 +838,10 @@ class PlayerEloState(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     player: Mapped["Player"] = relationship()
+
+    __table_args__ = (
+        Index("ix_player_elo_state_rating", "rating"),
+    )
 
     def __repr__(self) -> str:
         return f"<PlayerEloState(player_id={self.player_id}, rating={self.rating})>"

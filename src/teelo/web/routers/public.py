@@ -1,24 +1,33 @@
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
+import frontmatter
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import and_, case, func, or_, union_all
 from sqlalchemy.orm import Session, aliased, contains_eager, defer
 
 from teelo.config import settings
-from teelo.db.models import Match, Player, PlayerEloState, Tournament, TournamentEdition
+from teelo.db.models import Match, ModelEvaluationSnapshot, Player, PlayerEloState, Tournament, TournamentEdition
 from teelo.db.session import get_db
 from teelo.match_statuses import get_status_group
-from teelo.web.app_context import MATCHES_PAGE_STATUS_FILTERS, templates
+from teelo.web.app_context import CONTENT_PATH, MATCHES_PAGE_STATUS_FILTERS, templates
 from teelo.web.services.match_service import serialize_match, slugify_name
 
 router = APIRouter()
 
 _stats_cache: dict | None = None
 _stats_cache_time: float = 0.0
-_STATS_CACHE_TTL: float = 120.0  # seconds
+_rankings_cache: dict | None = None
+_rankings_cache_time: float = 0.0
+_tournaments_cache: dict | None = None
+_tournaments_cache_time: float = 0.0
+_movers_cache: dict | None = None
+_movers_cache_time: float = 0.0
+_blog_cache: dict | None | bool = False  # False = not cached, None = cached empty
+_blog_cache_time: float = 0.0
+_STATS_CACHE_TTL: float = 300.0  # 5 minutes
 
 
 def require_feature(feature_flag: str):
@@ -31,15 +40,10 @@ def require_feature(feature_flag: str):
 
 
 def _home_base_query(db: Session):
-    home_scope_filter = or_(
-        Tournament.level == "Grand Slam",
-        Tournament.tour.in_(["ATP", "WTA"]),
-        and_(
-            Tournament.tour.in_(["CHALLENGER", "Challenger", "WTA 125", "WTA_125"]),
-            Match.round.in_(["SF", "F"]),
-        ),
-        and_(Tournament.tour == "ITF", Match.round == "F"),
-    )
+    home_scope_filter = Tournament.level.in_([
+        "Grand Slam", "Masters 1000", "WTA 1000",
+        "ATP 500", "WTA 500", "ATP 250", "WTA 250",
+    ])
     PlayerA = aliased(Player, flat=True)
     PlayerB = aliased(Player, flat=True)
 
@@ -63,7 +67,7 @@ def _home_base_query(db: Session):
 
 
 @router.get("/api/search")
-async def api_search(
+def api_search(
     q: str = Query("", min_length=0),
     limit: int = Query(4, ge=1, le=50),
     full: bool = Query(False),
@@ -193,7 +197,7 @@ async def api_search(
 
 
 @router.get("/api/home/upcoming")
-async def home_api_upcoming(
+def home_api_upcoming(
     db: Session = Depends(get_db),
     _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
 ):
@@ -220,7 +224,7 @@ async def home_api_upcoming(
 
 
 @router.get("/api/home/completed")
-async def home_api_completed(
+def home_api_completed(
     db: Session = Depends(get_db),
     _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
 ):
@@ -245,8 +249,23 @@ async def home_api_completed(
     )
 
 
+def _get_prediction_accuracy(db: Session) -> Optional[float]:
+    """Return the accuracy from the latest ModelEvaluationSnapshot, or None."""
+    snapshot = (
+        db.query(ModelEvaluationSnapshot)
+        .order_by(ModelEvaluationSnapshot.snapshot_date.desc())
+        .first()
+    )
+    if snapshot is None or not snapshot.metrics:
+        return None
+    accuracy = snapshot.metrics.get("accuracy")
+    if accuracy is None:
+        return None
+    return round(float(accuracy) * 100, 1)
+
+
 @router.get("/api/home/stats")
-async def home_api_stats(
+def home_api_stats(
     db: Session = Depends(get_db),
     _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
 ):
@@ -255,18 +274,370 @@ async def home_api_stats(
     if _stats_cache is not None and (now - _stats_cache_time) < _STATS_CACHE_TTL:
         return JSONResponse(_stats_cache)
 
+    row = db.query(
+        db.query(func.count(Match.id)).scalar_subquery().label("matches"),
+        db.query(func.count(Player.id)).scalar_subquery().label("players"),
+        db.query(func.count(TournamentEdition.id)).scalar_subquery().label("editions"),
+        db.query(func.count(Player.nationality_ioc.distinct())).scalar_subquery().label("countries"),
+        db.query(func.min(Match.match_date)).scalar_subquery().label("min_date"),
+    ).one()
+
+    days_of_data = (date.today() - row.min_date).days if row.min_date else 0
+
     stats = {
-        "matches_total": db.query(func.count(Match.id)).scalar() or 0,
-        "players_total": db.query(func.count(Player.id)).scalar() or 0,
-        "editions_total": db.query(func.count(TournamentEdition.id)).scalar() or 0,
+        "matches_total": row.matches or 0,
+        "players_total": row.players or 0,
+        "editions_total": row.editions or 0,
+        "countries_total": row.countries or 0,
+        "prediction_accuracy_pct": _get_prediction_accuracy(db),
+        "days_of_data": days_of_data,
     }
     _stats_cache = stats
     _stats_cache_time = now
     return JSONResponse(stats)
 
 
+@router.get("/api/home/rankings")
+def home_api_rankings(
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
+):
+    global _rankings_cache, _rankings_cache_time
+    now = time.monotonic()
+    if _rankings_cache is not None and (now - _rankings_cache_time) < _STATS_CACHE_TTL:
+        return JSONResponse(_rankings_cache)
+
+    atp_q = (
+        db.query(
+            Player.id.label("player_id"),
+            Player.canonical_name.label("name"),
+            Player.nationality_ioc,
+            Player.gender,
+            PlayerEloState.rating,
+        )
+        .join(PlayerEloState, PlayerEloState.player_id == Player.id)
+        .filter(Player.gender == "men")
+        .order_by(PlayerEloState.rating.desc())
+        .limit(5)
+    )
+    wta_q = (
+        db.query(
+            Player.id.label("player_id"),
+            Player.canonical_name.label("name"),
+            Player.nationality_ioc,
+            Player.gender,
+            PlayerEloState.rating,
+        )
+        .join(PlayerEloState, PlayerEloState.player_id == Player.id)
+        .filter(Player.gender == "women")
+        .order_by(PlayerEloState.rating.desc())
+        .limit(5)
+    )
+    rows = atp_q.union_all(wta_q).all()
+
+    atp: list[dict] = []
+    wta: list[dict] = []
+    for row in rows:
+        entry = {
+            "rank": len(atp if row.gender == "men" else wta) + 1,
+            "player_id": row.player_id,
+            "name": row.name,
+            "nationality_ioc": row.nationality_ioc,
+            "rating": round(float(row.rating)),
+            "url": f"/players/{row.player_id}/{slugify_name(row.name)}",
+        }
+        if row.gender == "men":
+            atp.append(entry)
+        else:
+            wta.append(entry)
+
+    payload = {
+        "atp": atp,
+        "wta": wta,
+    }
+    _rankings_cache = payload
+    _rankings_cache_time = now
+    return JSONResponse(payload)
+
+
+LEVEL_PRIORITY = {
+    "Grand Slam": 1, "Masters 1000": 2, "WTA 1000": 2,
+    "ATP 500": 3, "WTA 500": 3, "ATP 250": 4, "WTA 250": 4,
+}
+
+
+def _badge_for_tournament(t: Tournament) -> tuple[str, str]:
+    """Return (label, bg_color) matching the match_rows.html badge pattern."""
+    if t.level == "Grand Slam":
+        return "GSL", "bg-[#D4AF37]"
+    tour = (t.tour or "").strip()
+    if tour in ("CHALLENGER", "Challenger"):
+        return "CHL", "bg-[#006B3F]"
+    if tour in ("WTA 125", "WTA_125") or t.level in ("WTA 125", "WTA_125"):
+        return "125", "bg-[#9D174D]"
+    if tour == "WTA":
+        return "WTA", "bg-[#E30066]"
+    if tour == "ATP":
+        return "ATP", "bg-[#002865]"
+    return "UNK", "bg-gray-600"
+
+
+@router.get("/api/home/tournaments")
+def home_api_tournaments(
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
+):
+    global _tournaments_cache, _tournaments_cache_time
+    now = time.monotonic()
+    if _tournaments_cache is not None and (now - _tournaments_cache_time) < _STATS_CACHE_TTL:
+        return JSONResponse(_tournaments_cache)
+
+    today = date.today()
+
+    candidate_rows = (
+        db.query(TournamentEdition, Tournament)
+        .join(Tournament, TournamentEdition.tournament_id == Tournament.id)
+        .filter(
+            Tournament.level.in_([
+                "Grand Slam", "Masters 1000", "WTA 1000",
+                "ATP 500", "WTA 500", "ATP 250", "WTA 250",
+            ]),
+            TournamentEdition.start_date <= today + timedelta(days=14),
+            TournamentEdition.end_date >= today - timedelta(days=30),
+        )
+        .all()
+    )
+
+    def _serialize_edition(te: TournamentEdition, t: Tournament, winner: Optional[dict] = None) -> dict:
+        surface = te.surface or t.surface
+        badge_label, badge_color = _badge_for_tournament(t)
+        result = {
+            "edition_id": te.id,
+            "tournament_name": t.name,
+            "level": t.level,
+            "surface": surface,
+            "city": t.city,
+            "start_date": te.start_date.isoformat() if te.start_date else None,
+            "end_date": te.end_date.isoformat() if te.end_date else None,
+            "year": te.year,
+            "tournament_code": t.tournament_code,
+            "tour": t.tour,
+            "url": f"/tournaments/{t.tour.lower()}/{t.tournament_code}/{te.year}" if t.tour else None,
+            "badge_label": badge_label,
+            "badge_color": badge_color,
+        }
+        if winner:
+            result["winner_name"] = winner["name"]
+            result["winner_id"] = winner["id"]
+            result["winner_url"] = f"/players/{winner['id']}/{slugify_name(winner['name'])}"
+        return result
+
+    candidate_ids = [te.id for te, t in candidate_rows]
+
+    completed_statuses = get_status_group("historical_default")
+
+    editions_with_results: set[int] = set()
+    editions_with_final: set[int] = set()
+    if candidate_ids:
+        edition_flags = (
+            db.query(
+                Match.tournament_edition_id,
+                func.sum(case((Match.status.in_(completed_statuses), 1), else_=0)).label("has_results"),
+                func.sum(case(
+                    (and_(Match.round == "F", Match.winner_id.isnot(None)), 1),
+                    else_=0,
+                )).label("has_final"),
+            )
+            .filter(Match.tournament_edition_id.in_(candidate_ids))
+            .group_by(Match.tournament_edition_id)
+            .all()
+        )
+        for row in edition_flags:
+            if row.has_results:
+                editions_with_results.add(row.tournament_edition_id)
+            if row.has_final:
+                editions_with_final.add(row.tournament_edition_id)
+
+    in_progress: list[tuple[TournamentEdition, Tournament]] = []
+    completed: list[tuple[TournamentEdition, Tournament]] = []
+    upcoming: list[tuple[TournamentEdition, Tournament]] = []
+
+    for te, t in candidate_rows:
+        if te.id in editions_with_final:
+            completed.append((te, t))
+        elif te.id in editions_with_results:
+            in_progress.append((te, t))
+        else:
+            buffer_days = 7 if t.level == "Grand Slam" else 3
+            if te.start_date and te.start_date <= today + timedelta(days=buffer_days):
+                if te.end_date and te.end_date >= today - timedelta(days=1):
+                    upcoming.append((te, t))
+            elif te.start_date and te.start_date > today:
+                upcoming.append((te, t))
+
+    in_progress.sort(key=lambda x: LEVEL_PRIORITY.get(x[1].level, 7))
+    upcoming.sort(key=lambda x: x[0].start_date or date.max)
+    completed.sort(key=lambda x: x[0].end_date or date.min, reverse=True)
+
+    in_progress = in_progress[:5]
+    upcoming = upcoming[:5]
+    completed = completed[:5]
+
+    edition_ids = [te.id for te, t in completed]
+    if edition_ids:
+        finals = (
+            db.query(Match.tournament_edition_id, Player.canonical_name, Player.id)
+            .join(Player, Match.winner_id == Player.id)
+            .filter(
+                Match.tournament_edition_id.in_(edition_ids),
+                Match.round == "F",
+                Match.winner_id.isnot(None),
+            )
+            .all()
+        )
+        winners_map = {f.tournament_edition_id: {"name": f[1], "id": f[2]} for f in finals}
+    else:
+        winners_map = {}
+
+    payload = {
+        "in_progress": [_serialize_edition(te, t) for te, t in in_progress],
+        "upcoming": [_serialize_edition(te, t) for te, t in upcoming],
+        "recently_completed": [_serialize_edition(te, t, winners_map.get(te.id)) for te, t in completed],
+    }
+    _tournaments_cache = payload
+    _tournaments_cache_time = now
+    return JSONResponse(payload)
+
+
+@router.get("/api/home/movers")
+def home_api_movers(
+    db: Session = Depends(get_db),
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
+):
+    global _movers_cache, _movers_cache_time
+    now = time.monotonic()
+    if _movers_cache is not None and (now - _movers_cache_time) < _STATS_CACHE_TTL:
+        return JSONResponse(_movers_cache)
+
+    cutoff = date.today() - timedelta(days=14)
+    completed_statuses = get_status_group("historical_default")
+
+    gain_a = (
+        db.query(
+            Match.player_a_id.label("player_id"),
+            func.sum(Match.elo_post_player_a - Match.elo_pre_player_a).label("gain"),
+        )
+        .filter(
+            Match.match_date >= cutoff,
+            Match.status.in_(completed_statuses),
+            Match.elo_pre_player_a.isnot(None),
+            Match.elo_post_player_a.isnot(None),
+        )
+        .group_by(Match.player_a_id)
+    )
+
+    gain_b = (
+        db.query(
+            Match.player_b_id.label("player_id"),
+            func.sum(Match.elo_post_player_b - Match.elo_pre_player_b).label("gain"),
+        )
+        .filter(
+            Match.match_date >= cutoff,
+            Match.status.in_(completed_statuses),
+            Match.elo_pre_player_b.isnot(None),
+            Match.elo_post_player_b.isnot(None),
+        )
+        .group_by(Match.player_b_id)
+    )
+
+    combined = union_all(gain_a, gain_b).subquery()
+
+    top_movers = (
+        db.query(
+            combined.c.player_id,
+            func.sum(combined.c.gain).label("total_gain"),
+        )
+        .group_by(combined.c.player_id)
+        .order_by(func.sum(combined.c.gain).desc())
+        .limit(3)
+        .all()
+    )
+
+    top_ids = [row.player_id for row in top_movers]
+    gains = {row.player_id: float(row.total_gain) for row in top_movers}
+
+    if not top_ids:
+        payload: list[dict] = []
+        _movers_cache = payload
+        _movers_cache_time = now
+        return JSONResponse(payload)
+
+    player_rows = (
+        db.query(Player, PlayerEloState)
+        .outerjoin(PlayerEloState, PlayerEloState.player_id == Player.id)
+        .filter(Player.id.in_(top_ids))
+        .all()
+    )
+    player_map = {p.id: (p, elo) for p, elo in player_rows}
+
+    payload_list = []
+    for pid in top_ids:
+        p_elo = player_map.get(pid)
+        if not p_elo:
+            continue
+        player, elo = p_elo
+        payload_list.append({
+            "player_id": pid,
+            "name": player.canonical_name,
+            "nationality_ioc": player.nationality_ioc,
+            "rating": round(float(elo.rating)) if elo else None,
+            "rating_change": round(gains[pid]),
+            "gender": player.gender,
+            "url": f"/players/{player.id}/{slugify_name(player.canonical_name)}",
+        })
+
+    _movers_cache = payload_list
+    _movers_cache_time = now
+    return JSONResponse(payload_list)
+
+
+@router.get("/api/home/blog")
+def home_api_blog(
+    _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
+):
+    global _blog_cache, _blog_cache_time
+    now = time.monotonic()
+    if _blog_cache is not False and (now - _blog_cache_time) < _STATS_CACHE_TTL:
+        return JSONResponse(_blog_cache)
+
+    blog_dir = CONTENT_PATH / "blog"
+    latest = None
+    if blog_dir.exists():
+        for file_path in blog_dir.glob("*.md"):
+            post = frontmatter.load(file_path)
+            if post.get("draft", False):
+                continue
+            post_date = post.get("date", datetime.min)
+            if latest is None or post_date > latest["_date"]:
+                latest = {
+                    "_date": post_date,
+                    "slug": file_path.stem,
+                    "title": post.get("title", "Untitled"),
+                    "date": post_date.isoformat() if hasattr(post_date, "isoformat") else str(post_date),
+                    "excerpt": post.get("excerpt", ""),
+                    "url": f"/blog/{file_path.stem}",
+                }
+
+    if latest:
+        latest.pop("_date", None)
+
+    _blog_cache = latest
+    _blog_cache_time = now
+    return JSONResponse(latest)
+
+
 @router.get("/api/home")
-async def home_api(
+def home_api(
     db: Session = Depends(get_db),
     _feature_check: Optional[Any] = Depends(require_feature("enable_feature_matches")),
 ):
@@ -301,10 +672,21 @@ async def home_api(
     global _stats_cache, _stats_cache_time
     now = time.monotonic()
     if _stats_cache is None or (now - _stats_cache_time) >= _STATS_CACHE_TTL:
+        row = db.query(
+            db.query(func.count(Match.id)).scalar_subquery().label("matches"),
+            db.query(func.count(Player.id)).scalar_subquery().label("players"),
+            db.query(func.count(TournamentEdition.id)).scalar_subquery().label("editions"),
+            db.query(func.count(Player.nationality_ioc.distinct())).scalar_subquery().label("countries"),
+            db.query(func.min(Match.match_date)).scalar_subquery().label("min_date"),
+        ).one()
+        days_of_data = (date.today() - row.min_date).days if row.min_date else 0
         _stats_cache = {
-            "matches_total": db.query(func.count(Match.id)).scalar() or 0,
-            "players_total": db.query(func.count(Player.id)).scalar() or 0,
-            "editions_total": db.query(func.count(TournamentEdition.id)).scalar() or 0,
+            "matches_total": row.matches or 0,
+            "players_total": row.players or 0,
+            "editions_total": row.editions or 0,
+            "countries_total": row.countries or 0,
+            "prediction_accuracy_pct": _get_prediction_accuracy(db),
+            "days_of_data": days_of_data,
         }
         _stats_cache_time = now
 
