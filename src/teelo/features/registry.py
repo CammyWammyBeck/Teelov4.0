@@ -23,6 +23,11 @@ class FeatureGroup(ABC):
         ctx: MatchContext,
     ) -> dict[str, float | None]: ...
 
+    @property
+    def neutral_display(self) -> bool:
+        """If True, feature values are not color-coded as advantage/disadvantage."""
+        return False
+
 
 class FeatureRegistry:
     def __init__(self, exclude: set[str] | None = None) -> None:
@@ -52,3 +57,16 @@ class FeatureRegistry:
             else:
                 features.update(result)
         return features
+
+    def grouped_features(self) -> dict[str, list[str]]:
+        """Return {group_name: [feature_names]} for all registered groups."""
+        result: dict[str, list[str]] = {}
+        for group in self._groups:
+            names = [n for n in group.feature_names() if n not in self._exclude]
+            if names:
+                result[group.name] = names
+        return result
+
+    def neutral_groups(self) -> set[str]:
+        """Return set of group names where values should not be color-coded."""
+        return {g.name for g in self._groups if g.neutral_display}
