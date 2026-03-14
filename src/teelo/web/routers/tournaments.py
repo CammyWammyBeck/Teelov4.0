@@ -1,16 +1,16 @@
-from datetime import datetime
 import math
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
-from teelo.db.models import ROUND_ORDER, Match, Tournament, TournamentEdition
+from teelo.db.models import ROUND_ORDER, Match, Player, Tournament, TournamentEdition
 from teelo.db.session import get_db
 from teelo.match_statuses import get_status_group
 from teelo.web.app_context import templates
-from teelo.web.services.match_service import serialize_match
+from teelo.web.services.match_service import serialize_match, slugify_name
 
 router = APIRouter()
 
@@ -23,6 +23,41 @@ ROUND_LABELS: dict[str, str] = {
     "QF": "Quarterfinals",
     "SF": "Semifinals",
     "F": "Final",
+}
+TOURNAMENT_LEVEL_FILTERS: tuple[str, ...] = (
+    "Grand Slam",
+    "Masters 1000",
+    "WTA 1000",
+    "ATP 500",
+    "WTA 500",
+    "ATP 250",
+    "WTA 250",
+    "Challenger",
+    "WTA 125",
+    "ITF",
+    "ITF Men",
+    "ITF Women",
+    "ATP Finals",
+    "WTA Finals",
+)
+TOURNAMENT_BROWSE_YEAR_CHIP_COUNT = 6
+CURRENT_WINDOW_BEFORE_DAYS = 3
+CURRENT_WINDOW_AFTER_DAYS = 3
+LEVEL_PRIORITY = {
+    "Grand Slam": 1,
+    "Masters 1000": 2,
+    "WTA 1000": 2,
+    "ATP 500": 3,
+    "WTA 500": 3,
+    "ATP 250": 4,
+    "WTA 250": 4,
+    "WTA 125": 5,
+    "Challenger": 6,
+    "ITF": 7,
+    "ITF Men": 7,
+    "ITF Women": 7,
+    "ATP Finals": 2,
+    "WTA Finals": 2,
 }
 
 
@@ -100,6 +135,113 @@ def _resolve_tour_values(tour: str) -> list[str]:
     return _TOUR_ALIASES.get(key, [(tour or "").strip()])
 
 
+def _badge_for_tournament(tournament: Tournament) -> tuple[str, str]:
+    if tournament.level == "Grand Slam":
+        return "GSL", "bg-tour-grandslam"
+    tour = (tournament.tour or "").strip()
+    if tour in ("CHALLENGER", "Challenger"):
+        return "CHL", "bg-tour-challenger"
+    if tour in ("WTA 125", "WTA_125") or tournament.level in ("WTA 125", "WTA_125"):
+        return "125", "bg-tour-250"
+    if tour == "WTA":
+        return "WTA", "bg-tour-wta"
+    if tour == "ATP":
+        return "ATP", "bg-tour-atp"
+    return "ITF", "bg-tour-itf"
+
+
+def _serialize_browse_edition(
+    edition: TournamentEdition,
+    tournament: Tournament,
+    *,
+    status_key: str,
+    completed_results: int = 0,
+    final_count: int = 0,
+    winner: dict | None = None,
+) -> dict:
+    badge_label, badge_color = _badge_for_tournament(tournament)
+    surface = edition.surface or tournament.surface
+    location_bits = [value for value in (tournament.city, tournament.country) if value]
+    return {
+        "edition_id": edition.id,
+        "tournament_name": tournament.name,
+        "tour": tournament.tour,
+        "gender": tournament.gender,
+        "level": tournament.level,
+        "surface": surface,
+        "city": tournament.city,
+        "country": tournament.country,
+        "location": ", ".join(location_bits),
+        "start_date": edition.start_date.isoformat() if edition.start_date else None,
+        "end_date": edition.end_date.isoformat() if edition.end_date else None,
+        "year": edition.year,
+        "tournament_code": tournament.tournament_code,
+        "status": status_key,
+        "has_completed_matches": completed_results > 0,
+        "completed_results": completed_results,
+        "has_completed_final": final_count > 0,
+        "url": (
+            f"/tournaments/{tournament.tour.lower()}/{tournament.tournament_code}/{edition.year}"
+            if tournament.tour
+            else None
+        ),
+        "badge_label": badge_label,
+        "badge_color": badge_color,
+        "winner_name": winner["name"] if winner else None,
+        "winner_url": (
+            f"/players/{winner['id']}/{slugify_name(winner['name'])}"
+            if winner and winner.get("id") is not None
+            else None
+        ),
+    }
+
+
+def _parse_csv_values(raw_value: str | None) -> list[str]:
+    if not raw_value:
+        return []
+    return [part.strip() for part in raw_value.split(",") if part.strip()]
+
+
+def _parse_year_values(raw_value: str | None) -> list[int]:
+    values: list[int] = []
+    for part in _parse_csv_values(raw_value):
+        if part.isdigit():
+            values.append(int(part))
+    return values
+
+
+def _tournament_status_case(match_flags_subquery, today_value: date):
+    completed_results = func.coalesce(match_flags_subquery.c.completed_results, 0)
+    finals = func.coalesce(match_flags_subquery.c.final_count, 0)
+    is_current_window = and_(
+        TournamentEdition.start_date.isnot(None),
+        TournamentEdition.end_date.isnot(None),
+        TournamentEdition.start_date <= today_value + timedelta(days=CURRENT_WINDOW_BEFORE_DAYS),
+        TournamentEdition.end_date >= today_value - timedelta(days=CURRENT_WINDOW_AFTER_DAYS),
+    )
+    return case(
+        (
+            and_(is_current_window, completed_results > 0, finals == 0),
+            "current",
+        ),
+        (
+            and_(
+                finals == 0,
+                or_(
+                    and_(
+                        TournamentEdition.start_date.isnot(None),
+                        TournamentEdition.start_date
+                        > today_value + timedelta(days=CURRENT_WINDOW_BEFORE_DAYS),
+                    ),
+                    and_(is_current_window, completed_results == 0),
+                ),
+            ),
+            "upcoming",
+        ),
+        else_="completed",
+    )
+
+
 def _get_tournament_edition_or_404(
     db: Session, tour: str, tournament_code: str, year: int
 ) -> TournamentEdition:
@@ -117,6 +259,190 @@ def _get_tournament_edition_or_404(
     if edition is None or edition.tournament is None:
         raise HTTPException(status_code=404, detail="Tournament edition not found")
     return edition
+
+
+@router.get("/tournaments", response_class=HTMLResponse)
+async def tournaments_page(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    available_years = [
+        row[0]
+        for row in (
+            db.query(TournamentEdition.year)
+            .distinct()
+            .order_by(TournamentEdition.year.desc())
+            .limit(16)
+            .all()
+        )
+        if row[0] is not None
+    ]
+    year_chip_options = available_years[:TOURNAMENT_BROWSE_YEAR_CHIP_COUNT]
+    return templates.TemplateResponse(
+        "tournaments.html",
+        {
+            "request": request,
+            "now": datetime.utcnow(),
+            "current_path": request.url.path,
+            "level_filters": TOURNAMENT_LEVEL_FILTERS,
+            "year_chip_options": year_chip_options,
+            "available_years": available_years,
+        },
+    )
+
+
+@router.get("/api/tournaments")
+async def api_tournaments(
+    db: Session = Depends(get_db),
+    tour: str | None = Query(None),
+    gender: str | None = Query(None),
+    surface: str | None = Query(None),
+    level: str | None = Query(None),
+    year: str | None = Query(None),
+    status: str | None = Query(None),
+    tournament: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(24, ge=1, le=100),
+):
+    today_value = date.today()
+    tour_values = _parse_csv_values(tour)
+    expanded_tour_values = [
+        resolved
+        for value in tour_values
+        for resolved in _resolve_tour_values(value)
+    ]
+    gender_values = [value.lower() for value in _parse_csv_values(gender)]
+    surface_values = _parse_csv_values(surface)
+    level_values = _parse_csv_values(level)
+    year_values = _parse_year_values(year)
+    status_values = [value.lower() for value in _parse_csv_values(status)]
+
+    completed_statuses = get_status_group("historical_default")
+    match_flags = (
+        db.query(
+            Match.tournament_edition_id.label("edition_id"),
+            func.sum(
+                case((Match.status.in_(completed_statuses), 1), else_=0)
+            ).label("completed_results"),
+            func.sum(
+                case(
+                    (and_(Match.round == "F", Match.winner_id.isnot(None)), 1),
+                    else_=0,
+                )
+            ).label("final_count"),
+        )
+        .group_by(Match.tournament_edition_id)
+        .subquery()
+    )
+    status_case = _tournament_status_case(match_flags, today_value)
+    status_priority = case(
+        (status_case == "current", 0),
+        (status_case == "upcoming", 1),
+        else_=2,
+    )
+    current_date_sort = case(
+        (status_case == "current", TournamentEdition.end_date),
+        else_=None,
+    )
+    upcoming_date_sort = case(
+        (status_case == "upcoming", TournamentEdition.start_date),
+        else_=None,
+    )
+    completed_date_sort = case(
+        (status_case == "completed", TournamentEdition.end_date),
+        else_=None,
+    )
+    level_priority = case(LEVEL_PRIORITY, value=Tournament.level, else_=9)
+
+    def _apply_filters(query):
+        query = query.join(Tournament, TournamentEdition.tournament_id == Tournament.id).outerjoin(
+            match_flags, match_flags.c.edition_id == TournamentEdition.id
+        )
+        if expanded_tour_values:
+            query = query.filter(Tournament.tour.in_(expanded_tour_values))
+        if gender_values:
+            query = query.filter(Tournament.gender.in_(gender_values))
+        if surface_values:
+            query = query.filter(
+                func.coalesce(TournamentEdition.surface, Tournament.surface).in_(surface_values)
+            )
+        if level_values:
+            query = query.filter(Tournament.level.in_(level_values))
+        if year_values:
+            query = query.filter(TournamentEdition.year.in_(year_values))
+        if tournament:
+            query = query.filter(Tournament.name.ilike(f"%{tournament.strip()}%"))
+        if status_values:
+            query = query.filter(status_case.in_(status_values))
+        return query
+
+    total = _apply_filters(db.query(func.count(TournamentEdition.id))).scalar() or 0
+
+    offset = (page - 1) * per_page
+    rows = (
+        _apply_filters(
+            db.query(
+                TournamentEdition,
+                Tournament,
+                status_case.label("status_key"),
+                func.coalesce(match_flags.c.completed_results, 0).label("completed_results"),
+                func.coalesce(match_flags.c.final_count, 0).label("final_count"),
+            )
+        )
+        .options(contains_eager(TournamentEdition.tournament))
+        .order_by(
+            status_priority.asc(),
+            current_date_sort.asc().nullslast(),
+            upcoming_date_sort.asc().nullslast(),
+            completed_date_sort.desc().nullslast(),
+            TournamentEdition.year.desc(),
+            level_priority.asc(),
+            Tournament.name.asc(),
+        )
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    edition_ids = [edition.id for edition, _, _, _, _ in rows]
+    winners_map: dict[int, dict] = {}
+    if edition_ids:
+        finals = (
+            db.query(Match.tournament_edition_id, Player.id, Player.canonical_name)
+            .join(Player, Match.winner_id == Player.id)
+            .filter(
+                Match.tournament_edition_id.in_(edition_ids),
+                Match.round == "F",
+                Match.winner_id.isnot(None),
+            )
+            .all()
+        )
+        winners_map = {
+            edition_id: {"id": player_id, "name": player_name}
+            for edition_id, player_id, player_name in finals
+        }
+
+    payload = [
+        _serialize_browse_edition(
+            edition,
+            tournament_row,
+            status_key=status_key,
+            completed_results=completed_results,
+            final_count=final_count,
+            winner=winners_map.get(edition.id),
+        )
+        for edition, tournament_row, status_key, completed_results, final_count in rows
+    ]
+
+    return JSONResponse(
+        {
+            "tournaments": payload,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "has_more": (offset + per_page) < total,
+        }
+    )
 
 
 @router.get("/tournaments/{tour}/{tournament_code}")
@@ -250,7 +576,11 @@ async def tournament_detail_page(
             "now": datetime.utcnow(),
             "current_path": request.url.path,
             "tournament": tournament,
-            "tour": tournament.tour.lower() if tournament and tournament.tour else (tour or "").lower(),
+            "tour": (
+                tournament.tour.lower()
+                if tournament and tournament.tour
+                else (tour or "").lower()
+            ),
             "edition": edition,
             "edition_number": edition_number,
             "surface": surface,

@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Tournaments - Teelo Ratings{% endblock %}
+
+{% block content %}
+<style>
+    .tournaments-filter-layout > * + * {
+        margin-top: 1rem;
+    }
+
+    @media (min-width: 768px) {
+        .tournaments-filter-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.4rem 1.5rem;
+            align-items: start;
+        }
+
+        .tournaments-filter-layout > * + * {
+            margin-top: 0;
+        }
+
+        .tournaments-filter-block {
+            flex: 0 0 auto;
+        }
+
+        .tournaments-filter-block--full {
+            flex: 1 0 100%;
+        }
+    }
+
+    .tournaments-filter-block--group {
+        padding: 0.2rem 0.35rem 0.35rem;
+    }
+</style>
+
+<div class="space-y-6">
+    <div class="space-y-2">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-teelo-dark tracking-tight">Tournaments</h1>
+        <p class="max-w-3xl text-content-muted">Track the current calendar, scan what is coming next, revisit completed events, and filter the archive by tour, level, surface, year, and gender.</p>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <section class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+            <div class="px-5 py-4 border-b border-line-subtle">
+                <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
+                    <i data-lucide="activity" class="w-4 h-4 text-status-success"></i>
+                    Current
+                </h2>
+                <p class="text-xs text-content-muted mt-1">Events already in motion.</p>
+            </div>
+            <div id="featured-current-loading" class="flex justify-center py-8">
+                <div class="loading-spinner"></div>
+            </div>
+            <ul id="featured-current-list" class="hidden divide-y divide-line-subtle"></ul>
+            <div id="featured-current-empty" class="hidden text-center py-8 text-sm text-content-faint">No current tournaments.</div>
+        </section>
+
+        <section class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+            <div class="px-5 py-4 border-b border-line-subtle">
+                <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
+                    <i data-lucide="calendar-range" class="w-4 h-4 text-content-faint"></i>
+                    Upcoming
+                </h2>
+                <p class="text-xs text-content-muted mt-1">The next events on the calendar.</p>
+            </div>
+            <div id="featured-upcoming-loading" class="flex justify-center py-8">
+                <div class="loading-spinner"></div>
+            </div>
+            <ul id="featured-upcoming-list" class="hidden divide-y divide-line-subtle"></ul>
+            <div id="featured-upcoming-empty" class="hidden text-center py-8 text-sm text-content-faint">No upcoming tournaments.</div>
+        </section>
+
+        <section class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+            <div class="px-5 py-4 border-b border-line-subtle">
+                <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
+                    <i data-lucide="flag" class="w-4 h-4 text-content-faint"></i>
+                    Completed
+                </h2>
+                <p class="text-xs text-content-muted mt-1">Recently finished events with winners.</p>
+            </div>
+            <div id="featured-completed-loading" class="flex justify-center py-8">
+                <div class="loading-spinner"></div>
+            </div>
+            <ul id="featured-completed-list" class="hidden divide-y divide-line-subtle"></ul>
+            <div id="featured-completed-empty" class="hidden text-center py-8 text-sm text-content-faint">No completed tournaments.</div>
+        </section>
+    </div>
+
+    <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle p-5 tournaments-filter-layout">
+        <div class="tournaments-filter-block tournaments-filter-block--group">
+            <h3 class="text-xs text-content-faint uppercase tracking-wider font-bold mb-2">Gender</h3>
+            <div class="flex flex-nowrap gap-2 hide-scrollbar overflow-x-auto pb-1">
+                <button class="filter-chip" data-filter="gender" data-value="men" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Men</button>
+                <button class="filter-chip" data-filter="gender" data-value="women" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Women</button>
+            </div>
+        </div>
+
+        <div class="tournaments-filter-block tournaments-filter-block--group">
+            <h3 class="text-xs text-content-faint uppercase tracking-wider font-bold mb-2">Category</h3>
+            <div class="flex flex-nowrap gap-2 hide-scrollbar overflow-x-auto pb-1">
+                <button class="filter-chip" data-role="subcategory" data-gender="men" data-filter="tour" data-value="ATP" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">ATP</button>
+                <button class="filter-chip" data-role="subcategory" data-gender="men" data-filter="tour" data-value="CHALLENGER" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">ATP Challenger</button>
+                <button class="filter-chip" data-role="subcategory" data-gender="women" data-filter="tour" data-value="WTA" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">WTA</button>
+                <button class="filter-chip" data-role="subcategory" data-gender="women" data-filter="tour" data-value="WTA_125" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">WTA 125</button>
+                <button class="filter-chip" data-role="subcategory" data-gender="all" data-filter="tour" data-value="ITF" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">ITF</button>
+                <button class="filter-chip" data-role="subcategory" data-gender="all" data-filter="level" data-value="Grand Slam" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Grand Slam</button>
+            </div>
+        </div>
+
+        <div class="tournaments-filter-block tournaments-filter-block--group">
+            <h3 class="text-xs text-content-faint uppercase tracking-wider font-bold mb-2">Surface</h3>
+            <div class="flex flex-nowrap gap-2 hide-scrollbar overflow-x-auto pb-1">
+                <button class="filter-chip" data-filter="surface" data-value="Hard" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Hard</button>
+                <button class="filter-chip" data-filter="surface" data-value="Clay" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Clay</button>
+                <button class="filter-chip" data-filter="surface" data-value="Grass" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Grass</button>
+            </div>
+        </div>
+
+        <div class="tournaments-filter-block tournaments-filter-block--group">
+            <h3 class="text-xs text-content-faint uppercase tracking-wider font-bold mb-2">Year</h3>
+            <div class="flex flex-nowrap gap-2 hide-scrollbar overflow-x-auto pb-1">
+                {% for year_value in year_chip_options %}
+                <button class="filter-chip" data-filter="year" data-value="{{ year_value }}" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">{{ year_value }}</button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 pt-1 tournaments-filter-block tournaments-filter-block--full">
+            <div class="relative flex-1 max-w-sm">
+                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-faint"></i>
+                <input type="text" id="tournament-search" placeholder="Search tournament..." class="w-full pl-9 pr-3 py-2 text-sm border border-line rounded-lg focus:outline-none focus:border-teelo-dark">
+            </div>
+            <button id="more-filters-btn" class="px-4 py-2 text-sm font-semibold text-content-secondary border border-line rounded-lg hover:bg-surface-hover flex items-center gap-2 transition-colors whitespace-nowrap">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+                More Filters
+            </button>
+        </div>
+
+        <div id="filter-summary" class="hidden pt-3 border-t border-line-subtle tournaments-filter-block tournaments-filter-block--full">
+            <div class="flex items-center flex-wrap gap-2">
+                <span class="text-xs text-content-faint font-medium">Showing:</span>
+                <div id="filter-tags" class="flex flex-wrap gap-1.5"></div>
+                <button id="clear-all-btn" class="text-xs text-content-faint hover:text-teelo-dark font-medium ml-2 transition-colors">Clear all</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+        <div class="p-6 border-b border-line-subtle flex items-center justify-between gap-3">
+            <div>
+                <h2 class="text-xl font-bold text-teelo-dark">Browse Tournaments</h2>
+                <p class="text-sm text-content-muted mt-1">Filtered event editions across the full database.</p>
+            </div>
+            <span id="results-count" class="text-sm text-content-muted"></span>
+        </div>
+
+        <div id="tournaments-results-wrapper">
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-alt/50 text-content-faint text-[11px] uppercase tracking-wider font-bold border-b border-line-subtle">
+                            <th class="px-5 py-3">Tournament</th>
+                            <th class="px-5 py-3">Category</th>
+                            <th class="px-5 py-3">Surface</th>
+                            <th class="px-5 py-3">Dates</th>
+                            <th class="px-5 py-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tournaments-table-body" class="divide-y divide-line-subtle/70"></tbody>
+                </table>
+            </div>
+
+            <div id="tournaments-cards-container" class="md:hidden divide-y divide-line-subtle"></div>
+
+            <div id="empty-state" class="hidden text-center py-20">
+                <i data-lucide="search" class="w-12 h-12 text-content-faintest mx-auto"></i>
+                <h3 class="text-lg font-semibold text-content-faint mt-4">No tournaments found</h3>
+                <p class="text-sm text-content-faint mt-1">Try adjusting your filters</p>
+            </div>
+
+            <div id="scroll-sentinel" class="flex justify-center py-8">
+                <div class="loading-spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="filter-drawer-overlay" class="filter-drawer-overlay">
+    <div class="filter-drawer">
+        <div class="flex items-center justify-between p-5 border-b border-line-subtle">
+            <h2 class="text-lg font-bold text-teelo-dark">More Filters</h2>
+            <button id="close-drawer-btn" class="p-2 text-content-faint hover:text-teelo-dark transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="flex-grow p-5 space-y-6 overflow-y-auto">
+            <div>
+                <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Status</label>
+                <div class="flex flex-wrap gap-2">
+                    {% for status_value in ["current", "upcoming", "completed"] %}
+                    <button class="filter-chip" data-filter="status" data-value="{{ status_value }}" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">{{ status_value.title() }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div>
+                <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Level</label>
+                <div class="flex flex-wrap gap-2">
+                    {% for lvl in level_filters %}
+                    <button class="filter-chip" data-filter="level" data-value="{{ lvl }}" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">{{ lvl }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div>
+                <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Year</label>
+                <div class="flex flex-wrap gap-2">
+                    {% for year_value in available_years %}
+                    <button class="filter-chip" data-filter="year" data-value="{{ year_value }}" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">{{ year_value }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="p-5 border-t border-line-subtle bg-surface-alt/30">
+            <button id="apply-drawer-btn" class="w-full py-3 bg-teelo-dark text-content-inverse rounded-xl font-bold text-sm hover:bg-surface-inverse transition-all shadow-md active:scale-[0.98]">
+                Apply Filters
+            </button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="{{ url_for('static', path='/js/tournaments.js') }}"></script>
+{% endblock %}

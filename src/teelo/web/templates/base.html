@@ -68,6 +68,14 @@
                         {% endif %}
 
                         {% if features.enable_feature_matches %}
+                        <a href="/tournaments" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-line-subtle' if current_path is defined and current_path.startswith('/tournaments') else 'text-content-muted hover:text-teelo-dark hover:bg-surface-hover' }}">
+                            <span class="relative z-10 flex items-center gap-2">
+                                <i data-lucide="calendar-range" class="w-4 h-4"></i> Tournaments
+                            </span>
+                        </a>
+                        {% endif %}
+
+                        {% if features.enable_feature_matches %}
                         <a href="/matches" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-line-subtle' if current_path == '/matches' else 'text-content-muted hover:text-teelo-dark hover:bg-surface-hover' }}">
                             <span class="relative z-10 flex items-center gap-2">
                                 <i data-lucide="trophy" class="w-4 h-4"></i> Matches
@@ -163,6 +171,11 @@
                 {% if features.enable_feature_matches %}
                 <a href="/" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path == '/' else 'text-content-secondary hover:bg-surface-hover' }}">
                     <span class="flex items-center gap-3"><i data-lucide="home" class="w-4 h-4"></i> Home</span>
+                </a>
+                {% endif %}
+                {% if features.enable_feature_matches %}
+                <a href="/tournaments" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path is defined and current_path.startswith('/tournaments') else 'text-content-secondary hover:bg-surface-hover' }}">
+                    <span class="flex items-center gap-3"><i data-lucide="calendar-range" class="w-4 h-4"></i> Tournaments</span>
                 </a>
                 {% endif %}
                 {% if features.enable_feature_matches %}
