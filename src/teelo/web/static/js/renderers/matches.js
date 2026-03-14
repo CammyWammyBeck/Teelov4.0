@@ -6,29 +6,55 @@ function playerHref(player) {
 }
 
 export function buildFallbackTableRows(matches) {
-  return matches.map((m) => `
-<tr class="hover:bg-surface-hover transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime">
-  <td class="px-5 py-3"><div class="min-w-0">${m.tournament_url ? `<a href="${escapeHtml(m.tournament_url)}" class="text-sm font-semibold text-teelo-dark truncate block hover:underline decoration-teelo-lime decoration-2">${escapeHtml(m.tournament_name || 'Unknown')}</a>` : `<span class="text-sm font-semibold text-teelo-dark truncate block">${escapeHtml(m.tournament_name || 'Unknown')}</span>`}<span class="text-xs text-content-faint">${escapeHtml(m.round || '')}</span></div></td>
-  <td class="px-5 py-3 text-right">${playerHref(m.player_a) ? `<a href="${escapeHtml(playerHref(m.player_a))}" class="text-sm text-teelo-dark hover:underline decoration-teelo-lime decoration-2">${escapeHtml(m.player_a?.name || 'Unknown')}</a>` : `<span class="text-sm text-teelo-dark">${escapeHtml(m.player_a?.name || 'Unknown')}</span>`}</td>
-  <td class="px-5 py-3 text-center"><span class="inline-block px-2.5 py-1 bg-surface-alt rounded-md text-xs font-mono whitespace-nowrap text-teelo-dark font-semibold">${escapeHtml(m.score || 'vs')}</span></td>
-  <td class="px-5 py-3">${playerHref(m.player_b) ? `<a href="${escapeHtml(playerHref(m.player_b))}" class="text-sm text-teelo-dark hover:underline decoration-teelo-lime decoration-2">${escapeHtml(m.player_b?.name || 'Unknown')}</a>` : `<span class="text-sm text-teelo-dark">${escapeHtml(m.player_b?.name || 'Unknown')}</span>`}</td>
-  <td class="px-5 py-3 text-right"><span class="text-xs text-content-faint whitespace-nowrap">${escapeHtml(m.match_date_display || '')}</span></td>
-</tr>`).join('');
+    return matches.map(m => {
+        const predA = m.prediction_a != null ? Math.round(m.prediction_a * 100) : null;
+        const predB = predA != null ? 100 - predA : null;
+        const predHtml = predA != null
+            ? `<div class="flex flex-col items-center gap-0.5 text-[11px] leading-tight">
+                 <span class="${predA >= predB ? 'text-teelo-dark font-semibold' : 'text-content-faint'}">${predA}%</span>
+                 <span class="${predB > predA ? 'text-teelo-dark font-semibold' : 'text-content-faint'}">${predB}%</span>
+               </div>`
+            : '<span class="text-content-faintest text-[11px]">\u2014</span>';
+        const matchUrl = m.match_url || `/matches/${m.id}`;
+        return `<tr class="hover:bg-surface-hover/50 transition-colors group border-l-4 border-transparent hover:border-teelo-lime cursor-pointer" data-match-url="${escapeHtml(matchUrl)}" role="link" tabindex="0">
+            <td class="px-5 py-3"><span class="text-sm font-semibold">${escapeHtml(m.tournament_name || '')}</span></td>
+            <td class="px-5 py-3 text-right"><span class="text-sm">${escapeHtml(m.player_a?.name || '')}</span></td>
+            <td class="px-5 py-3 text-center"><span class="text-xs font-mono">${escapeHtml(m.score || 'vs')}</span></td>
+            <td class="px-5 py-3"><span class="text-sm">${escapeHtml(m.player_b?.name || '')}</span></td>
+            <td class="px-3 py-3 text-center">${predHtml}</td>
+            <td class="px-5 py-3 text-right"><span class="text-xs text-content-faint">${escapeHtml(m.match_date_display || '')}</span></td>
+            <td class="pr-3 py-3 w-8"><a href="${escapeHtml(matchUrl)}" class="text-content-faintest group-hover:text-teelo-lime" onclick="event.stopPropagation()"><i data-lucide="chevron-right" class="w-4 h-4"></i></a></td>
+        </tr>`;
+    }).join('');
 }
 
 export function buildFallbackCards(matches) {
-  return matches.map((m) => `
-<div class="px-4 py-3 border-b border-line-subtle last:border-b-0">
-  <div class="text-[13px] font-semibold text-teelo-dark truncate">${m.tournament_url ? `<a href="${escapeHtml(m.tournament_url)}" class="hover:underline decoration-teelo-lime decoration-2">${escapeHtml(m.tournament_name || 'Unknown')}</a>` : `${escapeHtml(m.tournament_name || 'Unknown')}`}</div>
-  <div class="text-[11px] text-content-faint mb-2">${escapeHtml(m.round || '')}${m.match_date_display ? ` · ${escapeHtml(m.match_date_display)}` : ''}</div>
-  <div class="flex items-center justify-between gap-2">
-    <div class="min-w-0 flex-1">
-      <div class="text-[13px] text-teelo-dark truncate">${playerHref(m.player_a) ? `<a href="${escapeHtml(playerHref(m.player_a))}" class="hover:underline decoration-teelo-lime decoration-2">${escapeHtml(m.player_a?.name || 'Unknown')}</a>` : `<span>${escapeHtml(m.player_a?.name || 'Unknown')}</span>`}</div>
-      <div class="text-[13px] text-teelo-dark truncate">${playerHref(m.player_b) ? `<a href="${escapeHtml(playerHref(m.player_b))}" class="hover:underline decoration-teelo-lime decoration-2">${escapeHtml(m.player_b?.name || 'Unknown')}</a>` : `<span>${escapeHtml(m.player_b?.name || 'Unknown')}</span>`}</div>
-    </div>
-    <span class="text-xs font-mono whitespace-nowrap text-teelo-dark font-semibold">${escapeHtml(m.score || 'vs')}</span>
-  </div>
-</div>`).join('');
+    return matches.map(m => {
+        const predA = m.prediction_a != null ? Math.round(m.prediction_a * 100) : null;
+        const predB = predA != null ? 100 - predA : null;
+        const predHtml = predA != null
+            ? `<div class="flex items-center gap-2 text-[11px] mb-2">
+                 <span class="${predA >= predB ? 'font-semibold text-teelo-dark' : 'text-content-faint'}">${predA}%</span>
+                 <div class="flex-1 h-1 rounded-full bg-surface-muted overflow-hidden"><div class="h-full bg-teelo-lime rounded-full" style="width:${predA}%"></div></div>
+                 <span class="${predB > predA ? 'font-semibold text-teelo-dark' : 'text-content-faint'}">${predB}%</span>
+               </div>`
+            : '';
+        const matchUrl = m.match_url || `/matches/${m.id}`;
+        return `<div class="px-4 py-3 border-b border-line-subtle last:border-b-0 cursor-pointer hover:bg-surface-hover/50" data-match-url="${escapeHtml(matchUrl)}" role="link" tabindex="0">
+            <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-[13px] font-semibold text-teelo-dark truncate">${escapeHtml(m.tournament_name || '')}</span>
+                <a href="${escapeHtml(matchUrl)}" class="ml-auto text-content-faintest" onclick="event.stopPropagation()"><i data-lucide="chevron-right" class="w-4 h-4"></i></a>
+            </div>
+            ${predHtml}
+            <div class="flex items-center">
+                <div class="flex-1 min-w-0 space-y-1">
+                    <div class="text-[13px]">${escapeHtml(m.player_a?.name || '')}</div>
+                    <div class="text-[13px]">${escapeHtml(m.player_b?.name || '')}</div>
+                </div>
+                <span class="text-xs font-mono ml-3">${escapeHtml(m.score || 'vs')}</span>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 export function renderMatchesView(els, data, append) {

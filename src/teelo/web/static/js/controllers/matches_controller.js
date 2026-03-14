@@ -181,4 +181,28 @@ export function initMatchesPage() {
 
   renderSummaryTags(els, summaryTags(), removeFilter);
   fetchMatches(false);
+
+    // Match row click-to-detail navigation
+    function handleMatchRowClick(e) {
+        // Don't navigate if user clicked a link inside the row
+        if (e.target.closest('a')) return;
+        const row = e.target.closest('[data-match-url]');
+        if (row) {
+            window.location.href = row.dataset.matchUrl;
+        }
+    }
+    function handleMatchRowKeydown(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            const row = e.target.closest('[data-match-url]');
+            if (row) {
+                window.location.href = row.dataset.matchUrl;
+            }
+        }
+    }
+    const matchesWrapper = document.getElementById('matches-results-wrapper');
+    if (matchesWrapper) {
+        matchesWrapper.addEventListener('click', handleMatchRowClick);
+        matchesWrapper.addEventListener('keydown', handleMatchRowKeydown);
+    }
 }
