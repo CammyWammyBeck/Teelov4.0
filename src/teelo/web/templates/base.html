@@ -19,7 +19,8 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ request.url }}">
     <meta property="og:image" content="{{ url_for('static', path='/img/og-image.png') }}">
-    <meta name="theme-color" content="#0F1115">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#11151b" media="(prefers-color-scheme: dark)">
     <meta name="msapplication-TileColor" content="#0F1115">
     <meta name="msapplication-TileImage" content="{{ url_for('static', path='/favicon/mstile-150x150.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', path='/favicon/favicon-16x16.png') }}">
@@ -35,15 +36,15 @@
     <script src="https://unpkg.com/lucide@0.344.0"></script>
     {% block head_extra %}{% endblock %}
 </head>
-<body class="bg-teelo-light text-teelo-dark font-sans antialiased min-h-screen flex flex-col selection:bg-teelo-lime selection:text-teelo-dark">
+<body class="bg-teelo-light text-teelo-dark font-sans antialiased min-h-screen flex flex-col selection:bg-teelo-lime selection:text-teelo-ink">
 
     <!-- Navbar -->
-    <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
+    <nav class="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-line shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-20">
                 <!-- Logo -->
                 <div class="flex items-center gap-3">
-                    <div class="bg-teelo-lime p-2 rounded-lg shadow-[0_4px_10px_rgba(204,255,0,0.5)] border border-black/5 transform transition hover:scale-105 duration-200">
+                    <div class="bg-teelo-lime p-2 rounded-lg shadow-[0_4px_10px_rgba(204,255,0,0.5)] border border-line-subtle transform transition hover:scale-105 duration-200">
                         <img
                             src="{{ url_for('static', path='/img/logo-t-dot-dark-128.png') }}"
                             alt="Teelo logo"
@@ -51,7 +52,7 @@
                         >
                     </div>
                     <a href="/" class="text-2xl font-bold text-teelo-dark tracking-tight">
-                        Teelo<span class="text-gray-400">Ratings</span>
+                        Teelo<span class="text-content-faint">Ratings</span>
                     </a>
                 </div>
 
@@ -59,7 +60,7 @@
                 <div class="hidden md:flex items-center gap-4">
                     <div class="flex items-center space-x-2">
                         {% if features.enable_feature_matches %}
-                        <a href="/" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-black/5' if current_path == '/' else 'text-gray-500 hover:text-teelo-dark hover:bg-gray-100' }}">
+                        <a href="/" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-line-subtle' if current_path == '/' else 'text-content-muted hover:text-teelo-dark hover:bg-surface-hover' }}">
                             <span class="relative z-10 flex items-center gap-2">
                                 <i data-lucide="home" class="w-4 h-4"></i> Home
                             </span>
@@ -67,7 +68,7 @@
                         {% endif %}
 
                         {% if features.enable_feature_matches %}
-                        <a href="/matches" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-black/5' if current_path == '/matches' else 'text-gray-500 hover:text-teelo-dark hover:bg-gray-100' }}">
+                        <a href="/matches" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-line-subtle' if current_path == '/matches' else 'text-content-muted hover:text-teelo-dark hover:bg-surface-hover' }}">
                             <span class="relative z-10 flex items-center gap-2">
                                 <i data-lucide="trophy" class="w-4 h-4"></i> Matches
                             </span>
@@ -75,7 +76,7 @@
                         {% endif %}
 
                         {% if features.enable_feature_rankings %}
-                        <a href="/rankings" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-black/5' if current_path == '/rankings' else 'text-gray-500 hover:text-teelo-dark hover:bg-gray-100' }}">
+                        <a href="/rankings" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-line-subtle' if current_path == '/rankings' else 'text-content-muted hover:text-teelo-dark hover:bg-surface-hover' }}">
                             <span class="relative z-10 flex items-center gap-2">
                                 <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Rankings
                             </span>
@@ -83,7 +84,7 @@
                         {% endif %}
 
                         {% if features.enable_feature_blog %}
-                        <a href="/blog" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-black/5' if current_path is defined and current_path.startswith('/blog') else 'text-gray-500 hover:text-teelo-dark hover:bg-gray-100' }}">
+                        <a href="/blog" class="group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 {{ 'bg-teelo-lime font-bold text-teelo-dark shadow-sm border border-line-subtle' if current_path is defined and current_path.startswith('/blog') else 'text-content-muted hover:text-teelo-dark hover:bg-surface-hover' }}">
                             <span class="relative z-10 flex items-center gap-2">
                                 <i data-lucide="newspaper" class="w-4 h-4"></i> Blog
                             </span>
@@ -92,24 +93,24 @@
                     </div>
 
                     <div id="desktop-search-root" class="relative w-64">
-                        <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                        <i data-lucide="search" class="w-4 h-4 text-content-faint absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                         <input
                             id="desktop-search-input"
                             type="search"
                             placeholder="Search players, tournaments..."
                             autocomplete="off"
-                            class="w-full h-10 pl-9 pr-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-teelo-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teelo-lime/70 focus:border-transparent"
+                            class="w-full h-10 pl-9 pr-3 rounded-lg border border-line bg-surface-alt text-sm text-teelo-dark placeholder:text-content-faint focus:outline-none focus:ring-2 focus:ring-teelo-lime/70 focus:border-transparent"
                         >
-                        <div id="desktop-search-results" class="hidden absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"></div>
+                        <div id="desktop-search-results" class="hidden absolute left-0 right-0 top-full mt-2 bg-surface rounded-xl shadow-lg border border-line-subtle overflow-hidden"></div>
                     </div>
                 </div>
 
                 <!-- Mobile hamburger -->
                 <div class="flex items-center gap-1 md:hidden">
-                    <button id="mobile-search-btn" class="p-2 text-gray-500 hover:text-teelo-dark transition-colors" aria-label="Open search">
+                    <button id="mobile-search-btn" class="p-2 text-content-muted hover:text-teelo-dark transition-colors" aria-label="Open search">
                         <i data-lucide="search" class="w-6 h-6"></i>
                     </button>
-                    <button id="mobile-menu-btn" class="p-2 text-gray-500 hover:text-teelo-dark transition-colors" aria-label="Open menu">
+                    <button id="mobile-menu-btn" class="p-2 text-content-muted hover:text-teelo-dark transition-colors" aria-label="Open menu">
                         <i data-lucide="menu" class="w-6 h-6"></i>
                     </button>
                 </div>
@@ -118,26 +119,26 @@
     </nav>
 
     <!-- Mobile search overlay -->
-    <div id="mobile-search-overlay" class="fixed inset-0 z-[60] bg-white hidden" aria-hidden="true">
+    <div id="mobile-search-overlay" class="fixed inset-0 z-[60] bg-surface hidden" aria-hidden="true">
         <div class="h-full flex flex-col">
-            <div class="flex items-center justify-between p-4 border-b border-gray-100">
+            <div class="flex items-center justify-between p-4 border-b border-line-subtle">
                 <span class="text-lg font-bold text-teelo-dark">Search</span>
-                <button id="mobile-search-close" class="p-2 text-gray-400 hover:text-teelo-dark" aria-label="Close search">
+                <button id="mobile-search-close" class="p-2 text-content-faint hover:text-teelo-dark" aria-label="Close search">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
             <div id="mobile-search-root" class="p-4">
                 <div class="relative">
-                    <i data-lucide="search" class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    <i data-lucide="search" class="w-5 h-5 text-content-faint absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                     <input
                         id="mobile-search-input"
                         type="search"
                         placeholder="Search players, tournaments..."
                         autocomplete="off"
-                        class="w-full h-11 pl-10 pr-4 rounded-lg border border-gray-200 bg-gray-50 text-base text-teelo-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teelo-lime/70 focus:border-transparent"
+                        class="w-full h-11 pl-10 pr-4 rounded-lg border border-line bg-surface-alt text-base text-teelo-dark placeholder:text-content-faint focus:outline-none focus:ring-2 focus:ring-teelo-lime/70 focus:border-transparent"
                     >
                 </div>
-                <div id="mobile-search-results" class="hidden mt-3 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"></div>
+                <div id="mobile-search-results" class="hidden mt-3 bg-surface rounded-xl shadow-lg border border-line-subtle overflow-hidden"></div>
             </div>
         </div>
     </div>
@@ -145,7 +146,7 @@
     <!-- Mobile menu drawer -->
     <div id="mobile-menu" class="mobile-menu-overlay" aria-hidden="true">
         <div class="mobile-menu-drawer">
-            <div class="flex items-center justify-between p-4 border-b border-gray-100">
+            <div class="flex items-center justify-between p-4 border-b border-line-subtle">
                 <span class="text-lg font-bold text-teelo-dark flex items-center gap-2">
                     <img
                         src="{{ url_for('static', path='/img/logo-t-dot-dark-128.png') }}"
@@ -154,28 +155,28 @@
                     >
                     Menu
                 </span>
-                <button id="mobile-menu-close" class="p-2 text-gray-400 hover:text-teelo-dark" aria-label="Close menu">
+                <button id="mobile-menu-close" class="p-2 text-content-faint hover:text-teelo-dark" aria-label="Close menu">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
             <div class="flex flex-col p-4 space-y-1">
                 {% if features.enable_feature_matches %}
-                <a href="/" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path == '/' else 'text-gray-600 hover:bg-gray-50' }}">
+                <a href="/" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path == '/' else 'text-content-secondary hover:bg-surface-hover' }}">
                     <span class="flex items-center gap-3"><i data-lucide="home" class="w-4 h-4"></i> Home</span>
                 </a>
                 {% endif %}
                 {% if features.enable_feature_matches %}
-                <a href="/matches" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path == '/matches' else 'text-gray-600 hover:bg-gray-50' }}">
+                <a href="/matches" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path == '/matches' else 'text-content-secondary hover:bg-surface-hover' }}">
                     <span class="flex items-center gap-3"><i data-lucide="trophy" class="w-4 h-4"></i> Matches</span>
                 </a>
                 {% endif %}
                 {% if features.enable_feature_rankings %}
-                <a href="/rankings" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path == '/rankings' else 'text-gray-600 hover:bg-gray-50' }}">
+                <a href="/rankings" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path == '/rankings' else 'text-content-secondary hover:bg-surface-hover' }}">
                     <span class="flex items-center gap-3"><i data-lucide="bar-chart-2" class="w-4 h-4"></i> Rankings</span>
                 </a>
                 {% endif %}
                 {% if features.enable_feature_blog %}
-                <a href="/blog" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path is defined and current_path.startswith('/blog') else 'text-gray-600 hover:bg-gray-50' }}">
+                <a href="/blog" class="px-4 py-3 rounded-lg text-sm font-medium {{ 'bg-teelo-lime font-bold text-teelo-dark' if current_path is defined and current_path.startswith('/blog') else 'text-content-secondary hover:bg-surface-hover' }}">
                     <span class="flex items-center gap-3"><i data-lucide="newspaper" class="w-4 h-4"></i> Blog</span>
                 </a>
                 {% endif %}
@@ -189,7 +190,7 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 mt-auto">
+    <footer class="bg-surface border-t border-line mt-auto">
         <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div class="flex flex-col items-center md:items-start gap-1">
@@ -201,9 +202,9 @@
                         >
                         Teelo Ratings
                     </span>
-                    <span class="text-xs text-gray-400">Tennis ratings powered by data</span>
+                    <span class="text-xs text-content-faint">Tennis ratings powered by data</span>
                 </div>
-                <div class="text-sm text-gray-400">
+                <div class="text-sm text-content-faint">
                     &copy; {{ now.year }} Teelo Ratings
                 </div>
             </div>

@@ -37,7 +37,7 @@ export function initPlayerDetailPage() {
     const container = byId('surface-cards');
     if (!container) return;
     if (!items || !items.length) {
-      container.innerHTML = '<p class="text-sm text-gray-400">No surface Elo data yet.</p>';
+      container.innerHTML = '<p class="text-sm text-content-faint">No surface Elo data yet.</p>';
       return;
     }
 
@@ -57,12 +57,12 @@ export function initPlayerDetailPage() {
         const accentCls = surfaceAccent[row.surface] || '';
 
         return `
-          <div class="rounded-xl border border-gray-100 p-4 bg-gray-50/40 ${accentCls}">
-            <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">${escapeHtml(row.surface || '')}</p>
+          <div class="rounded-xl border border-line-subtle p-4 bg-surface-alt ${accentCls}">
+            <p class="text-[11px] uppercase tracking-wider text-content-faint font-semibold">${escapeHtml(row.surface || '')}</p>
             <p class="text-2xl font-bold text-teelo-dark mt-1 tabular-nums">${ratingText}</p>
-            <p class="text-xs text-gray-500 mt-1">Rank: ${rankText}</p>
-            <p class="text-xs text-gray-500 mt-1">Peak: ${peakText}</p>
-            <p class="text-xs text-gray-500">Matches: ${countText}</p>
+            <p class="text-xs text-content-muted mt-1">Rank: ${rankText}</p>
+            <p class="text-xs text-content-muted mt-1">Peak: ${peakText}</p>
+            <p class="text-xs text-content-muted">Matches: ${countText}</p>
           </div>
         `;
       })
@@ -153,10 +153,10 @@ export function initPlayerDetailPage() {
             backgroundColor(context) {
               const { chart } = context;
               const area = chart.chartArea;
-              if (!area) return 'rgba(204, 255, 0, 0.16)';
+              if (!area) return 'rgba(204, 255, 0, 0.16)'; // teelo-lime/16
               const gradient = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
-              gradient.addColorStop(0, 'rgba(204, 255, 0, 0.25)');
-              gradient.addColorStop(1, 'rgba(204, 255, 0, 0)');
+              gradient.addColorStop(0, 'rgba(204, 255, 0, 0.25)'); // teelo-lime/25
+              gradient.addColorStop(1, 'rgba(204, 255, 0, 0)'); // teelo-lime transparent
               return gradient;
             },
           },
@@ -213,10 +213,10 @@ export function initPlayerDetailPage() {
             title: {
               display: true,
               text: 'Date',
-              color: '#6B7280',
+              color: '#6B7280', // --surface-indoor
               font: { size: 11, weight: '600' },
             },
-            grid: { color: 'rgba(15, 17, 21, 0.08)' },
+            grid: { color: 'rgba(15, 17, 21, 0.08)' }, // shadow color
             ticks: {
               maxTicksLimit: 6,
               callback(value) {
@@ -228,10 +228,10 @@ export function initPlayerDetailPage() {
             title: {
               display: true,
               text: 'Elo',
-              color: '#6B7280',
+              color: '#6B7280', // --surface-indoor
               font: { size: 11, weight: '600' },
             },
-            grid: { color: 'rgba(15, 17, 21, 0.08)' },
+            grid: { color: 'rgba(15, 17, 21, 0.08)' }, // shadow color
             ticks: { maxTicksLimit: 6 },
           },
         },
@@ -400,10 +400,10 @@ export function initPlayerDetailPage() {
       const el = byId('tournament-summary');
       if (!el) return;
       const chips = [
-        { label: 'Titles', value: summary.titles || 0, bg: '#ccff00', color: '#1a1a1a' },
-        { label: 'Finals', value: summary.finals || 0, bg: '#fef08a', color: '#713f12' },
-        { label: 'Semis', value: summary.semifinals || 0, bg: '#bfdbfe', color: '#1e3a5f' },
-        { label: 'Quarters', value: summary.quarterfinals || 0, bg: '#fed7aa', color: '#7c2d12' },
+        { label: 'Titles', value: summary.titles || 0, bg: 'var(--color-teelo-lime)', color: 'var(--color-teelo-ink)' },
+        { label: 'Finals', value: summary.finals || 0, bg: '#fef08a', color: '#713f12' }, // tier badge palette
+        { label: 'Semis', value: summary.semifinals || 0, bg: '#bfdbfe', color: '#1e3a5f' }, // tier badge palette
+        { label: 'Quarters', value: summary.quarterfinals || 0, bg: '#fed7aa', color: '#7c2d12' }, // tier badge palette
       ];
       el.innerHTML = chips
         .map(
@@ -417,19 +417,19 @@ export function initPlayerDetailPage() {
     const getResultBadge = (result, wonTitle) => {
       const label = wonTitle ? 'W' : result;
       const styles = {
-        W: 'background:#ccff00;color:#1a1a1a',
-        F: 'background:#fef08a;color:#713f12',
-        SF: 'background:#bfdbfe;color:#1e3a5f',
-        QF: 'background:#fed7aa;color:#7c2d12',
-        RR: 'background:#e9d5ff;color:#581c87',
+        W: 'background:var(--color-teelo-lime);color:var(--color-teelo-ink)',
+        F: 'background:#fef08a;color:#713f12', // tier badge palette
+        SF: 'background:#bfdbfe;color:#1e3a5f', // tier badge palette
+        QF: 'background:#fed7aa;color:#7c2d12', // tier badge palette
+        RR: 'background:#e9d5ff;color:#581c87', // tier badge palette
       };
-      const style = styles[label] || 'background:#f3f4f6;color:#6b7280';
+      const style = styles[label] || 'background:#f3f4f6;color:var(--surface-indoor, #6B7280)'; // tier badge palette
       return `<span class="inline-block px-2 py-0.5 rounded text-xs font-bold" style="${style}">${escapeHtml(label || '')}</span>`;
     };
 
     const getSurfaceDot = (surface) => {
-      const colors = { Hard: '#3b82f6', Clay: '#ea580c', Grass: '#16a34a' };
-      const color = colors[surface] || '#6b7280';
+      const colors = { Hard: 'var(--surface-hard, #3b82f6)', Clay: 'var(--surface-clay, #ea580c)', Grass: 'var(--surface-grass, #16a34a)' };
+      const color = colors[surface] || 'var(--surface-indoor, #6B7280)';
       return `<span class="inline-block w-2 h-2 rounded-full mr-1" style="background:${color}"></span>`;
     };
 
@@ -452,7 +452,7 @@ export function initPlayerDetailPage() {
 
       if (body) {
         if (!tournaments.length) {
-          body.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-gray-400">No results found.</td></tr>';
+          body.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-content-faint">No results found.</td></tr>';
         } else {
           body.innerHTML = tournaments
             .map((t) => {
@@ -463,13 +463,13 @@ export function initPlayerDetailPage() {
                 : '—';
               const surface = t.surface || '—';
               return `
-                <tr class="border-b border-gray-100 hover:bg-gray-50/50">
-                  <td class="py-2 pr-4 tabular-nums text-gray-600">${t.year || '—'}</td>
-                  <td class="py-2 pr-4 font-medium text-gray-800">${renderTournamentName(t)}</td>
-                  <td class="py-2 pr-4 text-gray-500 text-xs">${escapeHtml(t.tournament_level || '—')}</td>
-                  <td class="py-2 pr-4 text-gray-600 text-xs">${getSurfaceDot(surface)}${escapeHtml(surface)}</td>
+                <tr class="border-b border-line-subtle hover:bg-surface-hover">
+                  <td class="py-2 pr-4 tabular-nums text-content-secondary">${t.year || '—'}</td>
+                  <td class="py-2 pr-4 font-medium text-content">${renderTournamentName(t)}</td>
+                  <td class="py-2 pr-4 text-content-muted text-xs">${escapeHtml(t.tournament_level || '—')}</td>
+                  <td class="py-2 pr-4 text-content-secondary text-xs">${getSurfaceDot(surface)}${escapeHtml(surface)}</td>
                   <td class="py-2 pr-4">${getResultBadge(t.result, t.won_title)}</td>
-                  <td class="py-2 text-gray-500 text-xs">${opponent}</td>
+                  <td class="py-2 text-content-muted text-xs">${opponent}</td>
                 </tr>
               `;
             })
@@ -479,7 +479,7 @@ export function initPlayerDetailPage() {
 
       if (cards) {
         if (!tournaments.length) {
-          cards.innerHTML = '<div class="py-8 text-center text-gray-400">No results found.</div>';
+          cards.innerHTML = '<div class="py-8 text-center text-content-faint">No results found.</div>';
         } else {
           cards.innerHTML = tournaments
             .map((t) => {
@@ -492,11 +492,11 @@ export function initPlayerDetailPage() {
               return `
                 <div class="py-3">
                   <div class="flex items-center justify-between mb-1">
-                    <span class="font-semibold text-gray-800 text-sm">${renderTournamentName(t)}</span>
+                    <span class="font-semibold text-content text-sm">${renderTournamentName(t)}</span>
                     ${getResultBadge(t.result, t.won_title)}
                   </div>
-                  <div class="text-xs text-gray-500 mb-0.5">${t.year || '—'} · ${escapeHtml(t.tournament_level || '—')} · ${getSurfaceDot(surface)}${escapeHtml(surface)}</div>
-                  <div class="text-xs text-gray-400">${opponent}</div>
+                  <div class="text-xs text-content-muted mb-0.5">${t.year || '—'} · ${escapeHtml(t.tournament_level || '—')} · ${getSurfaceDot(surface)}${escapeHtml(surface)}</div>
+                  <div class="text-xs text-content-faint">${opponent}</div>
                 </div>
               `;
             })
@@ -558,8 +558,8 @@ export function initPlayerDetailPage() {
       console.error(e);
       const body = byId('player-tournaments-body');
       const cards = byId('player-tournaments-cards');
-      if (body) body.innerHTML = '<tr><td colspan="6" class="py-4 text-gray-400">Failed to load tournament data.</td></tr>';
-      if (cards) cards.innerHTML = '<div class="py-4 text-center text-gray-400">Failed to load tournament data.</div>';
+      if (body) body.innerHTML = '<tr><td colspan="6" class="py-4 text-content-faint">Failed to load tournament data.</td></tr>';
+      if (cards) cards.innerHTML = '<div class="py-4 text-center text-content-faint">Failed to load tournament data.</div>';
     } finally {
       setSectionLoading('tournaments-loading', ['tournaments-content'], false);
     }

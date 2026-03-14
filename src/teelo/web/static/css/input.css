@@ -9,10 +9,99 @@
 }
 
 :root {
+    color-scheme: light;
+
+    /* Brand tokens */
+    --color-teelo-lime: #ccff00;
+    --color-teelo-blue: #377db8;
+    --color-teelo-ink: #1a1a1a;
+    --color-teelo-light: #fafafa;
+    --color-teelo-dark: #1a1a1a;
+
+    /* Surface / background tokens */
+    --surface: #ffffff;
+    --surface-alt: #f9fafb;
+    --surface-muted: #f3f4f6;
+    --surface-hover: #f9fafb;
+    --surface-inverse: #1a1a1a;
+
+    /* Content / text tokens */
+    --content: #111827;
+    --content-secondary: #4b5563;
+    --content-muted: #6b7280;
+    --content-faint: #9ca3af;
+    --content-faintest: #d1d5db;
+    --content-inverse: #ffffff;
+
+    /* Line / border tokens */
+    --line: #e5e7eb;
+    --line-strong: #d1d5db;
+    --line-subtle: #f3f4f6;
+
+    /* Status tokens */
+    --status-success: #16a34a;
+    --status-danger: #dc2626;
+    --status-success-bg: #dcfce7;
+    --status-danger-bg: #fef2f2;
+
+    /* Shadow tokens */
+    --shadow-color: rgba(0, 0, 0, 0.05);
+    --glow-color: rgba(204, 255, 0, 0.4);
+
+    /* Scrollbar tokens */
+    --scrollbar-thumb: #e5e7eb;
+    --scrollbar-thumb-hover: #d1d5db;
+
+    /* Surface sport tokens */
     --surface-hard: #3b82f6;
     --surface-clay: #ea580c;
     --surface-grass: #16a34a;
     --surface-indoor: #6b7280;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+
+        /* Brand tokens */
+        --color-teelo-ink: #1a1a1a;
+        --color-teelo-light: #0f1115;
+        --color-teelo-dark: #f3f4f6;
+
+        /* Surface / background tokens */
+        --surface: #11151b;
+        --surface-alt: #171c23;
+        --surface-muted: #1d2430;
+        --surface-hover: #202937;
+        --surface-inverse: #f3f4f6;
+
+        /* Content / text tokens */
+        --content: #f3f4f6;
+        --content-secondary: #d1d5db;
+        --content-muted: #9ca3af;
+        --content-faint: #6b7280;
+        --content-faintest: #4b5563;
+        --content-inverse: #11151b;
+
+        /* Line / border tokens */
+        --line: #2b3442;
+        --line-strong: #3b4657;
+        --line-subtle: #222b36;
+
+        /* Status tokens */
+        --status-success: #4ade80;
+        --status-danger: #f87171;
+        --status-success-bg: rgba(34, 197, 94, 0.16);
+        --status-danger-bg: rgba(239, 68, 68, 0.14);
+
+        /* Shadow tokens */
+        --shadow-color: rgba(0, 0, 0, 0.35);
+        --glow-color: rgba(204, 255, 0, 0.28);
+
+        /* Scrollbar tokens */
+        --scrollbar-thumb: #374151;
+        --scrollbar-thumb-hover: #4b5563;
+    }
 }
 
 .surface-text-hard {
@@ -47,6 +136,10 @@
     border-color: var(--surface-indoor);
 }
 
+.bg-teelo-lime {
+    color: var(--color-teelo-ink);
+}
+
 .table-container {
     overflow-x: auto;
 }
@@ -59,7 +152,7 @@
     @apply opacity-100 pointer-events-auto;
 }
 .mobile-menu-drawer {
-    @apply absolute top-0 right-0 h-full w-72 bg-white shadow-xl transform translate-x-full transition-transform duration-300;
+    @apply absolute top-0 right-0 h-full w-72 bg-surface shadow-xl transform translate-x-full transition-transform duration-300;
 }
 .mobile-menu-overlay.open .mobile-menu-drawer {
     @apply translate-x-0;
@@ -71,18 +164,15 @@
 
 /* Base chip style (inactive state) */
 .filter-chip {
-    @apply px-3 py-1.5 text-xs font-semibold rounded-full border border-gray-200
-           text-gray-500 bg-white cursor-pointer select-none
+    @apply px-3 py-1.5 text-xs font-semibold rounded-full border border-line
+           text-content-muted bg-surface cursor-pointer select-none
            transition-all duration-150 whitespace-nowrap;
 }
 .filter-chip:hover {
-    @apply border-gray-300 scale-[1.03];
+    @apply border-line-strong scale-[1.03];
 }
 .filter-chip.active {
-    @apply scale-[1.02] shadow-sm;
-    background-color: #ccff00;
-    color: #1a1a1a;
-    border-color: #ccff00;
+    @apply bg-teelo-lime text-teelo-ink border-teelo-lime scale-[1.02] shadow-sm;
 }
 
 /* ==========================================================================
@@ -116,7 +206,7 @@
     @apply opacity-100 pointer-events-auto;
 }
 .filter-drawer {
-    @apply absolute top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl
+    @apply absolute top-0 right-0 h-full w-full max-w-sm bg-surface shadow-2xl
            transform translate-x-full transition-transform duration-300 flex flex-col;
 }
 .filter-drawer-overlay.open .filter-drawer {
@@ -140,18 +230,18 @@
    ========================================================================== */
 
 .autocomplete-dropdown {
-    @apply absolute left-0 right-0 top-full mt-1 bg-white border border-gray-100
+    @apply absolute left-0 right-0 top-full mt-1 bg-surface border border-line-subtle
            rounded-xl shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto;
 }
 .autocomplete-item {
-    @apply px-4 py-2.5 text-sm text-gray-700 cursor-pointer transition-colors duration-75
-           hover:bg-gray-50 flex items-center justify-between;
+    @apply px-4 py-2.5 text-sm text-content-secondary cursor-pointer transition-colors duration-75
+           hover:bg-surface-hover flex items-center justify-between;
 }
 .autocomplete-item .player-name {
     @apply font-medium;
 }
 .autocomplete-item .player-nationality {
-    @apply text-xs text-gray-400 font-mono;
+    @apply text-xs text-content-faint font-mono;
 }
 
 /* ==========================================================================
@@ -159,7 +249,7 @@
    ========================================================================== */
 
 .loading-spinner {
-    @apply w-7 h-7 rounded-full border-[3px] border-gray-200 animate-spin;
+    @apply w-7 h-7 rounded-full border-[3px] border-line animate-spin;
     border-top-color: #CCFF00; /* teelo-lime */
 }
 
@@ -169,10 +259,10 @@
 
 .filter-summary-tag {
     @apply inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium
-           bg-gray-100 text-gray-600 rounded-full;
+           bg-surface-muted text-content-secondary rounded-full;
 }
 .filter-summary-tag button {
-    @apply text-gray-400 hover:text-gray-600 transition-colors;
+    @apply text-content-faint hover:text-content-secondary transition-colors;
 }
 
 /* ==========================================================================
@@ -180,7 +270,7 @@
    ========================================================================== */
 
 .empty-state-icon {
-    @apply w-12 h-12 text-gray-200 mx-auto;
+    @apply w-12 h-12 text-content-faintest mx-auto;
 }
 
 /* ==========================================================================
@@ -192,7 +282,7 @@
     max-height: 70vh;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: #e5e7eb transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 .rankings-scroll-container::-webkit-scrollbar {
     width: 6px;
@@ -201,11 +291,11 @@
     background: transparent;
 }
 .rankings-scroll-container::-webkit-scrollbar-thumb {
-    background-color: #e5e7eb;
+    background-color: var(--scrollbar-thumb);
     border-radius: 3px;
 }
 .rankings-scroll-container::-webkit-scrollbar-thumb:hover {
-    background-color: #d1d5db;
+    background-color: var(--scrollbar-thumb-hover);
 }
 
 /* Mobile tab bar — active/inactive styles toggled via JS using Tailwind classes:
@@ -231,7 +321,7 @@
 }
 
 .teelo-bracket-match:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+    box-shadow: 0 4px 12px var(--shadow-color);
     transform: scale(1.015);
 }
 
@@ -243,7 +333,7 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    background: white;
+    background: var(--surface);
     padding-bottom: 8px;
     padding-top: 4px;
 }

@@ -25,11 +25,11 @@ function playerRowHtml(player, isWinner) {
   const hasPlayerLink = Number.isFinite(Number(player?.id));
   const playerUrl = player?.player_url || `/players/${encodeURIComponent(String(player?.id || ''))}/${slugifyName(label)}`;
   const playerLabel = hasPlayerLink
-    ? `<a href="${escapeHtml(playerUrl)}" class="truncate ${isWinner ? 'font-semibold text-teelo-dark' : 'text-gray-600'} hover:underline decoration-teelo-lime decoration-2">${escapeHtml(label)}</a>`
-    : `<span class="truncate ${isWinner ? 'font-semibold text-teelo-dark' : 'text-gray-600'}">${escapeHtml(label)}</span>`;
+    ? `<a href="${escapeHtml(playerUrl)}" class="truncate ${isWinner ? 'font-semibold text-teelo-dark' : 'text-content-secondary'} hover:underline decoration-teelo-lime decoration-2">${escapeHtml(label)}</a>`
+    : `<span class="truncate ${isWinner ? 'font-semibold text-teelo-dark' : 'text-content-secondary'}">${escapeHtml(label)}</span>`;
   return `
     <div class="flex items-center gap-1.5 min-w-0 ${isWinner ? 'border-l-2 border-teelo-lime pl-1.5' : 'pl-[7px]'}">
-      <span class="text-[11px] text-gray-400 shrink-0 min-w-[1.75rem]">${escapeHtml(seed)}</span>
+      <span class="text-[11px] text-content-faint shrink-0 min-w-[1.75rem]">${escapeHtml(seed)}</span>
       ${playerLabel}
     </div>
   `;
@@ -55,9 +55,9 @@ function buildMatchCard(match, visibleRoundIndex, position, isPlaceholder = fals
   const scoreText = match?.status === 'completed' ? (match.score || '—') : (match?.score || '');
 
   const card = document.createElement('div');
-  card.className = 'teelo-bracket-match bg-white border border-gray-200 rounded-lg p-2.5 text-sm shadow-sm';
+  card.className = 'teelo-bracket-match bg-surface border border-line rounded-lg p-2.5 text-sm shadow-sm';
   if (isPlaceholder) {
-    card.classList.add('teelo-bracket-placeholder', 'bg-gray-50/80');
+    card.classList.add('teelo-bracket-placeholder', 'bg-surface-alt');
   }
   card.dataset.roundIndex = String(visibleRoundIndex);
   card.dataset.position = String(position);
@@ -65,7 +65,7 @@ function buildMatchCard(match, visibleRoundIndex, position, isPlaceholder = fals
   card.innerHTML = `
     <div class="space-y-1">
       ${playerRowHtml(playerA, topWinner)}
-      <div class="text-center text-[11px] font-mono text-gray-500 min-h-[1rem]">${escapeHtml(scoreText || '')}</div>
+      <div class="text-center text-[11px] font-mono text-content-muted min-h-[1rem]">${escapeHtml(scoreText || '')}</div>
       ${playerRowHtml(playerB, bottomWinner)}
     </div>
   `;
@@ -128,7 +128,7 @@ function drawConnectors(content, svg, isLastRoundTrailing = false) {
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`);
         path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', '#D1D5DB');
+        path.setAttribute('stroke', 'var(--line, #D1D5DB)');
         path.setAttribute('stroke-width', '1.5');
         path.setAttribute('stroke-linecap', 'round');
         path.setAttribute('stroke-linejoin', 'round');
@@ -158,7 +158,7 @@ function drawConnectors(content, svg, isLastRoundTrailing = false) {
           const p1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           p1.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${mergeY}`);
           p1.setAttribute('fill', 'none');
-          p1.setAttribute('stroke', '#D1D5DB');
+          p1.setAttribute('stroke', 'var(--line, #D1D5DB)');
           p1.setAttribute('stroke-width', '1.5');
           p1.setAttribute('stroke-linecap', 'round');
           p1.setAttribute('stroke-linejoin', 'round');
@@ -169,7 +169,7 @@ function drawConnectors(content, svg, isLastRoundTrailing = false) {
           const p2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           p2.setAttribute('d', `M ${bx1} ${y2} L ${midX} ${y2} L ${midX} ${mergeY}`);
           p2.setAttribute('fill', 'none');
-          p2.setAttribute('stroke', '#D1D5DB');
+          p2.setAttribute('stroke', 'var(--line, #D1D5DB)');
           p2.setAttribute('stroke-width', '1.5');
           p2.setAttribute('stroke-linecap', 'round');
           p2.setAttribute('stroke-linejoin', 'round');
@@ -179,7 +179,7 @@ function drawConnectors(content, svg, isLastRoundTrailing = false) {
           const p1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           p1.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1}`);
           p1.setAttribute('fill', 'none');
-          p1.setAttribute('stroke', '#D1D5DB');
+          p1.setAttribute('stroke', 'var(--line, #D1D5DB)');
           p1.setAttribute('stroke-width', '1.5');
           p1.setAttribute('stroke-linecap', 'round');
           svg.appendChild(p1);
@@ -246,7 +246,7 @@ function renderBracketGrid(gridEl, svgEl, rounds, activeIndex) {
 
     // Header (row 1 of the inner grid)
     const header = document.createElement('div');
-    header.className = 'teelo-bracket-round-header text-xs uppercase tracking-wider text-gray-400 font-bold text-center';
+    header.className = 'teelo-bracket-round-header text-xs uppercase tracking-wider text-content-faint font-bold text-center';
     header.textContent = round?.label || round?.round || '';
     column.appendChild(header);
 
@@ -293,21 +293,21 @@ function renderNav(navEl, rounds, activeIndex, onSelect) {
     );
 
     if (isActive) {
-      btn.style.backgroundColor = '#ccff00';
-      btn.style.color = '#1a1a1a';
-      btn.style.borderColor = '#ccff00';
+      btn.style.backgroundColor = 'var(--color-teelo-lime)';
+      btn.style.color = 'var(--color-teelo-ink)';
+      btn.style.borderColor = 'var(--color-teelo-lime)';
       btn.classList.add('scale-[1.02]', 'shadow-sm', 'cursor-pointer');
     } else if (isNoOp) {
-      btn.classList.add('border-gray-200', 'text-gray-500', 'bg-white');
+      btn.classList.add('border-line', 'text-content-muted', 'bg-surface');
       btn.style.opacity = '0.4';
       btn.style.cursor = 'default';
     } else if (isVisible) {
-      btn.style.backgroundColor = '#f0f9d6';
-      btn.style.color = '#1a1a1a';
-      btn.style.borderColor = '#e2f0b0';
+      btn.style.backgroundColor = 'color-mix(in srgb, var(--color-teelo-lime) 12%, white)';
+      btn.style.color = 'var(--color-teelo-ink)';
+      btn.style.borderColor = '#e2f0b0'; // teelo-lime border tint
       btn.classList.add('cursor-pointer');
     } else {
-      btn.classList.add('border-gray-200', 'text-gray-500', 'bg-white', 'cursor-pointer');
+      btn.classList.add('border-line', 'text-content-muted', 'bg-surface', 'cursor-pointer');
     }
 
     if (!isNoOp) {
@@ -323,7 +323,7 @@ export function renderBracket(container, payload) {
 
   const rounds = Array.isArray(payload?.rounds) ? payload.rounds : [];
   if (!payload?.has_draw || !rounds.length) {
-    container.innerHTML = '<p class="text-sm text-gray-400 py-6">Draw is not available for this edition.</p>';
+    container.innerHTML = '<p class="text-sm text-content-faint py-6">Draw is not available for this edition.</p>';
     return;
   }
 
