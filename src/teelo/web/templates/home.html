@@ -86,7 +86,7 @@
     </div>
 
     <!-- Tournaments + Movers/Blog row -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 lg:items-start gap-6">
         <!-- Tournaments card -->
         <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
             <div class="p-5 border-b border-line-subtle">
@@ -130,7 +130,7 @@
         </div>
 
         <!-- Movers + Blog stacked -->
-        <div class="flex flex-col gap-6">
+        <div class="space-y-6">
             <!-- Biggest Movers -->
             <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
                 <div class="p-5 border-b border-line-subtle">
@@ -147,7 +147,7 @@
             </div>
 
             <!-- Blog Posts (shown by JS if available, fills to match left column) -->
-            <div id="blog-post-card" class="hidden bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden flex-1">
+            <div id="blog-post-card" class="hidden bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
                 <div class="p-5 border-b border-line-subtle flex items-center justify-between">
                     <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
                         <i data-lucide="newspaper" class="w-4 h-4 text-content-faint"></i>

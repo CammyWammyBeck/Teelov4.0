@@ -217,22 +217,33 @@ function renderBlogPosts(data) {
 
   toggleHidden(cardEl, false);
 
-  // After layout, clip to match left column height and show fade if clipped
+  // After layout, cap blog height so right column doesn't exceed left column
   requestAnimationFrame(() => {
-    const tournamentsCard = cardEl.closest('.grid')?.querySelector(':first-child');
-    if (!tournamentsCard || !wrapperEl) return;
-    const gridRow = cardEl.closest('.grid');
-    if (!gridRow || getComputedStyle(gridRow).gridTemplateColumns === 'none') return;
+    if (!wrapperEl) return;
+    const grid = cardEl.closest('.grid');
+    if (!grid) return;
+    // Only apply on lg+ where the 2-col grid is active
+    const cols = getComputedStyle(grid).gridTemplateColumns;
+    if (!cols || cols === 'none' || !cols.includes(' ')) return;
 
-    const leftHeight = tournamentsCard.offsetHeight;
-    const moversCard = cardEl.previousElementSibling;
-    const moversHeight = moversCard ? moversCard.offsetHeight : 0;
-    const headerHeight = cardEl.querySelector('.p-5.border-b')?.offsetHeight || 0;
-    const gap = 24; // gap-6 = 1.5rem = 24px
-    const availableHeight = leftHeight - moversHeight - gap - headerHeight;
+    const leftCol = grid.children[0]; // tournaments card
+    const rightCol = grid.children[1]; // movers + blog wrapper
+    if (!leftCol || !rightCol) return;
 
-    if (availableHeight > 0 && wrapperEl.scrollHeight > availableHeight) {
-      wrapperEl.style.maxHeight = `${availableHeight}px`;
+    const leftHeight = leftCol.offsetHeight;
+    const rightNaturalHeight = rightCol.offsetHeight;
+
+    if (rightNaturalHeight <= leftHeight) return; // already fits
+
+    // Calculate how much space the blog wrapper can use
+    const blogHeader = cardEl.querySelector('.border-b');
+    const blogHeaderHeight = blogHeader ? blogHeader.offsetHeight : 0;
+    const blogCardTop = cardEl.offsetTop - rightCol.offsetTop;
+    const availableForWrapper = leftHeight - blogCardTop - blogHeaderHeight;
+
+    if (availableForWrapper > 60) {
+      wrapperEl.style.maxHeight = `${availableForWrapper}px`;
+      wrapperEl.style.overflow = 'hidden';
       toggleHidden(fadeEl, false);
     }
   });
