@@ -326,3 +326,72 @@ These instructions should assume the user wants to start from the beginning of t
 - new feature groups have tests proving semantics and missing-value behavior
 - the user receives exact reproducible commands to rebuild features and retrain from scratch
 - missing-value semantics remain intentional, not accidental
+
+## Operator Commands
+
+Use explicit feature-set and preset arguments so the run does not depend on whichever feature set happens to be latest in the database.
+
+### 1. Optional: rebuild inline Elo state first
+
+Run this if match Elo snapshots may be stale or if you want a full clean restart from Elo state:
+
+```bash
+python3 scripts/optimise_elo.py \
+  --n-trials 200 \
+  --split-mode temporal_order \
+  --test-ratio 0.2 \
+  --activate-best \
+  --min-improvement 0.002 \
+  --rebuild-live-state
+```
+
+### 2. Backfill `baseline_v2` features from scratch
+
+```bash
+PYTHONPATH=src python -m teelo.features.engine \
+  --backfill \
+  --feature-set baseline_v2 \
+  --preset baseline_v2
+```
+
+### 3. Run feature selection on `baseline_v2`
+
+```bash
+PYTHONPATH=src python -m teelo.ml.selection --feature-set baseline_v2
+```
+
+This writes the grouped feature-selection report to `models/feature_selection_report.json`.
+
+### 4. Train a model on `baseline_v2`
+
+```bash
+PYTHONPATH=src python -m teelo.ml.trainer --feature-set baseline_v2
+```
+
+### 5. Evaluate the trained model on a holdout year
+
+```bash
+PYTHONPATH=src python -m teelo.ml.evaluator \
+  --feature-set baseline_v2 \
+  --holdout-year 2025
+```
+
+### 6. Optionally backfill predictions for completed matches
+
+```bash
+PYTHONPATH=src python -m teelo.ml.predictor \
+  --feature-set baseline_v2 \
+  --backfill
+```
+
+### 7. Optionally predict upcoming matches only
+
+```bash
+PYTHONPATH=src python -m teelo.ml.predictor --feature-set baseline_v2
+```
+
+## Notes on Missing Values
+
+- Keep semantic `None` values for rates and ratios that genuinely lack enough evidence.
+- Do not replace those with zero globally.
+- Use the new confidence companion features to give the model numeric evidence about why a primary feature is missing.
