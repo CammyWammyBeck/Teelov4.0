@@ -11,6 +11,10 @@ class ContextFeatures(FeatureGroup):
     def name(self) -> str:
         return "context"
 
+    @property
+    def neutral_display(self) -> bool:
+        return True
+
     def feature_names(self) -> list[str]:
         return [
             "surface_hard",

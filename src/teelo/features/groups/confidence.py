@@ -13,6 +13,10 @@ class ConfidenceFeatures(FeatureGroup):
     def name(self) -> str:
         return "confidence"
 
+    @property
+    def neutral_display(self) -> bool:
+        return True
+
     def feature_names(self) -> list[str]:
         return [
             "surface_elo_observed_a",
