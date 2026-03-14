@@ -264,6 +264,19 @@ export async function initHomePage() {
     upcomingP, completedP, moversP, blogP,
   ]);
   window.lucide?.createIcons?.();
+
+  // Click-to-detail navigation for match rows
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('a')) return;
+    const row = e.target.closest('[data-match-url]');
+    if (row) window.location.href = row.dataset.matchUrl;
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const row = e.target.closest('[data-match-url]');
+      if (row) { e.preventDefault(); window.location.href = row.dataset.matchUrl; }
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', initHomePage);
