@@ -94,6 +94,11 @@ def serialize_match(match: Match) -> dict:
     if swap_display_sides:
         player_a_payload, player_b_payload = player_b_payload, player_a_payload
         display_score = flip_score_for_display(display_score)
+    prediction_a_val = match.prediction_a
+    if prediction_a_val is not None:
+        prediction_a_val = float(prediction_a_val)
+        if swap_display_sides:
+            prediction_a_val = 1.0 - prediction_a_val
     return {
         "id": match.id,
         "tour": tournament.tour if tournament else None,
@@ -116,4 +121,6 @@ def serialize_match(match: Match) -> dict:
         "match_date": display_date.isoformat() if display_date else None,
         "match_date_display": display_date.strftime("%d %b %Y") if display_date else None,
         "year": display_date.year if display_date else (te.year if te else None),
+        "prediction_a": prediction_a_val,
+        "match_url": f"/matches/{match.id}",
     }
