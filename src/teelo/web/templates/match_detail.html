@@ -17,8 +17,8 @@
         </div>
         <div class="flex items-center gap-4 mb-3">
             <span class="text-3xl md:text-4xl font-black {{ 'text-teelo-dark' if pred_a_pct >= pred_b_pct else 'text-content-faint' }}">{{ pred_a_pct }}%</span>
-            <div class="flex-1 h-3 rounded-full bg-surface-muted overflow-hidden">
-                <div class="h-full bg-teelo-lime rounded-full transition-all" style="width: {{ pred_a_pct }}%"></div>
+            <div class="flex-1 h-3 rounded-full bg-surface-muted overflow-hidden flex {{ 'justify-end' if pred_b_pct > pred_a_pct else '' }}">
+                <div class="h-full bg-teelo-lime rounded-full transition-all" style="width: {{ [pred_a_pct, pred_b_pct] | max }}%"></div>
             </div>
             <span class="text-3xl md:text-4xl font-black {{ 'text-teelo-dark' if pred_b_pct > pred_a_pct else 'text-content-faint' }}">{{ pred_b_pct }}%</span>
         </div>
