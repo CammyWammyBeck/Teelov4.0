@@ -16,8 +16,19 @@ class MatchRecord(NamedTuple):
     games_won: int
     games_lost: int
     tournament_edition_id: int | None
+    tournament_id: int | None
     match_date: date | None
     opponent_id: int
+    opponent_elo: float | None = None
+    opponent_surface_elo: float | None = None
+    expected_win_prob: float | None = None
+    sets_won: int = 0
+    sets_lost: int = 0
+    tiebreaks_played: int = 0
+    tiebreaks_won: int = 0
+    deciding_set_played: bool = False
+    straight_sets: bool = False
+    close_match: bool = False
 
 
 class H2HRecord(NamedTuple):
@@ -42,6 +53,8 @@ class MatchContext:
     seed_b: int | None
     temporal_order: int | None
     tournament_edition_id: int | None
+    tournament_id: int | None = None
+    match_date_estimated: bool = False
 
 
 @dataclass
@@ -62,6 +75,9 @@ class PlayerState:
     level_wins: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     level_losses: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     h2h: dict[int, list[H2HRecord]] = field(default_factory=lambda: defaultdict(list))
+    tournament_matches: dict[int, int] = field(default_factory=lambda: defaultdict(int))
+    tournament_wins: dict[int, int] = field(default_factory=lambda: defaultdict(int))
+    tournament_losses: dict[int, int] = field(default_factory=lambda: defaultdict(int))
 
     def update(self, record: MatchRecord, elo_post: float, surface_elo_post: float | None) -> None:
         self.matches.append(record)
@@ -86,6 +102,13 @@ class PlayerState:
             if record.surface is not None:
                 self.surface_losses[record.surface] += 1
 
+        if record.tournament_id is not None:
+            self.tournament_matches[record.tournament_id] += 1
+            if record.won:
+                self.tournament_wins[record.tournament_id] += 1
+            else:
+                self.tournament_losses[record.tournament_id] += 1
+
         if record.match_date is not None:
             if self.first_match_date is None or record.match_date < self.first_match_date:
                 self.first_match_date = record.match_date
@@ -101,3 +124,8 @@ class PlayerState:
                 match_date=record.match_date,
             )
         )
+
+    def has_observed_surface_elo(self, surface: str | None) -> bool:
+        if surface is None:
+            return False
+        return surface in self.surface_elo
