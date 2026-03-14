@@ -111,12 +111,27 @@ EXCLUDED_TRIMMED_V2 = {
     "win_rate_64w_b",
 }
 
+EXCLUDED_TRIMMED_V2B = EXCLUDED_TRIMMED_V2 | {
+    "close_match_rate_8_a",
+    "close_match_rate_8_b",
+    "deciding_set_rate_8_a",
+    "elo_overperf_8_a",
+    "elo_overperf_8_b",
+    "elo_var_64_a",
+    "elo_var_8_a",
+    "opp_surface_elo_avg_8_b",
+    "rest_days_diff_ab",
+    "round_F",
+}
+
 
 def default_preset_for_feature_set(feature_set_name: str) -> str:
     if feature_set_name == "trimmed_v1":
         return "trimmed"
     if feature_set_name == "trimmed_v2":
         return "trimmed_v2"
+    if feature_set_name == "trimmed_v2b":
+        return "trimmed_v2b"
     if feature_set_name == "baseline_v2":
         return "baseline_v2"
     return "full"
@@ -130,6 +145,7 @@ def build_registry(preset: str = "full") -> FeatureRegistry:
         "trimmed" - drops match_count_* and seed features (trimmed_v1)
         "baseline_v2" - baseline_v1 plus additive v2 feature groups
         "trimmed_v2" - report-derived top-95 subset of baseline_v2
+        "trimmed_v2b" - ablation-informed top-85 subset of baseline_v2
     """
     if preset == "baseline_v1":
         preset = "full"
@@ -141,6 +157,8 @@ def build_registry(preset: str = "full") -> FeatureRegistry:
         exclude = EXCLUDED_TRIMMED
     elif preset == "trimmed_v2":
         exclude = EXCLUDED_TRIMMED_V2
+    elif preset == "trimmed_v2b":
+        exclude = EXCLUDED_TRIMMED_V2B
     registry = FeatureRegistry(exclude=exclude)
     registry.register(ContextFeatures())
     registry.register(EloCoreFeatures())
@@ -149,7 +167,7 @@ def build_registry(preset: str = "full") -> FeatureRegistry:
     registry.register(FormFeatures())
     registry.register(H2HFeatures())
     registry.register(ActivityFeatures())
-    if preset in {"baseline_v2", "trimmed_v2"}:
+    if preset in {"baseline_v2", "trimmed_v2", "trimmed_v2b"}:
         registry.register(OpponentQualityFeatures())
         registry.register(DominanceFeatures())
         registry.register(FatigueFeatures())

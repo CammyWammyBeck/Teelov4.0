@@ -19,6 +19,7 @@ def test_existing_registry_presets_remain_stable() -> None:
     full_names = build_registry("full").all_feature_names()
     trimmed_names = build_registry("trimmed").all_feature_names()
     trimmed_v2_names = build_registry("trimmed_v2").all_feature_names()
+    trimmed_v2b_names = build_registry("trimmed_v2b").all_feature_names()
 
     assert "opp_elo_avg_8_a" not in full_names
     assert "match_count_4w_a" in full_names
@@ -26,6 +27,9 @@ def test_existing_registry_presets_remain_stable() -> None:
     assert "opp_elo_avg_8_a" in trimmed_v2_names
     assert "surface_elo_default_a" not in trimmed_v2_names
     assert len(trimmed_v2_names) == 95
+    assert "opp_elo_avg_8_a" in trimmed_v2b_names
+    assert "close_match_rate_8_a" not in trimmed_v2b_names
+    assert len(trimmed_v2b_names) == 85
 
 
 def test_feature_set_name_maps_to_expected_preset() -> None:
@@ -33,6 +37,7 @@ def test_feature_set_name_maps_to_expected_preset() -> None:
     assert default_preset_for_feature_set("trimmed_v1") == "trimmed"
     assert default_preset_for_feature_set("baseline_v2") == "baseline_v2"
     assert default_preset_for_feature_set("trimmed_v2") == "trimmed_v2"
+    assert default_preset_for_feature_set("trimmed_v2b") == "trimmed_v2b"
 
 
 def test_selection_ablation_prefixes_cover_baseline_v2_groups() -> None:
@@ -63,3 +68,4 @@ def test_feature_engine_help_lists_trimmed_v2_preset() -> None:
 
     assert result.returncode == 0
     assert "trimmed_v2" in result.stdout
+    assert "trimmed_v2b" in result.stdout
