@@ -1,15 +1,17 @@
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
-from teelo.db.models import Match, Player, PlayerAlias, Tournament, TournamentEdition
+from teelo.db.models import Match, MatchFeatures, Player, PlayerAlias, Tournament, TournamentEdition
 from teelo.db.session import get_db
+from teelo.features import build_registry, default_preset_for_feature_set
 from teelo.match_statuses import normalize_status_filter
 from teelo.web.app_context import templates
+from teelo.web.services.feature_display import build_feature_groups, format_feature_value
 from teelo.web.services.match_service import resolve_date_preset, serialize_match
 
 router = APIRouter()
@@ -100,3 +102,55 @@ async def api_players_search(db: Session = Depends(get_db), q: str = Query(..., 
             seen_ids.add(p.id); all_players.append(p)
     all_players.sort(key=lambda p: (0 if p.canonical_name.lower().startswith(q.lower()) else 1, p.canonical_name.lower()))
     return JSONResponse({"players": [{"id": p.id, "name": p.canonical_name, "nationality": p.nationality_ioc} for p in all_players[:limit]]})
+
+
+@router.get('/matches/{match_id}')
+async def match_detail(match_id: int, request: Request, db: Session = Depends(get_db)):
+    match = (
+        db.query(Match)
+        .options(
+            joinedload(Match.player_a),
+            joinedload(Match.player_b),
+            joinedload(Match.tournament_edition).joinedload(TournamentEdition.tournament),
+        )
+        .filter(Match.id == match_id)
+        .first()
+    )
+    if not match:
+        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+
+    match_data = serialize_match(match)
+
+    # Load feature data (most recent feature set)
+    match_features = (
+        db.query(MatchFeatures)
+        .options(joinedload(MatchFeatures.feature_set))
+        .filter(MatchFeatures.match_id == match_id)
+        .order_by(MatchFeatures.computed_at.desc())
+        .first()
+    )
+
+    feature_groups = []
+    feature_set_info = None
+    if match_features and match_features.features:
+        feature_set = match_features.feature_set
+        feature_set_info = {
+            "name": feature_set.name,
+            "version": feature_set.version,
+            "description": feature_set.description,
+        }
+        preset = default_preset_for_feature_set(feature_set.name)
+        registry = build_registry(preset)
+        grouped = registry.grouped_features()
+        neutral = registry.neutral_groups()
+        feature_groups = build_feature_groups(
+            match_features.features, grouped, neutral,
+        )
+
+    return templates.TemplateResponse("match_detail.html", {
+        "request": request,
+        "match": match_data,
+        "feature_groups": feature_groups,
+        "feature_set": feature_set_info,
+        "format_value": format_feature_value,
+    })
