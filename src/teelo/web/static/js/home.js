@@ -196,22 +196,46 @@ function renderMovers(data) {
   toggleHidden(listEl, false);
 }
 
-function renderBlogPost(data) {
+function renderBlogPosts(data) {
   const cardEl = byId('blog-post-card');
-  if (!data || !cardEl) return;
+  const listEl = byId('blog-posts-list');
+  const wrapperEl = byId('blog-posts-wrapper');
+  const fadeEl = byId('blog-fade');
+  if (!cardEl || !listEl) return;
 
-  const dateEl = byId('blog-post-date');
-  const linkEl = byId('blog-post-link');
-  const excerptEl = byId('blog-post-excerpt');
+  const posts = Array.isArray(data) ? data : (data ? [data] : []);
+  if (posts.length === 0) return;
 
-  if (dateEl) dateEl.textContent = fmtDate(data.date);
-  if (linkEl) {
-    linkEl.href = data.url || '#';
-    linkEl.textContent = data.title || 'Read post';
-  }
-  if (excerptEl) excerptEl.textContent = data.excerpt || '';
+  // Render all posts
+  listEl.innerHTML = posts.map(p => `
+    <div class="p-5">
+      <p class="text-xs text-content-faint mb-1">${fmtDate(p.date)}</p>
+      <a href="${p.url || '#'}" class="text-sm font-bold text-teelo-dark hover:underline decoration-teelo-lime decoration-2">${p.title || 'Read post'}</a>
+      <p class="text-xs text-content-muted mt-2 line-clamp-3">${p.excerpt || ''}</p>
+    </div>
+  `).join('');
 
   toggleHidden(cardEl, false);
+
+  // After layout, clip to match left column height and show fade if clipped
+  requestAnimationFrame(() => {
+    const tournamentsCard = cardEl.closest('.grid')?.querySelector(':first-child');
+    if (!tournamentsCard || !wrapperEl) return;
+    const gridRow = cardEl.closest('.grid');
+    if (!gridRow || getComputedStyle(gridRow).gridTemplateColumns === 'none') return;
+
+    const leftHeight = tournamentsCard.offsetHeight;
+    const moversCard = cardEl.previousElementSibling;
+    const moversHeight = moversCard ? moversCard.offsetHeight : 0;
+    const headerHeight = cardEl.querySelector('.p-5.border-b')?.offsetHeight || 0;
+    const gap = 24; // gap-6 = 1.5rem = 24px
+    const availableHeight = leftHeight - moversHeight - gap - headerHeight;
+
+    if (availableHeight > 0 && wrapperEl.scrollHeight > availableHeight) {
+      wrapperEl.style.maxHeight = `${availableHeight}px`;
+      toggleHidden(fadeEl, false);
+    }
+  });
 }
 
 export async function initHomePage() {
@@ -256,7 +280,7 @@ export async function initHomePage() {
     .catch(() => renderMovers([]));
 
   const blogP = getJson('/api/home/blog')
-    .then(data => renderBlogPost(data))
+    .then(data => renderBlogPosts(data))
     .catch(() => {});
 
   await Promise.allSettled([

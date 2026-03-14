@@ -611,29 +611,29 @@ def home_api_blog(
         return JSONResponse(_blog_cache)
 
     blog_dir = CONTENT_PATH / "blog"
-    latest = None
+    posts = []
     if blog_dir.exists():
         for file_path in blog_dir.glob("*.md"):
             post = frontmatter.load(file_path)
             if post.get("draft", False):
                 continue
             post_date = post.get("date", datetime.min)
-            if latest is None or post_date > latest["_date"]:
-                latest = {
-                    "_date": post_date,
-                    "slug": file_path.stem,
-                    "title": post.get("title", "Untitled"),
-                    "date": post_date.isoformat() if hasattr(post_date, "isoformat") else str(post_date),
-                    "excerpt": post.get("excerpt", ""),
-                    "url": f"/blog/{file_path.stem}",
-                }
+            posts.append({
+                "_date": post_date,
+                "slug": file_path.stem,
+                "title": post.get("title", "Untitled"),
+                "date": post_date.isoformat() if hasattr(post_date, "isoformat") else str(post_date),
+                "excerpt": post.get("excerpt", ""),
+                "url": f"/blog/{file_path.stem}",
+            })
 
-    if latest:
-        latest.pop("_date", None)
+    posts.sort(key=lambda p: p["_date"], reverse=True)
+    for p in posts:
+        p.pop("_date", None)
 
-    _blog_cache = latest
+    _blog_cache = posts
     _blog_cache_time = now
-    return JSONResponse(latest)
+    return JSONResponse(posts)
 
 
 @router.get("/api/home")
