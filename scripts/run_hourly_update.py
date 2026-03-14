@@ -199,11 +199,11 @@ def _run_feature_computation_stage(ctx: StageContext) -> StageResult:
     """Compute features for matches missing them."""
     started_at = _utc_now()
     try:
-        from teelo.features import build_registry
+        from teelo.features import build_registry, default_preset_for_feature_set
         from teelo.features.engine import FeatureEngine
         from teelo.ml.versioning import latest_feature_set
-        registry = build_registry()
         feature_set_name = latest_feature_set()
+        registry = build_registry(default_preset_for_feature_set(feature_set_name))
         engine = FeatureEngine(registry, feature_set_name)
         engine.run()
         logger.info("stage.feature_computation_done")
@@ -344,7 +344,7 @@ def _build_registry() -> StageRegistry:
                 ["--max-players", "10"],
             ),
             description="Enrich players requiring profile metadata.",
-            enabled_by_default=True,
+            enabled_by_default=False,
         )
     )
     registry.register(

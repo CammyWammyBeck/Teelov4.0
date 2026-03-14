@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from datetime import datetime
 from decimal import Decimal
+import math
 from typing import Any
 
 import structlog
@@ -116,6 +117,8 @@ class FeatureEngine:
                     seed_b=row.player_b_seed,
                     temporal_order=row.temporal_order,
                     tournament_edition_id=row.tournament_edition_id,
+                    tournament_id=row.tournament_id,
+                    match_date_estimated=row.match_date_estimated,
                 )
 
                 should_compute = (
@@ -138,8 +141,13 @@ class FeatureEngine:
 
                 if row.status in TERMINAL_STATUSES and row.winner_id is not None:
                     games_a, games_b = _compute_games(row.score_structured)
+                    sets_a, sets_b, tiebreaks_a, tiebreaks_b = _compute_score_summary(
+                        row.score_structured
+                    )
                     player_a_won = row.winner_id == row.player_a_id
 
+                    elo_pre_a = _to_float(row.elo_pre_player_a, default=state_a.elo_current)
+                    elo_pre_b = _to_float(row.elo_pre_player_b, default=state_b.elo_current)
                     elo_post_a = _to_float(row.elo_post_player_a, default=state_a.elo_current)
                     elo_post_b = _to_float(row.elo_post_player_b, default=state_b.elo_current)
 
@@ -151,6 +159,19 @@ class FeatureEngine:
                     surface_elo_post_b = (
                         _to_float(surface_b[1], default=None) if surface_b is not None else None
                     )
+                    surface_elo_pre_a = (
+                        _to_float(surface_a[0], default=None) if surface_a is not None else None
+                    )
+                    surface_elo_pre_b = (
+                        _to_float(surface_b[0], default=None) if surface_b is not None else None
+                    )
+
+                    expected_a = _expected_win_probability(elo_pre_a, elo_pre_b)
+                    expected_b = _expected_win_probability(elo_pre_b, elo_pre_a)
+                    deciding_set_played = (sets_a + sets_b) >= 3 and abs(sets_a - sets_b) == 1
+                    straight_sets_a = player_a_won and sets_b == 0 and sets_a >= 2
+                    straight_sets_b = (not player_a_won) and sets_a == 0 and sets_b >= 2
+                    close_match = deciding_set_played or (tiebreaks_a + tiebreaks_b) > 0
 
                     record_a = MatchRecord(
                         temporal_order=row.temporal_order,
@@ -160,8 +181,19 @@ class FeatureEngine:
                         games_won=games_a,
                         games_lost=games_b,
                         tournament_edition_id=row.tournament_edition_id,
+                        tournament_id=row.tournament_id,
                         match_date=row.match_date,
                         opponent_id=row.player_b_id,
+                        opponent_elo=elo_pre_b,
+                        opponent_surface_elo=surface_elo_pre_b,
+                        expected_win_prob=expected_a,
+                        sets_won=sets_a,
+                        sets_lost=sets_b,
+                        tiebreaks_played=tiebreaks_a + tiebreaks_b,
+                        tiebreaks_won=tiebreaks_a,
+                        deciding_set_played=deciding_set_played,
+                        straight_sets=straight_sets_a,
+                        close_match=close_match,
                     )
                     record_b = MatchRecord(
                         temporal_order=row.temporal_order,
@@ -171,8 +203,19 @@ class FeatureEngine:
                         games_won=games_b,
                         games_lost=games_a,
                         tournament_edition_id=row.tournament_edition_id,
+                        tournament_id=row.tournament_id,
                         match_date=row.match_date,
                         opponent_id=row.player_a_id,
+                        opponent_elo=elo_pre_a,
+                        opponent_surface_elo=surface_elo_pre_a,
+                        expected_win_prob=expected_b,
+                        sets_won=sets_b,
+                        sets_lost=sets_a,
+                        tiebreaks_played=tiebreaks_a + tiebreaks_b,
+                        tiebreaks_won=tiebreaks_b,
+                        deciding_set_played=deciding_set_played,
+                        straight_sets=straight_sets_b,
+                        close_match=close_match,
                     )
 
                     state_a.update(record_a, elo_post_a, surface_elo_post_a)
@@ -254,11 +297,13 @@ class FeatureEngine:
                 Match.player_a_seed,
                 Match.player_b_seed,
                 Match.tournament_edition_id,
+                Match.match_date_estimated,
                 Match.elo_pre_player_a,
                 Match.elo_pre_player_b,
                 Match.elo_post_player_a,
                 Match.elo_post_player_b,
                 TournamentEdition.year,
+                TournamentEdition.tournament_id,
                 TournamentEdition.surface.label("te_surface"),
                 Tournament.surface.label("t_surface"),
                 Tournament.tour,
@@ -355,6 +400,44 @@ def _compute_games(score_structured: Any) -> tuple[int, int]:
     return games_a, games_b
 
 
+def _compute_score_summary(score_structured: Any) -> tuple[int, int, int, int]:
+    if not isinstance(score_structured, list):
+        return 0, 0, 0, 0
+
+    sets_a = 0
+    sets_b = 0
+    tiebreaks_a = 0
+    tiebreaks_b = 0
+
+    for item in score_structured:
+        if not isinstance(item, dict):
+            continue
+
+        set_a = item.get("a", 0)
+        set_b = item.get("b", 0)
+        if isinstance(set_a, (int, float, Decimal)) and isinstance(set_b, (int, float, Decimal)):
+            if set_a > set_b:
+                sets_a += 1
+            elif set_b > set_a:
+                sets_b += 1
+
+        tb_a = item.get("tb_a")
+        tb_b = item.get("tb_b")
+        if isinstance(tb_a, (int, float, Decimal)) and isinstance(tb_b, (int, float, Decimal)):
+            if tb_a > tb_b:
+                tiebreaks_a += 1
+            elif tb_b > tb_a:
+                tiebreaks_b += 1
+
+    return sets_a, sets_b, tiebreaks_a, tiebreaks_b
+
+
+def _expected_win_probability(player_elo: float | None, opponent_elo: float | None) -> float | None:
+    if player_elo is None or opponent_elo is None:
+        return None
+    return 1.0 / (1.0 + math.pow(10.0, (opponent_elo - player_elo) / 400.0))
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -370,8 +453,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--preset",
         default="full",
-        choices=["full", "trimmed"],
-        help="Feature preset: full (110) or trimmed (90, drops match_count/seed)",
+        choices=["full", "trimmed", "baseline_v1", "trimmed_v1", "baseline_v2"],
+        help="Feature preset: full/baseline_v1, trimmed/trimmed_v1, or baseline_v2",
     )
     args = parser.parse_args()
 
