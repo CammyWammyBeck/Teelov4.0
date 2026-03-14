@@ -7,7 +7,7 @@
 <div class="max-w-4xl mx-auto px-4 py-8">
 
     {# ── Prediction Hero ── #}
-    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6 md:p-8 mb-6">
+    <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle p-6 md:p-8 mb-6">
         {% if match.prediction_a is not none %}
         {% set pred_a_pct = (match.prediction_a * 100) | round(0) | int %}
         {% set pred_b_pct = 100 - pred_a_pct %}
@@ -38,7 +38,7 @@
     </div>
 
     {# ── Match Info Header ── #}
-    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-5 md:p-6 mb-6">
+    <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle p-5 md:p-6 mb-6">
         <div class="flex items-center gap-2 mb-2">
             <span class="{{ circuit_bg(match.tour, match.tournament_level) }} text-content-inverse text-xs px-2 py-0.5 rounded font-bold tracking-tight">{{ circuit_label(match.tour, match.tournament_level) }}</span>
             {% if match.tournament_url %}
@@ -73,7 +73,7 @@
     <div class="space-y-4">
         <h2 class="text-lg font-bold text-teelo-dark">Prediction Breakdown</h2>
         {% for group in feature_groups %}
-        <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
+        <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
             <button class="feature-group-toggle w-full flex items-center justify-between px-5 py-4 text-left hover:bg-surface-hover/50 transition-colors" aria-expanded="{{ 'true' if loop.index <= 3 else 'false' }}" data-target="feature-group-{{ loop.index }}">
                 <span class="text-sm font-bold text-teelo-dark">{{ group.display_name }}</span>
                 <i data-lucide="chevron-down" class="w-4 h-4 text-content-faint transition-transform {{ '' if loop.index <= 3 else 'rotate-[-90deg]' }}"></i>
@@ -113,7 +113,7 @@
         {% endfor %}
     </div>
     {% else %}
-    <div class="bg-white rounded-2xl shadow-soft border border-gray-100 p-8 text-center">
+    <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle p-8 text-center">
         <i data-lucide="bar-chart-3" class="w-10 h-10 text-content-faintest mx-auto mb-3"></i>
         <p class="text-sm text-content-faint">No feature data available for this match</p>
     </div>
