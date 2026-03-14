@@ -369,17 +369,17 @@ LEVEL_PRIORITY = {
 def _badge_for_tournament(t: Tournament) -> tuple[str, str]:
     """Return (label, bg_color) matching the match_rows.html badge pattern."""
     if t.level == "Grand Slam":
-        return "GSL", "bg-[#D4AF37]"
+        return "GSL", "bg-tour-grandslam"
     tour = (t.tour or "").strip()
     if tour in ("CHALLENGER", "Challenger"):
-        return "CHL", "bg-[#006B3F]"
+        return "CHL", "bg-tour-challenger"
     if tour in ("WTA 125", "WTA_125") or t.level in ("WTA 125", "WTA_125"):
-        return "125", "bg-[#9D174D]"
+        return "125", "bg-tour-250"
     if tour == "WTA":
-        return "WTA", "bg-[#E30066]"
+        return "WTA", "bg-tour-wta"
     if tour == "ATP":
-        return "ATP", "bg-[#002865]"
-    return "UNK", "bg-gray-600"
+        return "ATP", "bg-tour-atp"
+    return "UNK", "bg-tour-itf"
 
 
 @router.get("/api/home/tournaments")

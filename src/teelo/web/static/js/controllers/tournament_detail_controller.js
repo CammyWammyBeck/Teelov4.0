@@ -5,7 +5,7 @@ import { buildFallbackCards, buildFallbackTableRows } from '../renderers/matches
 import { renderBracket } from '../renderers/bracket.js';
 
 const TAB_ACTIVE_CLASSES = ['border-b-2', 'border-teelo-lime', 'text-teelo-dark', 'font-semibold'];
-const TAB_INACTIVE_CLASSES = ['border-b-2', 'border-transparent', 'text-gray-500', 'hover:text-gray-700'];
+const TAB_INACTIVE_CLASSES = ['border-b-2', 'border-transparent', 'text-content-muted', 'hover:text-content-secondary'];
 
 function surfaceClass(surface) {
   if (surface === 'Hard') return 'surface-text-hard';
@@ -107,16 +107,16 @@ export function initTournamentDetailPage() {
       <button
         type="button"
         data-pagination="previous"
-        class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+        class="px-3 py-1.5 text-sm rounded-lg border border-line hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
         ${state.matchPage <= 1 ? 'disabled' : ''}
       >
         Previous
       </button>
-      <span class="text-sm text-gray-500">Page ${state.matchPage} of ${totalPages}</span>
+      <span class="text-sm text-content-muted">Page ${state.matchPage} of ${totalPages}</span>
       <button
         type="button"
         data-pagination="next"
-        class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+        class="px-3 py-1.5 text-sm rounded-lg border border-line hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
         ${!hasMore ? 'disabled' : ''}
       >
         Next
@@ -193,7 +193,7 @@ export function initTournamentDetailPage() {
     } catch (error) {
       console.error(error);
       if (bracketContainer) {
-        bracketContainer.innerHTML = '<p class="text-sm text-gray-400 py-6">Failed to load draw.</p>';
+        bracketContainer.innerHTML = '<p class="text-sm text-content-faint py-6">Failed to load draw.</p>';
       }
     } finally {
       setSectionLoading('draw-loading', ['draw-content'], false);
@@ -219,21 +219,21 @@ export function initTournamentDetailPage() {
     tableBody.innerHTML = editions
       .map((item) => {
         const isCurrent = Number(item.year) === currentYear;
-        const rowClass = isCurrent ? 'bg-teelo-lime/20' : 'hover:bg-gray-50/50';
-        const yearCellClass = isCurrent ? 'text-teelo-dark font-bold' : 'text-gray-600';
+        const rowClass = isCurrent ? 'bg-teelo-lime/20' : 'hover:bg-surface-hover';
+        const yearCellClass = isCurrent ? 'text-teelo-dark font-bold' : 'text-content-secondary';
         const champion = item.champion || '—';
         const runnerUp = item.runner_up || '—';
         const score = item.score || '—';
         const surface = item.surface || '—';
         const championCell = renderPlayerLink(champion, item.champion_id, 'text-teelo-dark font-semibold', item.champion_url || null);
-        const runnerUpCell = renderPlayerLink(runnerUp, item.runner_up_id, 'text-gray-600', item.runner_up_url || null);
+        const runnerUpCell = renderPlayerLink(runnerUp, item.runner_up_id, 'text-content-secondary', item.runner_up_url || null);
 
         return `
           <tr class="${rowClass}">
             <td class="px-5 py-3 ${yearCellClass}"><a href="${escapeHtml(item.url || '#')}" class="hover:underline decoration-teelo-lime decoration-2">${escapeHtml(item.year)}</a></td>
             <td class="px-5 py-3">${championCell}</td>
             <td class="px-5 py-3">${runnerUpCell}</td>
-            <td class="px-5 py-3 text-gray-600 font-mono text-xs">${escapeHtml(score)}</td>
+            <td class="px-5 py-3 text-content-secondary font-mono text-xs">${escapeHtml(score)}</td>
             <td class="px-5 py-3 text-sm ${surfaceClass(surface)}">${escapeHtml(surface)}</td>
           </tr>
         `;
@@ -243,7 +243,7 @@ export function initTournamentDetailPage() {
     cards.innerHTML = editions
       .map((item) => {
         const isCurrent = Number(item.year) === currentYear;
-        const cardClass = isCurrent ? 'bg-teelo-lime/20' : 'bg-white';
+        const cardClass = isCurrent ? 'bg-teelo-lime/20' : 'bg-surface';
         const surface = item.surface || '—';
         const championCell = renderPlayerLink(item.champion || '—', item.champion_id, 'font-semibold text-teelo-dark', item.champion_url || null);
         const runnerUpCell = renderPlayerLink(item.runner_up || '—', item.runner_up_id, '', item.runner_up_url || null);
@@ -253,12 +253,12 @@ export function initTournamentDetailPage() {
               <span class="text-sm font-bold text-teelo-dark">${escapeHtml(item.year)}</span>
               <span class="text-[11px] ${surfaceClass(surface)} font-semibold">${escapeHtml(surface)}</span>
             </div>
-            <div class="text-xs text-gray-600">
+            <div class="text-xs text-content-secondary">
               ${championCell}
-              <span class="text-gray-400"> def. </span>
+              <span class="text-content-faint"> def. </span>
               ${runnerUpCell}
             </div>
-            <div class="text-[11px] font-mono text-gray-500 mt-1">${escapeHtml(item.score || '—')}</div>
+            <div class="text-[11px] font-mono text-content-muted mt-1">${escapeHtml(item.score || '—')}</div>
           </a>
         `;
       })

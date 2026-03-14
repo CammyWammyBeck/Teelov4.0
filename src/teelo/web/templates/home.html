@@ -16,40 +16,40 @@
         </span>
         <div>
             <h1 class="text-2xl font-extrabold text-teelo-dark tracking-tight leading-tight">Teelo Ratings</h1>
-            <p class="text-sm text-gray-500">ELO ratings, match predictions, and analytics across ATP &amp; WTA tours.</p>
+            <p class="text-sm text-content-muted">ELO ratings, match predictions, and analytics across ATP &amp; WTA tours.</p>
         </div>
     </div>
 
     <!-- Stat Pills -->
     <div id="home-stats-section" class="flex flex-wrap gap-3">
-        <div class="bg-white rounded-xl shadow-soft border border-gray-100 px-4 py-2 flex items-center gap-2 text-sm">
-            <i data-lucide="database" class="w-4 h-4 text-gray-400 shrink-0"></i>
-            <span class="text-gray-500">Matches:</span>
+        <div class="bg-surface rounded-xl shadow-soft border border-line-subtle px-4 py-2 flex items-center gap-2 text-sm">
+            <i data-lucide="database" class="w-4 h-4 text-content-faint shrink-0"></i>
+            <span class="text-content-muted">Matches:</span>
             <span id="stat-matches" class="font-bold text-teelo-dark">—</span>
         </div>
-        <div class="bg-white rounded-xl shadow-soft border border-gray-100 px-4 py-2 flex items-center gap-2 text-sm">
-            <i data-lucide="users" class="w-4 h-4 text-gray-400 shrink-0"></i>
-            <span class="text-gray-500">Players:</span>
+        <div class="bg-surface rounded-xl shadow-soft border border-line-subtle px-4 py-2 flex items-center gap-2 text-sm">
+            <i data-lucide="users" class="w-4 h-4 text-content-faint shrink-0"></i>
+            <span class="text-content-muted">Players:</span>
             <span id="stat-players" class="font-bold text-teelo-dark">—</span>
         </div>
-        <div class="bg-white rounded-xl shadow-soft border border-gray-100 px-4 py-2 flex items-center gap-2 text-sm">
-            <i data-lucide="calendar" class="w-4 h-4 text-gray-400 shrink-0"></i>
-            <span class="text-gray-500">Editions:</span>
+        <div class="bg-surface rounded-xl shadow-soft border border-line-subtle px-4 py-2 flex items-center gap-2 text-sm">
+            <i data-lucide="calendar" class="w-4 h-4 text-content-faint shrink-0"></i>
+            <span class="text-content-muted">Editions:</span>
             <span id="stat-editions" class="font-bold text-teelo-dark">—</span>
         </div>
-        <div class="bg-white rounded-xl shadow-soft border border-gray-100 px-4 py-2 flex items-center gap-2 text-sm">
-            <i data-lucide="globe" class="w-4 h-4 text-gray-400 shrink-0"></i>
-            <span class="text-gray-500">Countries:</span>
+        <div class="bg-surface rounded-xl shadow-soft border border-line-subtle px-4 py-2 flex items-center gap-2 text-sm">
+            <i data-lucide="globe" class="w-4 h-4 text-content-faint shrink-0"></i>
+            <span class="text-content-muted">Countries:</span>
             <span id="stat-countries" class="font-bold text-teelo-dark">—</span>
         </div>
-        <div class="bg-white rounded-xl shadow-soft border border-gray-100 px-4 py-2 flex items-center gap-2 text-sm">
-            <i data-lucide="target" class="w-4 h-4 text-gray-400 shrink-0"></i>
-            <span class="text-gray-500">Accuracy:</span>
+        <div class="bg-surface rounded-xl shadow-soft border border-line-subtle px-4 py-2 flex items-center gap-2 text-sm">
+            <i data-lucide="target" class="w-4 h-4 text-content-faint shrink-0"></i>
+            <span class="text-content-muted">Accuracy:</span>
             <span id="stat-accuracy" class="font-bold text-teelo-dark">—</span>
         </div>
-        <div class="bg-white rounded-xl shadow-soft border border-gray-100 px-4 py-2 flex items-center gap-2 text-sm">
-            <i data-lucide="clock" class="w-4 h-4 text-gray-400 shrink-0"></i>
-            <span class="text-gray-500">Days of data:</span>
+        <div class="bg-surface rounded-xl shadow-soft border border-line-subtle px-4 py-2 flex items-center gap-2 text-sm">
+            <i data-lucide="clock" class="w-4 h-4 text-content-faint shrink-0"></i>
+            <span class="text-content-muted">Days of data:</span>
             <span id="stat-days" class="font-bold text-teelo-dark">—</span>
         </div>
     </div>
@@ -61,47 +61,47 @@
         <div class="lg:col-span-3 space-y-6">
 
             <!-- Tournaments card -->
-            <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-                <div class="p-5 border-b border-gray-100">
+            <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+                <div class="p-5 border-b border-line-subtle">
                     <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
-                        <i data-lucide="trophy" class="w-4 h-4 text-gray-400"></i>
+                        <i data-lucide="trophy" class="w-4 h-4 text-content-faint"></i>
                         Tournaments
                     </h2>
                 </div>
                 <div id="tournaments-loading" class="flex justify-center py-8">
                     <div class="loading-spinner"></div>
                 </div>
-                <div id="tournaments-content" class="hidden divide-y divide-gray-100">
+                <div id="tournaments-content" class="hidden divide-y divide-line-subtle">
                     <!-- in-progress -->
                     <div id="tournaments-in-progress" class="hidden">
                         <div class="px-5 pt-3 pb-1">
-                            <span class="text-[10px] uppercase tracking-wider font-bold text-green-600">In Progress</span>
+                            <span class="text-[10px] uppercase tracking-wider font-bold text-status-success">In Progress</span>
                         </div>
-                        <ul id="tournaments-in-progress-list" class="divide-y divide-gray-50"></ul>
+                        <ul id="tournaments-in-progress-list" class="divide-y divide-line-subtle"></ul>
                     </div>
                     <!-- upcoming -->
                     <div id="tournaments-upcoming" class="hidden">
                         <div class="px-5 pt-3 pb-1">
-                            <span class="text-[10px] uppercase tracking-wider font-bold text-gray-400">Upcoming</span>
+                            <span class="text-[10px] uppercase tracking-wider font-bold text-content-faint">Upcoming</span>
                         </div>
-                        <ul id="tournaments-upcoming-list" class="divide-y divide-gray-50"></ul>
+                        <ul id="tournaments-upcoming-list" class="divide-y divide-line-subtle"></ul>
                     </div>
                     <!-- recently completed -->
                     <div id="tournaments-completed" class="hidden">
                         <div class="px-5 pt-3 pb-1">
-                            <span class="text-[10px] uppercase tracking-wider font-bold text-gray-400">Recently Completed</span>
+                            <span class="text-[10px] uppercase tracking-wider font-bold text-content-faint">Recently Completed</span>
                         </div>
-                        <ul id="tournaments-completed-list" class="divide-y divide-gray-50"></ul>
+                        <ul id="tournaments-completed-list" class="divide-y divide-line-subtle"></ul>
                     </div>
                 </div>
-                <div id="tournaments-empty" class="hidden text-center py-8 text-sm text-gray-400">No tournaments found.</div>
+                <div id="tournaments-empty" class="hidden text-center py-8 text-sm text-content-faint">No tournaments found.</div>
             </div>
 
             <!-- Upcoming Matches -->
-            <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-                <div class="p-5 border-b border-gray-100">
+            <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+                <div class="p-5 border-b border-line-subtle">
                     <h2 class="text-base font-bold text-teelo-dark">Upcoming &amp; Scheduled Matches</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">Next matches from ATP and WTA tours.</p>
+                    <p class="text-xs text-content-muted mt-0.5">Next matches from ATP and WTA tours.</p>
                 </div>
 
                 <div id="upcoming-loading" class="flex justify-center py-8">
@@ -112,7 +112,7 @@
                     <div class="hidden md:block overflow-x-auto">
                         <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
+                                <tr class="bg-surface-alt/50 text-content-faint text-[11px] uppercase tracking-wider font-bold border-b border-line-subtle">
                                     <th class="px-5 py-3">Tournament</th>
                                     <th class="px-5 py-3 text-right">Player A</th>
                                     <th class="px-5 py-3 text-center">Score</th>
@@ -120,24 +120,24 @@
                                     <th class="px-5 py-3 text-right">Date</th>
                                 </tr>
                             </thead>
-                            <tbody id="upcoming-table-body" class="divide-y divide-gray-100/70"></tbody>
+                            <tbody id="upcoming-table-body" class="divide-y divide-line-subtle/70"></tbody>
                         </table>
                     </div>
-                    <div id="upcoming-cards" class="md:hidden divide-y divide-gray-100"></div>
+                    <div id="upcoming-cards" class="md:hidden divide-y divide-line-subtle"></div>
                 </div>
 
                 <div id="upcoming-empty" class="text-center py-12 hidden">
-                    <i data-lucide="calendar-off" class="w-10 h-10 text-gray-200 mx-auto"></i>
-                    <h3 class="text-base font-semibold text-gray-400 mt-3">No upcoming matches</h3>
-                    <p class="text-xs text-gray-400 mt-1">Check back soon for newly scheduled fixtures.</p>
+                    <i data-lucide="calendar-off" class="w-10 h-10 text-content-faintest mx-auto"></i>
+                    <h3 class="text-base font-semibold text-content-faint mt-3">No upcoming matches</h3>
+                    <p class="text-xs text-content-faint mt-1">Check back soon for newly scheduled fixtures.</p>
                 </div>
             </div>
 
             <!-- Recently Completed Matches -->
-            <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-                <div class="p-5 border-b border-gray-100">
+            <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+                <div class="p-5 border-b border-line-subtle">
                     <h2 class="text-base font-bold text-teelo-dark">Recently Completed Matches</h2>
-                    <p class="text-xs text-gray-500 mt-0.5">Latest completed results from the same tournament scope.</p>
+                    <p class="text-xs text-content-muted mt-0.5">Latest completed results from the same tournament scope.</p>
                 </div>
 
                 <div id="completed-loading" class="flex justify-center py-8">
@@ -148,7 +148,7 @@
                     <div class="hidden md:block overflow-x-auto">
                         <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
+                                <tr class="bg-surface-alt/50 text-content-faint text-[11px] uppercase tracking-wider font-bold border-b border-line-subtle">
                                     <th class="px-5 py-3">Tournament</th>
                                     <th class="px-5 py-3 text-right">Player A</th>
                                     <th class="px-5 py-3 text-center">Score</th>
@@ -156,19 +156,19 @@
                                     <th class="px-5 py-3 text-right">Date</th>
                                 </tr>
                             </thead>
-                            <tbody id="completed-table-body" class="divide-y divide-gray-100/70"></tbody>
+                            <tbody id="completed-table-body" class="divide-y divide-line-subtle/70"></tbody>
                         </table>
                     </div>
-                    <div id="completed-cards" class="md:hidden divide-y divide-gray-100"></div>
+                    <div id="completed-cards" class="md:hidden divide-y divide-line-subtle"></div>
                 </div>
 
                 <div id="completed-empty" class="text-center py-12 hidden">
-                    <i data-lucide="calendar-off" class="w-10 h-10 text-gray-200 mx-auto"></i>
-                    <h3 class="text-base font-semibold text-gray-400 mt-3">No completed matches</h3>
-                    <p class="text-xs text-gray-400 mt-1">Completed matches will appear here once results are in.</p>
+                    <i data-lucide="calendar-off" class="w-10 h-10 text-content-faintest mx-auto"></i>
+                    <h3 class="text-base font-semibold text-content-faint mt-3">No completed matches</h3>
+                    <p class="text-xs text-content-faint mt-1">Completed matches will appear here once results are in.</p>
                 </div>
 
-                <div class="px-5 py-3 border-t border-gray-100 bg-gray-50/30">
+                <div class="px-5 py-3 border-t border-line-subtle bg-surface-alt/30">
                     <a href="/matches" class="text-sm text-teelo-dark font-bold hover:underline decoration-teelo-lime decoration-2 flex items-center gap-1">
                         View all match history <i data-lucide="arrow-right" class="w-4 h-4 text-teelo-lime"></i>
                     </a>
@@ -181,8 +181,8 @@
         <div class="lg:col-span-2 space-y-6">
 
             <!-- ATP Top 5 -->
-            <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-                <div class="p-5 border-b border-gray-100">
+            <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+                <div class="p-5 border-b border-line-subtle">
                     <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
                         <span class="bg-teelo-lime text-teelo-dark text-[10px] font-extrabold px-1.5 py-0.5 rounded">ATP</span>
                         Top 5 by ELO
@@ -191,50 +191,50 @@
                 <div id="rankings-atp-loading" class="flex justify-center py-6">
                     <div class="loading-spinner"></div>
                 </div>
-                <ol id="rankings-atp-list" class="hidden divide-y divide-gray-100"></ol>
+                <ol id="rankings-atp-list" class="hidden divide-y divide-line-subtle"></ol>
             </div>
 
             <!-- WTA Top 5 -->
-            <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-                <div class="p-5 border-b border-gray-100">
+            <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+                <div class="p-5 border-b border-line-subtle">
                     <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
-                        <span class="bg-[#E30066] text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded">WTA</span>
+                        <span class="bg-tour-wta text-content-inverse text-[10px] font-extrabold px-1.5 py-0.5 rounded">WTA</span>
                         Top 5 by ELO
                     </h2>
                 </div>
                 <div id="rankings-wta-loading" class="flex justify-center py-6">
                     <div class="loading-spinner"></div>
                 </div>
-                <ol id="rankings-wta-list" class="hidden divide-y divide-gray-100"></ol>
+                <ol id="rankings-wta-list" class="hidden divide-y divide-line-subtle"></ol>
             </div>
 
             <!-- Biggest Movers -->
-            <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-                <div class="p-5 border-b border-gray-100">
+            <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+                <div class="p-5 border-b border-line-subtle">
                     <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
-                        <i data-lucide="trending-up" class="w-4 h-4 text-gray-400"></i>
+                        <i data-lucide="trending-up" class="w-4 h-4 text-content-faint"></i>
                         Biggest Movers (14 days)
                     </h2>
                 </div>
                 <div id="movers-loading" class="flex justify-center py-6">
                     <div class="loading-spinner"></div>
                 </div>
-                <ul id="movers-list" class="hidden divide-y divide-gray-100"></ul>
-                <div id="movers-empty" class="hidden text-center py-6 text-sm text-gray-400">No recent data.</div>
+                <ul id="movers-list" class="hidden divide-y divide-line-subtle"></ul>
+                <div id="movers-empty" class="hidden text-center py-6 text-sm text-content-faint">No recent data.</div>
             </div>
 
             <!-- Latest Blog Post (shown by JS if available) -->
-            <div id="blog-post-card" class="hidden bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-                <div class="p-5 border-b border-gray-100">
+            <div id="blog-post-card" class="hidden bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+                <div class="p-5 border-b border-line-subtle">
                     <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
-                        <i data-lucide="newspaper" class="w-4 h-4 text-gray-400"></i>
+                        <i data-lucide="newspaper" class="w-4 h-4 text-content-faint"></i>
                         Latest from the Blog
                     </h2>
                 </div>
                 <div class="p-5">
-                    <p id="blog-post-date" class="text-xs text-gray-400 mb-1"></p>
+                    <p id="blog-post-date" class="text-xs text-content-faint mb-1"></p>
                     <a id="blog-post-link" href="#" class="text-sm font-bold text-teelo-dark hover:underline decoration-teelo-lime decoration-2"></a>
-                    <p id="blog-post-excerpt" class="text-xs text-gray-500 mt-2 line-clamp-3"></p>
+                    <p id="blog-post-excerpt" class="text-xs text-content-muted mt-2 line-clamp-3"></p>
                 </div>
             </div>
 

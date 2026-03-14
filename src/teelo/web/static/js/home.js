@@ -17,13 +17,13 @@ function fmtDate(iso) {
 const SURFACE_COLORS = {
   Hard: 'bg-blue-100 text-blue-700',
   Clay: 'bg-orange-100 text-orange-700',
-  Grass: 'bg-green-100 text-green-700',
+  Grass: 'bg-status-success-subtle text-status-success',
   Carpet: 'bg-purple-100 text-purple-700',
 };
 
 function surfaceBadge(surface) {
   if (!surface) return '';
-  const cls = SURFACE_COLORS[surface] || 'bg-gray-100 text-gray-600';
+  const cls = SURFACE_COLORS[surface] || 'bg-surface-muted text-content-secondary';
   return `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${cls}">${surface}</span>`;
 }
 
@@ -84,18 +84,18 @@ function renderTournamentList(listEl, sectionEl, editions) {
     const href = t.url || '#';
     const dates = [t.start_date, t.end_date].filter(Boolean).map(fmtDate).join(' – ');
     const winnerHtml = t.winner_name
-      ? `<span class="text-xs text-gray-500">Winner: <a href="${t.winner_url || '#'}" class="font-semibold text-teelo-dark hover:underline decoration-teelo-lime">${t.winner_name}</a></span>`
+      ? `<span class="text-xs text-content-muted">Winner: <a href="${t.winner_url || '#'}" class="font-semibold text-teelo-dark hover:underline decoration-teelo-lime">${t.winner_name}</a></span>`
       : '';
     const badge = t.badge_label
-      ? `<span class="inline-flex items-center justify-center text-[9px] font-bold text-white px-1.5 py-0.5 rounded ${t.badge_color} mr-1.5 leading-none">${t.badge_label}</span>`
+      ? `<span class="inline-flex items-center justify-center text-[9px] font-bold text-content-inverse px-1.5 py-0.5 rounded ${t.badge_color} mr-1.5 leading-none">${t.badge_label}</span>`
       : '';
     return `
-      <li class="px-5 py-3 flex items-center justify-between gap-2 hover:bg-gray-50 transition-colors">
+      <li class="px-5 py-3 flex items-center justify-between gap-2 hover:bg-surface-hover transition-colors">
         <div class="min-w-0">
           <div class="flex items-center">
             ${badge}<a href="${href}" class="text-sm font-semibold text-teelo-dark hover:underline decoration-teelo-lime decoration-2 truncate">${t.tournament_name}</a>
           </div>
-          <p class="text-xs text-gray-400 mt-0.5">${t.city || ''} &middot; ${dates}</p>
+          <p class="text-xs text-content-faint mt-0.5">${t.city || ''} &middot; ${dates}</p>
           ${winnerHtml}
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
@@ -148,14 +148,14 @@ function renderRankingsList(listId, loadingId, players) {
   toggleHidden(loadingEl, true);
   if (!listEl) return;
   if (!players || players.length === 0) {
-    listEl.innerHTML = '<li class="px-5 py-4 text-sm text-gray-400">No data available.</li>';
+    listEl.innerHTML = '<li class="px-5 py-4 text-sm text-content-faint">No data available.</li>';
   } else {
     listEl.innerHTML = players.map(p => `
       <li class="px-5 py-3 flex items-center gap-3">
-        <span class="text-xs font-bold text-gray-300 w-5 text-right shrink-0">${p.rank}</span>
+        <span class="text-xs font-bold text-content-faintest w-5 text-right shrink-0">${p.rank}</span>
         <div class="flex-1 min-w-0">
           <a href="${p.url || '#'}" class="text-sm font-semibold text-teelo-dark hover:underline decoration-teelo-lime decoration-2 truncate block">${p.name}</a>
-          <span class="text-xs text-gray-400">${p.nationality_ioc || ''}</span>
+          <span class="text-xs text-content-faint">${p.nationality_ioc || ''}</span>
         </div>
         <span class="text-sm font-bold text-teelo-dark shrink-0">${p.rating != null ? p.rating.toLocaleString() : '—'}</span>
       </li>`).join('');
@@ -182,13 +182,13 @@ function renderMovers(data) {
 
   listEl.innerHTML = data.map(p => {
     const sign = p.rating_change >= 0 ? '+' : '';
-    const changeColor = p.rating_change >= 0 ? 'text-green-600' : 'text-red-500';
+    const changeColor = p.rating_change >= 0 ? 'text-status-success' : 'text-status-danger';
     const tourLabel = p.gender === 'women' ? 'WTA' : 'ATP';
     return `
       <li class="px-5 py-3 flex items-center gap-3">
         <div class="flex-1 min-w-0">
           <a href="${p.url || '#'}" class="text-sm font-semibold text-teelo-dark hover:underline decoration-teelo-lime decoration-2 truncate block">${p.name}</a>
-          <span class="text-xs text-gray-400">${p.nationality_ioc || ''} &middot; ${tourLabel} &middot; ${p.rating != null ? p.rating.toLocaleString() : '—'}</span>
+          <span class="text-xs text-content-faint">${p.nationality_ioc || ''} &middot; ${tourLabel} &middot; ${p.rating != null ? p.rating.toLocaleString() : '—'}</span>
         </div>
         <span class="text-sm font-bold ${changeColor} shrink-0">${sign}${p.rating_change}</span>
       </li>`;

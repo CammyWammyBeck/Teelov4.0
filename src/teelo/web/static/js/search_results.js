@@ -5,12 +5,12 @@ import { escapeHtml } from './lib/format.js';
 const DEBOUNCE_MS = 250;
 
 const TOUR_COLORS = {
-  ATP: { bg: '#E8EEF9', label: '#002865' },
-  WTA: { bg: '#FCE6F1', label: '#E30066' },
-  CHALLENGER: { bg: '#E6F3EC', label: '#006B3F' },
-  ITF: { bg: '#F1F3F5', label: '#4B5563' },
-  'WTA 125': { bg: '#E6F3EC', label: '#006B3F' },
-  WTA_125: { bg: '#E6F3EC', label: '#006B3F' },
+  ATP: { bg: '#E8EEF9', label: '#002865' }, // inline badge colors; label matches --tour-atp
+  WTA: { bg: '#FCE6F1', label: '#E30066' }, // inline badge colors; label matches --tour-wta
+  CHALLENGER: { bg: '#E6F3EC', label: '#006B3F' }, // inline badge colors; label matches --tour-challenger
+  ITF: { bg: '#F1F3F5', label: '#4B5563' }, // inline badge colors; label matches --tour-itf
+  'WTA 125': { bg: '#E6F3EC', label: '#006B3F' }, // inline badge colors; label matches --tour-challenger
+  WTA_125: { bg: '#E6F3EC', label: '#006B3F' }, // inline badge colors; label matches --tour-challenger
 };
 
 function normalizeTour(tour) {
@@ -18,7 +18,7 @@ function normalizeTour(tour) {
 }
 
 function tourStyle(tour) {
-  return TOUR_COLORS[normalizeTour(tour)] || { bg: '#F1F3F5', label: '#374151' };
+  return TOUR_COLORS[normalizeTour(tour)] || { bg: '#F1F3F5', label: '#374151' }; // inline badge colors; label matches --tour-itf
 }
 
 function renderBadge(label, tour) {
@@ -28,15 +28,15 @@ function renderBadge(label, tour) {
 
 function renderPlayers(players) {
   if (!players.length) {
-    return '<div class="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-400">No players found.</div>';
+    return '<div class="rounded-xl border border-dashed border-line p-6 text-sm text-content-faint">No players found.</div>';
   }
   return players
     .map((player) => `
-      <a href="${escapeHtml(player.url || '#')}" class="block rounded-xl border border-gray-100 bg-white p-4 hover:border-gray-200 hover:shadow-sm transition-all">
+      <a href="${escapeHtml(player.url || '#')}" class="block rounded-xl border border-line-subtle bg-surface p-4 hover:border-line hover:shadow-sm transition-all">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <h3 class="text-sm font-semibold text-teelo-dark truncate">${escapeHtml(player.name || 'Unknown Player')}</h3>
-            <p class="text-xs text-gray-500 mt-1">${escapeHtml(player.nationality_ioc || 'Nationality unavailable')}</p>
+            <p class="text-xs text-content-muted mt-1">${escapeHtml(player.nationality_ioc || 'Nationality unavailable')}</p>
           </div>
           ${renderBadge(player.tour || 'ATP', player.tour || 'ATP')}
         </div>
@@ -47,19 +47,19 @@ function renderPlayers(players) {
 
 function renderTournaments(tournaments) {
   if (!tournaments.length) {
-    return '<div class="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-400">No tournaments found.</div>';
+    return '<div class="rounded-xl border border-dashed border-line p-6 text-sm text-content-faint">No tournaments found.</div>';
   }
   return tournaments
     .map((tournament) => {
       const location = [tournament.city, tournament.country].filter((v) => String(v || '').trim()).join(', ');
       const level = tournament.level || 'Level unavailable';
       return `
-        <a href="${escapeHtml(tournament.url || '#')}" class="block rounded-xl border border-gray-100 bg-white p-4 hover:border-gray-200 hover:shadow-sm transition-all">
+        <a href="${escapeHtml(tournament.url || '#')}" class="block rounded-xl border border-line-subtle bg-surface p-4 hover:border-line hover:shadow-sm transition-all">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <h3 class="text-sm font-semibold text-teelo-dark truncate">${escapeHtml(tournament.name || 'Unknown Tournament')}</h3>
-              <p class="text-xs text-gray-500 mt-1">${escapeHtml(location || 'Location unavailable')}</p>
-              <p class="text-xs text-gray-400 mt-0.5">${escapeHtml(level)}</p>
+              <p class="text-xs text-content-muted mt-1">${escapeHtml(location || 'Location unavailable')}</p>
+              <p class="text-xs text-content-faint mt-0.5">${escapeHtml(level)}</p>
             </div>
             ${renderBadge(tournament.tour || 'ITF', tournament.tour || 'ITF')}
           </div>
@@ -70,7 +70,7 @@ function renderTournaments(tournaments) {
 }
 
 function setLoading(playersContainer, tournamentsContainer) {
-  const loadingHtml = '<div class="rounded-xl border border-gray-100 bg-white p-6 text-sm text-gray-400">Loading…</div>';
+  const loadingHtml = '<div class="rounded-xl border border-line-subtle bg-surface p-6 text-sm text-content-faint">Loading…</div>';
   playersContainer.innerHTML = loadingHtml;
   tournamentsContainer.innerHTML = loadingHtml;
 }
@@ -93,8 +93,8 @@ function initSearchResultsPage() {
     if (query.length < 2) {
       playersCount.textContent = '0';
       tournamentsCount.textContent = '0';
-      playersContainer.innerHTML = '<div class="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-400">Type at least 2 characters.</div>';
-      tournamentsContainer.innerHTML = '<div class="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-400">Type at least 2 characters.</div>';
+      playersContainer.innerHTML = '<div class="rounded-xl border border-dashed border-line p-6 text-sm text-content-faint">Type at least 2 characters.</div>';
+      tournamentsContainer.innerHTML = '<div class="rounded-xl border border-dashed border-line p-6 text-sm text-content-faint">Type at least 2 characters.</div>';
       return;
     }
 
@@ -122,8 +122,8 @@ function initSearchResultsPage() {
       if (requestId !== state.requestId) return;
       playersCount.textContent = '0';
       tournamentsCount.textContent = '0';
-      playersContainer.innerHTML = '<div class="rounded-xl border border-dashed border-red-200 bg-red-50/30 p-6 text-sm text-red-600">Failed to load player results.</div>';
-      tournamentsContainer.innerHTML = '<div class="rounded-xl border border-dashed border-red-200 bg-red-50/30 p-6 text-sm text-red-600">Failed to load tournament results.</div>';
+      playersContainer.innerHTML = '<div class="rounded-xl border border-dashed border-red-200 bg-red-50/30 p-6 text-sm text-status-danger">Failed to load player results.</div>';
+      tournamentsContainer.innerHTML = '<div class="rounded-xl border border-dashed border-red-200 bg-red-50/30 p-6 text-sm text-status-danger">Failed to load tournament results.</div>';
     }
   }
 

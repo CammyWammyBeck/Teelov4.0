@@ -1,16 +1,16 @@
 const TOUR_COLORS = {
-    ATP: '#002865',
-    WTA: '#E30066',
-    Challenger: '#006B3F',
-    ITF: '#6B7280',
-    'WTA 125': '#9CA3AF'
+    ATP: '#002865', // var(--tour-atp)
+    WTA: '#E30066', // var(--tour-wta)
+    Challenger: '#006B3F', // var(--tour-challenger)
+    ITF: '#6B7280', // var(--tour-itf)
+    'WTA 125': '#9CA3AF' // --content-faintest approx
 };
 
 const CHART_COLORS = {
-    primary: '#CCFF00',
-    secondary: '#1A1A1A',
-    grid: '#E5E7EB',
-    ideal: '#9CA3AF'
+    primary: '#CCFF00', // var(--color-teelo-lime)
+    secondary: '#1A1A1A', // var(--color-teelo-dark)
+    grid: '#E5E7EB', // --line approx
+    ideal: '#9CA3AF' // --content-faintest approx
 };
 
 const chartInstances = {};
@@ -31,7 +31,7 @@ function formatDelta(v, inverse = false) {
     const isNegative = value < 0;
     const isGood = inverse ? isNegative : !isNegative;
     const arrow = isNegative ? '↓' : '↑';
-    const color = isGood ? 'text-green-600' : 'text-red-600';
+    const color = isGood ? 'text-status-success' : 'text-status-danger';
 
     return `<span class="${color} font-semibold">${arrow} ${Math.abs(value * 100).toFixed(1)}%</span>`;
 }
@@ -86,14 +86,14 @@ function setSummaryError(source) {
 function setLoading(containerId) {
     const container = document.getElementById(containerId);
     if (container) {
-        container.innerHTML = '<p class="text-gray-400 text-sm py-4">Loading...</p>';
+        container.innerHTML = '<p class="text-content-faint text-sm py-4">Loading...</p>';
     }
 }
 
 function setError(containerId) {
     const container = document.getElementById(containerId);
     if (container) {
-        container.innerHTML = '<p class="text-red-400 text-sm py-4">Error loading data</p>';
+        container.innerHTML = '<p class="text-status-danger text-sm py-4">Error loading data</p>';
     }
 }
 
@@ -347,7 +347,7 @@ function renderBreakdownTable(containerId, data, columns) {
     }
 
     if (!data || Object.keys(data).length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-sm py-4">No data available</p>';
+        container.innerHTML = '<p class="text-content-muted text-sm py-4">No data available</p>';
         return;
     }
 
@@ -367,15 +367,15 @@ function renderBreakdownTable(containerId, data, columns) {
         return [category, ...cells];
     });
 
-    const thead = `<thead><tr class="border-b border-gray-100 text-left text-xs uppercase tracking-wide text-gray-500">${headers
+    const thead = `<thead><tr class="border-b border-line-subtle text-left text-xs uppercase tracking-wide text-content-muted">${headers
         .map((header) => `<th class="py-2 pr-3 font-semibold">${header}</th>`)
         .join('')}</tr></thead>`;
 
     const tbody = `<tbody>${rows
         .map(
             (row) =>
-                `<tr class="border-b border-gray-50">${row
-                    .map((cell, index) => `<td class="py-2 pr-3 ${index === 0 ? 'font-medium text-teelo-dark' : 'text-gray-700'}">${cell}</td>`)
+                `<tr class="border-b border-line-subtle">${row
+                    .map((cell, index) => `<td class="py-2 pr-3 ${index === 0 ? 'font-medium text-teelo-dark' : 'text-content-secondary'}">${cell}</td>`)
                     .join('')}</tr>`
         )
         .join('')}</tbody>`;
@@ -428,7 +428,7 @@ async function loadCharts(source) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#9CA3AF';
+                ctx.fillStyle = '#9CA3AF'; // --content-faintest approx
                 ctx.font = '14px Inter, sans-serif';
                 ctx.fillText('Loading...', 12, 22);
             }
@@ -468,7 +468,7 @@ async function loadCharts(source) {
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = '#F87171';
+                    ctx.fillStyle = '#F87171'; // status-danger light
                     ctx.font = '14px Inter, sans-serif';
                     ctx.fillText('Error loading data', 12, 22);
                 }
@@ -522,15 +522,15 @@ function setTabActive(tab, active) {
     }
 
     if (active) {
-        tab.classList.remove('text-gray-500');
+        tab.classList.remove('text-content-muted');
         tab.classList.add('border-b-2', 'border-[#CCFF00]', 'text-[#CCFF00]');
-        tab.style.borderBottomColor = '#CCFF00';
-        tab.style.color = '#CCFF00';
+        tab.style.borderBottomColor = '#CCFF00'; // var(--color-teelo-lime)
+        tab.style.color = '#CCFF00'; // var(--color-teelo-lime)
         return;
     }
 
     tab.classList.remove('border-b-2', 'border-[#CCFF00]', 'text-[#CCFF00]');
-    tab.classList.add('text-gray-500');
+    tab.classList.add('text-content-muted');
     tab.style.borderBottomColor = 'transparent';
     tab.style.color = '';
 }

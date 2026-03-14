@@ -5,12 +5,12 @@ import { escapeHtml } from './lib/format.js';
 const DEBOUNCE_MS = 250;
 
 const TOUR_COLORS = {
-  ATP: { bg: '#E8EEF9', label: '#002865' },
-  WTA: { bg: '#FCE6F1', label: '#E30066' },
-  CHALLENGER: { bg: '#E6F3EC', label: '#006B3F' },
-  ITF: { bg: '#F1F3F5', label: '#4B5563' },
-  'WTA 125': { bg: '#E6F3EC', label: '#006B3F' },
-  WTA_125: { bg: '#E6F3EC', label: '#006B3F' },
+  ATP: { bg: '#E8EEF9', label: '#002865' }, // inline badge colors; label matches --tour-atp
+  WTA: { bg: '#FCE6F1', label: '#E30066' }, // inline badge colors; label matches --tour-wta
+  CHALLENGER: { bg: '#E6F3EC', label: '#006B3F' }, // inline badge colors; label matches --tour-challenger
+  ITF: { bg: '#F1F3F5', label: '#4B5563' }, // inline badge colors; label matches --tour-itf
+  'WTA 125': { bg: '#E6F3EC', label: '#006B3F' }, // inline badge colors; label matches --tour-challenger
+  WTA_125: { bg: '#E6F3EC', label: '#006B3F' }, // inline badge colors; label matches --tour-challenger
 };
 
 function normalizeTour(tour) {
@@ -18,7 +18,7 @@ function normalizeTour(tour) {
 }
 
 function tourStyle(tour) {
-  return TOUR_COLORS[normalizeTour(tour)] || { bg: '#F1F3F5', label: '#374151' };
+  return TOUR_COLORS[normalizeTour(tour)] || { bg: '#F1F3F5', label: '#374151' }; // inline badge colors; label matches --tour-itf
 }
 
 function buildBadge(label, tour) {
@@ -36,7 +36,7 @@ function renderResults(results, activeIndex) {
   const hasMore = playerHasMore || tournamentHasMore;
 
   if (!players.length && !tournaments.length) {
-    return '<div class="px-4 py-4 text-sm text-gray-500">No results</div>';
+    return '<div class="px-4 py-4 text-sm text-content-muted">No results</div>';
   }
 
   let idx = -1;
@@ -44,7 +44,7 @@ function renderResults(results, activeIndex) {
   const playerRows = players.length
     ? players.map((player) => {
       idx += 1;
-      const activeClass = idx === activeIndex ? 'bg-gray-50' : 'hover:bg-gray-50';
+      const activeClass = idx === activeIndex ? 'bg-surface-alt' : 'hover:bg-surface-hover';
       return `
         <a
           href="${escapeHtml(player.url || '#')}"
@@ -53,18 +53,18 @@ function renderResults(results, activeIndex) {
         >
           <div class="min-w-0">
             <div class="text-sm font-medium text-teelo-dark truncate">${escapeHtml(player.name || 'Unknown Player')}</div>
-            <div class="text-[11px] text-gray-400 mt-0.5">${escapeHtml(player.nationality_ioc || '')}</div>
+            <div class="text-[11px] text-content-faint mt-0.5">${escapeHtml(player.nationality_ioc || '')}</div>
           </div>
           ${buildBadge(player.tour || 'ATP', player.tour || 'ATP')}
         </a>
       `;
     }).join('')
-    : '<div class="px-4 py-2.5 text-xs text-gray-400">No player matches</div>';
+    : '<div class="px-4 py-2.5 text-xs text-content-faint">No player matches</div>';
 
   const tournamentRows = tournaments.length
     ? tournaments.map((tournament) => {
       idx += 1;
-      const activeClass = idx === activeIndex ? 'bg-gray-50' : 'hover:bg-gray-50';
+      const activeClass = idx === activeIndex ? 'bg-surface-alt' : 'hover:bg-surface-hover';
       const locationParts = [tournament.city, tournament.country].filter((value) => String(value || '').trim());
       const metaParts = [tournament.level, locationParts.length ? locationParts.join(', ') : '']
         .filter((value) => String(value || '').trim());
@@ -76,22 +76,22 @@ function renderResults(results, activeIndex) {
         >
           <div class="min-w-0">
             <div class="text-sm font-medium text-teelo-dark truncate">${escapeHtml(tournament.name || 'Unknown Tournament')}</div>
-            <div class="text-[11px] text-gray-400 mt-0.5">${escapeHtml(metaParts.join(' · '))}</div>
+            <div class="text-[11px] text-content-faint mt-0.5">${escapeHtml(metaParts.join(' · '))}</div>
           </div>
           ${buildBadge(tournament.tour || 'ITF', tournament.tour || 'ITF')}
         </a>
       `;
     }).join('')
-    : '<div class="px-4 py-2.5 text-xs text-gray-400">No tournament matches</div>';
+    : '<div class="px-4 py-2.5 text-xs text-content-faint">No tournament matches</div>';
 
   return `
     <div class="max-h-96 overflow-y-auto">
-      <div class="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Players (${playerCount}${playerHasMore ? '+' : ''})</div>
+      <div class="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-content-faint font-semibold">Players (${playerCount}${playerHasMore ? '+' : ''})</div>
       ${playerRows}
-      <div class="border-t border-gray-100"></div>
-      <div class="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Tournaments (${tournamentCount}${tournamentHasMore ? '+' : ''})</div>
+      <div class="border-t border-line-subtle"></div>
+      <div class="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-content-faint font-semibold">Tournaments (${tournamentCount}${tournamentHasMore ? '+' : ''})</div>
       ${tournamentRows}
-      ${hasMore ? `<div class="border-t border-gray-100"></div><a href="/search?q=${encodeURIComponent(results?.query || '')}" class="block px-4 py-2.5 text-sm font-medium text-teelo-dark hover:bg-gray-50" data-search-result-link>See all results</a>` : ''}
+      ${hasMore ? `<div class="border-t border-line-subtle"></div><a href="/search?q=${encodeURIComponent(results?.query || '')}" class="block px-4 py-2.5 text-sm font-medium text-teelo-dark hover:bg-surface-hover" data-search-result-link>See all results</a>` : ''}
     </div>
   `;
 }

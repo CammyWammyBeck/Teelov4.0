@@ -43,9 +43,9 @@ export function initRankingsPage() {
 
     els.tabs.forEach((t) => {
       t.classList.remove('bg-teelo-lime', 'text-teelo-dark', 'shadow-sm');
-      t.classList.add('text-gray-400');
+      t.classList.add('text-content-faint');
     });
-    tab.classList.remove('text-gray-400');
+    tab.classList.remove('text-content-faint');
     tab.classList.add('bg-teelo-lime', 'text-teelo-dark', 'shadow-sm');
 
     const showMen = gender === 'men';

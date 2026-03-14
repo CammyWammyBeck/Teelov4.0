@@ -60,7 +60,7 @@ function escapeHtml(str) {
 
 function showToast(msg, isError) {
     copyToast.textContent = msg;
-    copyToast.style.background = isError ? '#dc2626' : '#16a34a';
+    copyToast.style.background = isError ? 'var(--status-danger, #dc2626)' : 'var(--status-success, #16a34a)';
     copyToast.classList.add('show');
     setTimeout(function() { copyToast.classList.remove('show'); }, 2000);
 }
@@ -192,11 +192,11 @@ function renderResults(data) {
     // Body
     var bodyHtml = '';
     for (var r = 0; r < data.rows.length; r++) {
-        bodyHtml += '<tr class="hover:bg-gray-50" data-row-idx="' + r + '">';
+        bodyHtml += '<tr class="hover:bg-surface-hover" data-row-idx="' + r + '">';
         for (var c = 0; c < data.rows[r].length; c++) {
             var cell = data.rows[r][c];
             var isPk = data.pk_columns && data.pk_columns.indexOf(data.columns[c]) !== -1;
-            var display = cell === null ? '<span class="text-gray-300 italic">NULL</span>' : escapeHtml(String(cell));
+            var display = cell === null ? '<span class="text-content-faintest italic">NULL</span>' : escapeHtml(String(cell));
             var editClass = (editable && !isPk) ? ' cursor-text' : '';
             bodyHtml += '<td class="px-4 py-2 whitespace-nowrap max-w-xs truncate' + editClass + '" data-col-idx="' + c + '">' + display + '</td>';
         }
@@ -297,10 +297,10 @@ resultsBody.addEventListener('dblclick', function(e) {
                 // Update local data
                 var parsed = newVal === 'NULL' ? null : newVal;
                 currentData.rows[rowIdx][colIdx] = parsed;
-                var display = parsed === null ? '<span class="text-gray-300 italic">NULL</span>' : escapeHtml(String(parsed));
+                var display = parsed === null ? '<span class="text-content-faintest italic">NULL</span>' : escapeHtml(String(parsed));
                 td.innerHTML = display;
                 td.style.opacity = '';
-                td.style.background = '#f0fdf4';
+                td.style.background = 'var(--status-success-bg, #f0fdf4)';
                 setTimeout(function() { td.style.background = ''; }, 1500);
                 showToast('Saved');
             }
@@ -313,7 +313,7 @@ resultsBody.addEventListener('dblclick', function(e) {
     }
 
     function restoreCell() {
-        var display = currentVal === null ? '<span class="text-gray-300 italic">NULL</span>' : escapeHtml(String(currentVal));
+        var display = currentVal === null ? '<span class="text-content-faintest italic">NULL</span>' : escapeHtml(String(currentVal));
         td.innerHTML = display;
         td.style.opacity = '';
     }
@@ -380,7 +380,7 @@ async function loadRecentQueries() {
         var resp = await fetch('/admin/sql/recent');
         var data = await resp.json();
         if (!resp.ok || !data.queries || data.queries.length === 0) {
-            recentQueriesEl.innerHTML = '<p class="text-xs text-gray-400 italic">No recent queries</p>';
+            recentQueriesEl.innerHTML = '<p class="text-xs text-content-faint italic">No recent queries</p>';
             return;
         }
         var html = '';
@@ -388,9 +388,9 @@ async function loadRecentQueries() {
             var q = data.queries[i];
             var truncated = q.query.length > 80 ? q.query.substring(0, 80) + '...' : q.query;
             var ago = q.last_run ? timeAgo(new Date(q.last_run)) : '';
-            html += '<button class="recent-query-btn w-full text-left px-2 py-1.5 rounded-lg text-xs font-mono text-gray-600 hover:bg-gray-100 hover:text-teelo-dark transition truncate block" title="' + escapeHtml(q.query).replace(/"/g, '&quot;') + '">';
+            html += '<button class="recent-query-btn w-full text-left px-2 py-1.5 rounded-lg text-xs font-mono text-content-secondary hover:bg-surface-hover hover:text-teelo-dark transition truncate block" title="' + escapeHtml(q.query).replace(/"/g, '&quot;') + '">';
             html += '<span class="block truncate">' + escapeHtml(truncated) + '</span>';
-            if (ago) html += '<span class="block text-[10px] text-gray-400 mt-0.5">' + escapeHtml(ago) + '</span>';
+            if (ago) html += '<span class="block text-[10px] text-content-faint mt-0.5">' + escapeHtml(ago) + '</span>';
             html += '</button>';
         }
         recentQueriesEl.innerHTML = html;
@@ -407,7 +407,7 @@ async function loadRecentQueries() {
             })(btns[b], data.queries[b].query);
         }
     } catch (e) {
-        recentQueriesEl.innerHTML = '<p class="text-xs text-gray-400 italic">Failed to load</p>';
+        recentQueriesEl.innerHTML = '<p class="text-xs text-content-faint italic">Failed to load</p>';
     }
 }
 

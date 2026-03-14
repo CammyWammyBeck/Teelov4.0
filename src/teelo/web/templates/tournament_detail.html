@@ -32,22 +32,22 @@
     data-year="{{ edition.year }}"
     data-has-draw="{{ 'true' if has_draw else 'false' }}"
 >
-    <section class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
+    <section class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
         <div class="border-l-4 border-teelo-lime px-6 py-6 space-y-5">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <p class="text-xs uppercase tracking-wider text-gray-400 font-semibold mb-1">Tournament Edition</p>
+                    <p class="text-xs uppercase tracking-wider text-content-faint font-semibold mb-1">Tournament Edition</p>
                     <div class="flex items-center gap-2.5 flex-wrap">
                         <h1 class="text-3xl md:text-4xl font-extrabold text-teelo-dark tracking-tight">{{ tournament.name }}</h1>
-                        <span class="{{ circuit_bg(tournament.tour, tournament.level) }} text-white text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight">{{ circuit_label(tournament.tour, tournament.level) }}</span>
+                        <span class="{{ circuit_bg(tournament.tour, tournament.level) }} text-content-inverse text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight">{{ circuit_label(tournament.tour, tournament.level) }}</span>
                     </div>
                 </div>
-                <label class="inline-flex items-center gap-2 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                    <i data-lucide="history" class="w-4 h-4 text-gray-400"></i>
+                <label class="inline-flex items-center gap-2 text-xs text-content-muted font-semibold uppercase tracking-wider">
+                    <i data-lucide="history" class="w-4 h-4 text-content-faint"></i>
                     Year
                     <select
                         id="tournament-year-select"
-                        class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:border-teelo-dark"
+                        class="px-3 py-1.5 text-sm border border-line rounded-lg bg-surface text-content-secondary focus:outline-none focus:border-teelo-dark"
                         aria-label="Select edition year"
                     >
                         {% for item in years %}
@@ -58,37 +58,37 @@
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                    <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>Location</p>
+                <div class="rounded-xl border border-line-subtle bg-surface-alt/60 p-3">
+                    <p class="text-[11px] uppercase tracking-wider text-content-faint font-semibold flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>Location</p>
                     <p class="text-sm font-semibold text-teelo-dark mt-1">{{ location or '—' }}</p>
                 </div>
-                <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                    <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Surface</p>
+                <div class="rounded-xl border border-line-subtle bg-surface-alt/60 p-3">
+                    <p class="text-[11px] uppercase tracking-wider text-content-faint font-semibold">Surface</p>
                     <p class="text-sm font-semibold mt-1 {{ surface_cls(surface) if surface else '' }}">{{ surface or '—' }}{% if tournament.indoor_outdoor %} · {{ tournament.indoor_outdoor }}{% endif %}</p>
                 </div>
-                <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                    <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Draw Size</p>
+                <div class="rounded-xl border border-line-subtle bg-surface-alt/60 p-3">
+                    <p class="text-[11px] uppercase tracking-wider text-content-faint font-semibold">Draw Size</p>
                     <p class="text-sm font-semibold text-teelo-dark mt-1">{{ draw_size or '—' }}</p>
                 </div>
-                <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                    <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Edition</p>
+                <div class="rounded-xl border border-line-subtle bg-surface-alt/60 p-3">
+                    <p class="text-[11px] uppercase tracking-wider text-content-faint font-semibold">Edition</p>
                     <p class="text-sm font-semibold text-teelo-dark mt-1">{{ ordinal(edition_number) }} Edition</p>
                 </div>
-                <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                    <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5"><i data-lucide="trophy" class="w-3.5 h-3.5"></i>Champion</p>
+                <div class="rounded-xl border border-line-subtle bg-surface-alt/60 p-3">
+                    <p class="text-[11px] uppercase tracking-wider text-content-faint font-semibold flex items-center gap-1.5"><i data-lucide="trophy" class="w-3.5 h-3.5"></i>Champion</p>
                     <p class="text-sm font-semibold text-teelo-dark mt-1">{{ champion.name or '—' }}</p>
-                    <p class="text-xs text-gray-500 mt-0.5">{{ champion.score or '—' }}</p>
+                    <p class="text-xs text-content-muted mt-0.5">{{ champion.score or '—' }}</p>
                 </div>
-                <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3 sm:col-span-2 xl:col-span-2">
-                    <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold flex items-center gap-1.5"><i data-lucide="calendar-days" class="w-3.5 h-3.5"></i>Date Range</p>
+                <div class="rounded-xl border border-line-subtle bg-surface-alt/60 p-3 sm:col-span-2 xl:col-span-2">
+                    <p class="text-[11px] uppercase tracking-wider text-content-faint font-semibold flex items-center gap-1.5"><i data-lucide="calendar-days" class="w-3.5 h-3.5"></i>Date Range</p>
                     <p class="text-sm font-semibold text-teelo-dark mt-1">{{ date_range or '—' }}</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-        <div class="px-6 pt-4 border-b border-gray-100">
+    <section class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+        <div class="px-6 pt-4 border-b border-line-subtle">
             <div class="flex items-center gap-6">
                 <button
                     type="button"
@@ -101,7 +101,7 @@
                 <button
                     type="button"
                     data-tab="draw"
-                    class="tournament-tab pb-2.5 border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+                    class="tournament-tab pb-2.5 border-b-2 border-transparent text-content-muted hover:text-content-secondary"
                 >
                     Draw
                 </button>
@@ -125,7 +125,7 @@
                 <div class="hidden md:block overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
+                            <tr class="bg-surface-alt/50 text-content-faint text-[11px] uppercase tracking-wider font-bold border-b border-line-subtle">
                                 <th class="px-5 py-3">Tournament</th>
                                 <th class="px-5 py-3 text-right">Player A</th>
                                 <th class="px-5 py-3 text-center">Score</th>
@@ -133,14 +133,14 @@
                                 <th class="px-5 py-3 text-right">Date</th>
                             </tr>
                         </thead>
-                        <tbody id="tournament-matches-table-body" class="divide-y divide-gray-100/70"></tbody>
+                        <tbody id="tournament-matches-table-body" class="divide-y divide-line-subtle/70"></tbody>
                     </table>
                 </div>
-                <div id="tournament-matches-cards-container" class="md:hidden divide-y divide-gray-100"></div>
+                <div id="tournament-matches-cards-container" class="md:hidden divide-y divide-line-subtle"></div>
                 <div id="tournament-matches-empty" class="hidden text-center py-12">
-                    <i data-lucide="search" class="w-10 h-10 text-gray-200 mx-auto"></i>
-                    <p class="text-sm font-semibold text-gray-400 mt-3">No matches found</p>
-                    <p class="text-xs text-gray-400 mt-0.5">Try a different status filter</p>
+                    <i data-lucide="search" class="w-10 h-10 text-content-faintest mx-auto"></i>
+                    <p class="text-sm font-semibold text-content-faint mt-3">No matches found</p>
+                    <p class="text-xs text-content-faint mt-0.5">Try a different status filter</p>
                 </div>
                 <div id="matches-pagination" class="hidden"></div>
             </div>
@@ -158,10 +158,10 @@
         {% endif %}
     </section>
 
-    <section class="bg-white rounded-2xl shadow-soft border border-gray-100 p-6">
+    <section class="bg-surface rounded-2xl shadow-soft border border-line-subtle p-6">
         <div class="flex items-center justify-between gap-3 mb-4">
             <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
-                <i data-lucide="clock-3" class="w-4 h-4 text-gray-400"></i>
+                <i data-lucide="clock-3" class="w-4 h-4 text-content-faint"></i>
                 Edition History
             </h2>
         </div>
@@ -174,7 +174,7 @@
             <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100">
+                        <tr class="bg-surface-alt/50 text-content-faint text-[11px] uppercase tracking-wider font-bold border-b border-line-subtle">
                             <th class="px-5 py-3">Year</th>
                             <th class="px-5 py-3">Champion</th>
                             <th class="px-5 py-3">Runner-up</th>
@@ -182,14 +182,14 @@
                             <th class="px-5 py-3">Surface</th>
                         </tr>
                     </thead>
-                    <tbody id="edition-history-table-body" class="divide-y divide-gray-100"></tbody>
+                    <tbody id="edition-history-table-body" class="divide-y divide-line-subtle"></tbody>
                 </table>
             </div>
 
-            <div id="edition-history-cards" class="md:hidden divide-y divide-gray-100"></div>
+            <div id="edition-history-cards" class="md:hidden divide-y divide-line-subtle"></div>
 
             <div id="edition-history-empty" class="hidden text-center py-10">
-                <p class="text-sm font-semibold text-gray-400">No edition history found</p>
+                <p class="text-sm font-semibold text-content-faint">No edition history found</p>
             </div>
         </div>
     </section>

@@ -4,24 +4,24 @@
 <div class="max-w-4xl mx-auto">
     <div class="mb-10 text-center">
         <h1 class="text-3xl font-bold text-teelo-dark mb-4">Teelo Blog</h1>
-        <p class="text-gray-500 max-w-xl mx-auto">Updates, analysis, and insights from the world of tennis and the Teelo project</p>
+        <p class="text-content-muted max-w-xl mx-auto">Updates, analysis, and insights from the world of tennis and the Teelo project</p>
     </div>
 
     <!-- Category filter -->
     {% if categories|length > 1 %}
     <div class="flex flex-wrap items-center justify-center gap-2 mb-8">
-        <button data-category="all" class="category-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-teelo-dark text-white">All</button>
+        <button data-category="all" class="category-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-teelo-dark text-content-inverse">All</button>
         {% for cat in categories %}
-        <button data-category="{{ cat }}" class="category-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-gray-100 text-gray-600 hover:bg-gray-200">{{ cat }}</button>
+        <button data-category="{{ cat }}" class="category-btn px-4 py-1.5 rounded-full text-sm font-semibold transition-all bg-surface-muted text-content-secondary hover:bg-surface-hover">{{ cat }}</button>
         {% endfor %}
     </div>
     {% endif %}
 
     <div class="space-y-8">
         {% for post in posts %}
-        <article data-post-category="{{ post.category }}" class="blog-post bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300 group">
+        <article data-post-category="{{ post.category }}" class="blog-post bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden hover:shadow-lg transition-all duration-300 group">
             <div class="p-8">
-                <div class="flex items-center gap-3 text-sm text-gray-400 mb-4">
+                <div class="flex items-center gap-3 text-sm text-content-faint mb-4">
                     <span class="bg-teelo-lime text-teelo-dark px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide">{{ post.category }}</span>
                     <span>•</span>
                     <time datetime="{{ post.date }}">{{ post.date.strftime('%d %b %Y') if post.date.strftime is defined else post.date }}</time>
@@ -35,7 +35,7 @@
                     </a>
                 </h2>
 
-                <p class="text-gray-600 mb-6 leading-relaxed">
+                <p class="text-content-secondary mb-6 leading-relaxed">
                     {{ post.excerpt }}
                 </p>
 
@@ -45,7 +45,7 @@
             </div>
         </article>
         {% else %}
-        <div class="text-center py-20 text-gray-400">
+        <div class="text-center py-20 text-content-faint">
             <i data-lucide="pen-tool" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
             <p>No posts found yet.</p>
         </div>
@@ -65,11 +65,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Update button styles
             buttons.forEach(b => {
-                b.classList.remove('bg-teelo-dark', 'text-white');
-                b.classList.add('bg-gray-100', 'text-gray-600');
+                b.classList.remove('bg-teelo-dark', 'text-content-inverse');
+                b.classList.add('bg-surface-muted', 'text-content-secondary');
             });
-            btn.classList.remove('bg-gray-100', 'text-gray-600');
-            btn.classList.add('bg-teelo-dark', 'text-white');
+            btn.classList.remove('bg-surface-muted', 'text-content-secondary');
+            btn.classList.add('bg-teelo-dark', 'text-content-inverse');
 
             // Filter posts
             posts.forEach(post => {

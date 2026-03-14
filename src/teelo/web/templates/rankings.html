@@ -7,15 +7,15 @@
 <!-- Page header -->
 <div class="mb-6">
     <h1 class="text-2xl sm:text-3xl font-extrabold text-teelo-dark tracking-tight">ELO Rankings</h1>
-    <p class="text-sm text-gray-400 mt-1">Updated after every match</p>
+    <p class="text-sm text-content-faint mt-1">Updated after every match</p>
 </div>
 
 <!-- Toggle for inactive players -->
 <div class="flex items-center justify-end mb-4">
     <label class="inline-flex items-center cursor-pointer gap-2">
-        <span class="text-xs text-gray-400 font-medium">Show inactive players</span>
+        <span class="text-xs text-content-faint font-medium">Show inactive players</span>
         <input type="checkbox" id="include-inactive-toggle" class="sr-only peer">
-        <div class="relative w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teelo-lime"></div>
+        <div class="relative w-10 h-5 bg-surface-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface after:border-line-strong after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teelo-lime"></div>
     </label>
 </div>
 
@@ -32,18 +32,18 @@
 <div class="hidden md:block">
 <div class="flex gap-6">
     <!-- Men's column -->
-    <div class="flex-1 min-w-0 bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-        <div class="border-t-4 border-[#002865] px-5 py-3">
+    <div class="flex-1 min-w-0 bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+        <div class="border-t-4 border-tour-atp px-5 py-3">
             <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-gender-male"></span>
                 Men's Rankings
-                <span id="men-count" class="text-xs font-normal text-gray-400 ml-auto"></span>
+                <span id="men-count" class="text-xs font-normal text-content-faint ml-auto"></span>
             </h2>
         </div>
         <div class="rankings-scroll-container" id="men-scroll">
             <table class="w-full">
-                <thead class="sticky top-0 bg-white z-10 border-b border-gray-100">
-                    <tr class="text-xs text-gray-400 uppercase tracking-wider">
+                <thead class="sticky top-0 bg-surface z-10 border-b border-line-subtle">
+                    <tr class="text-xs text-content-faint uppercase tracking-wider">
                         <th class="px-4 py-2 text-right w-12">#</th>
                         <th class="px-4 py-2 text-left">Player</th>
                         <th class="px-4 py-2 text-right">ELO</th>
@@ -61,18 +61,18 @@
     </div>
 
     <!-- Women's column -->
-    <div class="flex-1 min-w-0 bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-        <div class="border-t-4 border-[#E30066] px-5 py-3">
+    <div class="flex-1 min-w-0 bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+        <div class="border-t-4 border-tour-wta px-5 py-3">
             <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-gender-female"></span>
                 Women's Rankings
-                <span id="women-count" class="text-xs font-normal text-gray-400 ml-auto"></span>
+                <span id="women-count" class="text-xs font-normal text-content-faint ml-auto"></span>
             </h2>
         </div>
         <div class="rankings-scroll-container" id="women-scroll">
             <table class="w-full">
-                <thead class="sticky top-0 bg-white z-10 border-b border-gray-100">
-                    <tr class="text-xs text-gray-400 uppercase tracking-wider">
+                <thead class="sticky top-0 bg-surface z-10 border-b border-line-subtle">
+                    <tr class="text-xs text-content-faint uppercase tracking-wider">
                         <th class="px-4 py-2 text-right w-12">#</th>
                         <th class="px-4 py-2 text-left">Player</th>
                         <th class="px-4 py-2 text-right">ELO</th>
@@ -94,25 +94,25 @@
 <!-- ===== Mobile: tabbed view ===== -->
 <div class="md:hidden">
     <!-- Tab bar -->
-    <div class="flex bg-white rounded-xl shadow-soft border border-gray-100 p-1 mb-4">
+    <div class="flex bg-surface rounded-xl shadow-soft border border-line-subtle p-1 mb-4">
         <button class="rankings-tab flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 bg-teelo-lime text-teelo-dark shadow-sm" data-gender="men">
             <span class="flex items-center justify-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-blue-500"></span> Men
+                <span class="w-2 h-2 rounded-full bg-gender-male"></span> Men
             </span>
         </button>
-        <button class="rankings-tab flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 text-gray-400" data-gender="women">
+        <button class="rankings-tab flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 text-content-faint" data-gender="women">
             <span class="flex items-center justify-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-pink-500"></span> Women
+                <span class="w-2 h-2 rounded-full bg-gender-female"></span> Women
             </span>
         </button>
     </div>
 
     <!-- Men's panel -->
-    <div id="mobile-men" class="mobile-rankings-panel bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden">
-        <div class="border-t-4 border-[#002865]">
+    <div id="mobile-men" class="mobile-rankings-panel bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
+        <div class="border-t-4 border-tour-atp">
             <table class="w-full">
-                <thead class="sticky top-0 bg-white z-10 border-b border-gray-100">
-                    <tr class="text-xs text-gray-400 uppercase tracking-wider">
+                <thead class="sticky top-0 bg-surface z-10 border-b border-line-subtle">
+                    <tr class="text-xs text-content-faint uppercase tracking-wider">
                         <th class="px-3 py-2 text-right w-10">#</th>
                         <th class="px-3 py-2 text-left">Player</th>
                         <th class="px-3 py-2 text-right">ELO</th>
@@ -127,11 +127,11 @@
     </div>
 
     <!-- Women's panel -->
-    <div id="mobile-women" class="mobile-rankings-panel bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden hidden">
-        <div class="border-t-4 border-[#E30066]">
+    <div id="mobile-women" class="mobile-rankings-panel bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden hidden">
+        <div class="border-t-4 border-tour-wta">
             <table class="w-full">
-                <thead class="sticky top-0 bg-white z-10 border-b border-gray-100">
-                    <tr class="text-xs text-gray-400 uppercase tracking-wider">
+                <thead class="sticky top-0 bg-surface z-10 border-b border-line-subtle">
+                    <tr class="text-xs text-content-faint uppercase tracking-wider">
                         <th class="px-3 py-2 text-right w-10">#</th>
                         <th class="px-3 py-2 text-left">Player</th>
                         <th class="px-3 py-2 text-right">ELO</th>
@@ -149,8 +149,8 @@
 <!-- Empty state (shown when no data) -->
 <div id="rankings-empty" class="hidden text-center py-16">
     <i data-lucide="bar-chart-2" class="empty-state-icon"></i>
-    <h3 class="mt-4 text-lg font-semibold text-gray-400">No rankings available</h3>
-    <p class="text-sm text-gray-400 mt-1">ELO ratings haven't been computed yet.</p>
+    <h3 class="mt-4 text-lg font-semibold text-content-faint">No rankings available</h3>
+    <p class="text-sm text-content-faint mt-1">ELO ratings haven't been computed yet.</p>
 </div>
 
 <script type="module" src="{{ url_for('static', path='/js/rankings.js') }}"></script>

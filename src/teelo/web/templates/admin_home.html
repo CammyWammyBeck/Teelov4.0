@@ -7,11 +7,11 @@
     <div class="flex items-center justify-between gap-4">
         <div>
             <h1 class="text-3xl font-extrabold tracking-tight text-teelo-dark">Admin Panel</h1>
-            <p class="text-sm text-gray-500 mt-1">Signed in as <span class="font-semibold">{{ admin.username }}</span></p>
+            <p class="text-sm text-content-muted mt-1">Signed in as <span class="font-semibold">{{ admin.username }}</span></p>
         </div>
         <form method="post" action="/admin/logout">
             <button type="submit"
-                    class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                    class="rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-content-secondary hover:bg-surface-hover transition">
                 Log out
             </button>
         </form>
@@ -19,35 +19,35 @@
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <a href="/admin/duplicates"
-           class="block bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition">
-            <div class="text-sm font-semibold text-gray-500">Player Duplicate Queue</div>
+           class="block bg-surface border border-line rounded-xl p-5 shadow-sm hover:shadow transition">
+            <div class="text-sm font-semibold text-content-muted">Player Duplicate Queue</div>
             <div class="mt-2 text-3xl font-bold text-teelo-dark">{{ pending_count }}</div>
-            <div class="text-sm text-gray-500 mt-1">Pending review items</div>
+            <div class="text-sm text-content-muted mt-1">Pending review items</div>
         </a>
 
         <a href="/admin/invalid-matches"
-           class="block bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition">
-            <div class="text-sm font-semibold text-gray-500">Invalid Matches</div>
+           class="block bg-surface border border-line rounded-xl p-5 shadow-sm hover:shadow transition">
+            <div class="text-sm font-semibold text-content-muted">Invalid Matches</div>
             <div class="mt-2 text-3xl font-bold text-teelo-dark">{{ invalid_match_count }}</div>
-            <div class="text-sm text-gray-500 mt-1">Matches needing data correction</div>
+            <div class="text-sm text-content-muted mt-1">Matches needing data correction</div>
         </a>
 
         <a href="/admin/sql"
-           class="block bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition">
-            <div class="text-sm font-semibold text-gray-500">SQL Editor</div>
+           class="block bg-surface border border-line rounded-xl p-5 shadow-sm hover:shadow transition">
+            <div class="text-sm font-semibold text-content-muted">SQL Editor</div>
             <div class="mt-2 text-3xl font-bold text-teelo-dark">
                 <i data-lucide="database" class="w-8 h-8"></i>
             </div>
-            <div class="text-sm text-gray-500 mt-1">Query and update database tables</div>
+            <div class="text-sm text-content-muted mt-1">Query and update database tables</div>
         </a>
 
         <a href="/admin/predictions"
-           class="block bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition">
-            <div class="text-sm font-semibold text-gray-500">Prediction Tracker</div>
+           class="block bg-surface border border-line rounded-xl p-5 shadow-sm hover:shadow transition">
+            <div class="text-sm font-semibold text-content-muted">Prediction Tracker</div>
             <div class="mt-2 text-3xl font-bold text-teelo-dark">
                 <i data-lucide="bar-chart-3" class="w-8 h-8"></i>
             </div>
-            <div class="text-sm text-gray-500 mt-1">Model accuracy and prediction analytics</div>
+            <div class="text-sm text-content-muted mt-1">Model accuracy and prediction analytics</div>
         </a>
     </div>
 </section>
