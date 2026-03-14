@@ -1,5 +1,7 @@
 from teelo.features import build_registry, default_preset_for_feature_set
 from teelo.ml.selection import ABLATION_GROUP_PREFIXES
+import subprocess
+import sys
 
 
 def test_build_registry_baseline_v2_includes_new_feature_groups() -> None:
@@ -48,3 +50,16 @@ def test_selection_ablation_prefixes_cover_baseline_v2_groups() -> None:
         "match_date_estimated_",
     ):
         assert prefix in ABLATION_GROUP_PREFIXES
+
+
+def test_feature_engine_help_lists_trimmed_v2_preset() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "teelo.features.engine", "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={"PYTHONPATH": "src"},
+    )
+
+    assert result.returncode == 0
+    assert "trimmed_v2" in result.stdout

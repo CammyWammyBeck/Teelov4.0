@@ -453,8 +453,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--preset",
         default="full",
-        choices=["full", "trimmed", "baseline_v1", "trimmed_v1", "baseline_v2"],
-        help="Feature preset: full/baseline_v1, trimmed/trimmed_v1, or baseline_v2",
+        choices=["full", "trimmed", "baseline_v1", "trimmed_v1", "baseline_v2", "trimmed_v2"],
+        help="Feature preset: full/baseline_v1, trimmed/trimmed_v1, baseline_v2, or trimmed_v2",
     )
     args = parser.parse_args()
 
