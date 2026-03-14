@@ -43,14 +43,20 @@ def group_display_name(group_key: str) -> str:
 def feature_display_name(feature_key: str) -> str:
     """Convert a feature key to a human-readable name.
 
-    Strips _a/_b suffixes, replaces underscores, applies special cases.
+    Strips player markers (_a/_b suffix or _a_/_b_ infix), replaces
+    underscores, applies special cases.
+
     Examples:
-        'elo_a' -> 'ELO'
-        'win_rate_8w_a' -> 'Win Rate 8w'
-        'elo_diff' -> 'ELO Diff'
+        'elo_a'          -> 'ELO'
+        'win_rate_8w_a'  -> 'Win Rate 8w'
+        'h2h_a_wins'     -> 'H2H Wins'
+        'h2h_a_wins_2y'  -> 'H2H Wins 2y'
+        'elo_diff'       -> 'ELO Diff'
     """
-    # Strip trailing _a or _b (player suffix)
+    # Strip trailing _a or _b (suffix pattern)
     base = re.sub(r"_[ab]$", "", feature_key)
+    # Strip infix _a_ or _b_ (first occurrence only)
+    base = re.sub(r"_[ab]_", "_", base, count=1)
     parts = base.split("_")
     display_parts = []
     for part in parts:
@@ -85,11 +91,39 @@ def format_feature_value(value: Any, feature_key: str) -> str:
     return str(value)
 
 
+_SUFFIX_RE = re.compile(r"_[ab]$")
+_INFIX_RE = re.compile(r"_([ab])_")
+
+
+def _classify_player_key(key: str) -> tuple[str | None, str | None]:
+    """Determine which player a feature belongs to and its base name.
+
+    Handles two naming patterns:
+      - Suffix: 'elo_a' / 'win_rate_8w_b'  -> player from trailing _a/_b
+      - Infix:  'h2h_a_wins' / 'h2h_b_wins' -> player from _a_/_b_ in middle
+
+    Returns (base_name, player) where player is 'a', 'b', or None.
+    """
+    # Suffix pattern: key ends with _a or _b
+    if _SUFFIX_RE.search(key):
+        return key[:-2], key[-1]
+    # Infix pattern: key contains _a_ or _b_ (first occurrence)
+    m = _INFIX_RE.search(key)
+    if m:
+        base = key[:m.start()] + "_" + key[m.end():]
+        return base, m.group(1)
+    return None, None
+
+
 def pair_features(
     feature_keys: list[str],
     feature_values: dict[str, Any],
 ) -> list[dict]:
-    """Pair _a/_b features into comparison rows.
+    """Pair player A/B features into comparison rows.
+
+    Handles two naming patterns:
+      - Suffix: 'elo_a' / 'elo_b' -> paired on base 'elo'
+      - Infix:  'h2h_a_wins' / 'h2h_b_wins' -> paired on base 'h2h_wins'
 
     Returns a list of dicts, each with:
       - 'key': base feature name
@@ -99,24 +133,23 @@ def pair_features(
       - 'value_b': value for player B (paired only)
       - 'value': single value (single/diff only)
     """
-    a_keys = {}
-    b_keys = {}
-    other_keys = []
+    a_keys: dict[str, str] = {}  # base -> original key
+    b_keys: dict[str, str] = {}
+    other_keys: list[str] = []
 
     for key in feature_keys:
-        if key.endswith("_a"):
-            base = key[:-2]
+        base, player = _classify_player_key(key)
+        if player == "a":
             a_keys[base] = key
-        elif key.endswith("_b"):
-            base = key[:-2]
+        elif player == "b":
             b_keys[base] = key
         else:
             other_keys.append(key)
 
     rows = []
-    seen_bases = set()
+    seen_bases: set[str] = set()
 
-    # Process paired features
+    # Process paired features (both _a and _b exist for same base)
     for base in a_keys:
         if base in b_keys:
             seen_bases.add(base)
