@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -153,4 +153,6 @@ async def match_detail(match_id: int, request: Request, db: Session = Depends(ge
         "feature_groups": feature_groups,
         "feature_set": feature_set_info,
         "format_value": format_feature_value,
+        "now": datetime.utcnow(),
+        "current_path": request.url.path,
     })
