@@ -1,10 +1,5 @@
 import { escapeHtml, slugifyName } from '../lib/format.js';
 
-const BASE_MATCH_HEIGHT = 70;
-const BASE_GAP = 14;
-const HEADER_HEIGHT = 32;
-const COLUMN_WIDTH = 220;
-
 const cleanupMap = new WeakMap();
 
 function expectedMatchesForRound(roundCode, fallbackCount) {
@@ -40,7 +35,18 @@ function playerRowHtml(player, isWinner) {
   `;
 }
 
-function buildMatchCard(match, roundIndex, position, topPx, isPlaceholder = false) {
+function getRoundMatchMap(round) {
+  const map = new Map();
+  const matches = Array.isArray(round?.matches) ? round.matches : [];
+  for (const match of matches) {
+    const pos = Number(match?.draw_position);
+    if (!Number.isFinite(pos) || pos <= 0) continue;
+    map.set(pos, match);
+  }
+  return map;
+}
+
+function buildMatchCard(match, visibleRoundIndex, position, isPlaceholder = false) {
   const winnerId = match?.winner_id ?? null;
   const playerA = match?.player_a || { name: 'TBD', seed: null, id: null };
   const playerB = match?.player_b || { name: 'TBD', seed: null, id: null };
@@ -49,16 +55,12 @@ function buildMatchCard(match, roundIndex, position, topPx, isPlaceholder = fals
   const scoreText = match?.status === 'completed' ? (match.score || '—') : (match?.score || '');
 
   const card = document.createElement('div');
-  card.className = 'teelo-bracket-match bg-white border border-gray-200 rounded-lg p-2 text-sm shadow-sm';
+  card.className = 'teelo-bracket-match bg-white border border-gray-200 rounded-lg p-2.5 text-sm shadow-sm';
   if (isPlaceholder) {
     card.classList.add('teelo-bracket-placeholder', 'bg-gray-50/80');
   }
-  card.dataset.roundIndex = String(roundIndex);
+  card.dataset.roundIndex = String(visibleRoundIndex);
   card.dataset.position = String(position);
-  card.style.position = 'absolute';
-  card.style.width = `${COLUMN_WIDTH}px`;
-  card.style.top = `${topPx}px`;
-  card.style.left = '0';
 
   card.innerHTML = `
     <div class="space-y-1">
@@ -69,17 +71,6 @@ function buildMatchCard(match, roundIndex, position, topPx, isPlaceholder = fals
   `;
 
   return card;
-}
-
-function getRoundMatchMap(round) {
-  const map = new Map();
-  const matches = Array.isArray(round?.matches) ? round.matches : [];
-  for (const match of matches) {
-    const pos = Number(match?.draw_position);
-    if (!Number.isFinite(pos) || pos <= 0) continue;
-    map.set(pos, match);
-  }
-  return map;
 }
 
 function createDebounced(fn, delayMs) {
@@ -93,7 +84,7 @@ function createDebounced(fn, delayMs) {
   };
 }
 
-function drawConnectors(content, svg) {
+function drawConnectors(content, svg, isLastRoundTrailing = false) {
   const rootRect = content.getBoundingClientRect();
   const width = Math.max(content.scrollWidth, Math.ceil(rootRect.width));
   const height = Math.max(content.scrollHeight, Math.ceil(rootRect.height));
@@ -113,32 +104,87 @@ function drawConnectors(content, svg) {
     byRound.get(roundIndex).set(position, card);
   }
 
-  const rounds = Array.from(byRound.keys()).sort((a, b) => a - b);
-  for (const roundIndex of rounds) {
+  const roundKeys = Array.from(byRound.keys()).sort((a, b) => a - b);
+  const maxRoundIndex = roundKeys.length ? roundKeys[roundKeys.length - 1] : -1;
+
+  for (const roundIndex of roundKeys) {
     const sourceMap = byRound.get(roundIndex);
     const targetMap = byRound.get(roundIndex + 1);
-    if (!sourceMap || !targetMap) continue;
 
-    for (const [position, sourceCard] of sourceMap.entries()) {
-      const targetCard = targetMap.get(Math.ceil(position / 2));
-      if (!targetCard) continue;
+    if (targetMap) {
+      // Normal connectors between two visible rounds
+      for (const [position, sourceCard] of sourceMap.entries()) {
+        const targetCard = targetMap.get(Math.ceil(position / 2));
+        if (!targetCard) continue;
 
-      const sourceRect = sourceCard.getBoundingClientRect();
-      const targetRect = targetCard.getBoundingClientRect();
-      const x1 = sourceRect.right - rootRect.left;
-      const y1 = sourceRect.top + sourceRect.height / 2 - rootRect.top;
-      const x2 = targetRect.left - rootRect.left;
-      const y2 = targetRect.top + targetRect.height / 2 - rootRect.top;
-      const midX = x1 + (x2 - x1) * 0.48;
+        const sourceRect = sourceCard.getBoundingClientRect();
+        const targetRect = targetCard.getBoundingClientRect();
+        const x1 = sourceRect.right - rootRect.left;
+        const y1 = sourceRect.top + sourceRect.height / 2 - rootRect.top;
+        const x2 = targetRect.left - rootRect.left;
+        const y2 = targetRect.top + targetRect.height / 2 - rootRect.top;
+        const midX = x1 + (x2 - x1) * 0.48;
 
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`);
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', '#D1D5DB');
-      path.setAttribute('stroke-width', '1.5');
-      path.setAttribute('stroke-linecap', 'round');
-      path.setAttribute('stroke-linejoin', 'round');
-      svg.appendChild(path);
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', '#D1D5DB');
+        path.setAttribute('stroke-width', '1.5');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+        svg.appendChild(path);
+      }
+    } else if (roundIndex === maxRoundIndex && isLastRoundTrailing) {
+      // Trailing connectors off the right edge for the last visible round
+      // Group cards into pairs that would feed the same next-round match
+      const positions = Array.from(sourceMap.keys()).sort((a, b) => a - b);
+      for (let p = 0; p < positions.length; p += 2) {
+        const topCard = sourceMap.get(positions[p]);
+        const bottomCard = positions[p + 1] != null ? sourceMap.get(positions[p + 1]) : null;
+        if (!topCard) continue;
+
+        const topRect = topCard.getBoundingClientRect();
+        const x1 = topRect.right - rootRect.left;
+        const y1 = topRect.top + topRect.height / 2 - rootRect.top;
+        const trailX = width; // right edge of the bracket area
+        const midX = x1 + (trailX - x1) * 0.48;
+
+        if (bottomCard) {
+          const bottomRect = bottomCard.getBoundingClientRect();
+          const y2 = bottomRect.top + bottomRect.height / 2 - rootRect.top;
+          const mergeY = (y1 + y2) / 2;
+
+          // Top match line going right then to merge point
+          const p1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          p1.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${mergeY}`);
+          p1.setAttribute('fill', 'none');
+          p1.setAttribute('stroke', '#D1D5DB');
+          p1.setAttribute('stroke-width', '1.5');
+          p1.setAttribute('stroke-linecap', 'round');
+          p1.setAttribute('stroke-linejoin', 'round');
+          svg.appendChild(p1);
+
+          // Bottom match line going right then up to merge point
+          const bx1 = bottomRect.right - rootRect.left;
+          const p2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          p2.setAttribute('d', `M ${bx1} ${y2} L ${midX} ${y2} L ${midX} ${mergeY}`);
+          p2.setAttribute('fill', 'none');
+          p2.setAttribute('stroke', '#D1D5DB');
+          p2.setAttribute('stroke-width', '1.5');
+          p2.setAttribute('stroke-linecap', 'round');
+          p2.setAttribute('stroke-linejoin', 'round');
+          svg.appendChild(p2);
+        } else {
+          // Single match (odd count) — just a short trailing line
+          const p1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          p1.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1}`);
+          p1.setAttribute('fill', 'none');
+          p1.setAttribute('stroke', '#D1D5DB');
+          p1.setAttribute('stroke-width', '1.5');
+          p1.setAttribute('stroke-linecap', 'round');
+          svg.appendChild(p1);
+        }
+      }
     }
   }
 }
@@ -148,6 +194,127 @@ function cleanupContainer(container) {
   if (!cleanup) return;
   cleanup();
   cleanupMap.delete(container);
+}
+
+function getVisibleWindow(rounds, activeIndex) {
+  const isMobile = window.innerWidth < 640;
+  const windowSize = isMobile ? 1 : 3;
+  const half = Math.floor(windowSize / 2);
+  let start = activeIndex - half;
+  let end = start + windowSize - 1;
+
+  if (start < 0) { start = 0; end = Math.min(windowSize - 1, rounds.length - 1); }
+  if (end >= rounds.length) { end = rounds.length - 1; start = Math.max(0, end - windowSize + 1); }
+
+  return { start, end };
+}
+
+function renderBracketGrid(gridEl, svgEl, rounds, activeIndex) {
+  // Determine visible rounds
+  const { start, end } = getVisibleWindow(rounds, activeIndex);
+  const visibleRounds = rounds.slice(start, end + 1);
+
+  // Compute firstRoundCount (leftmost visible round's expected count)
+  const firstRound = visibleRounds[0];
+  const firstMatchMap = getRoundMatchMap(firstRound);
+  const firstFallback = firstMatchMap.size > 0 ? Math.max(...firstMatchMap.keys()) : (firstRound?.matches?.length || 1);
+  const firstRoundCount = expectedMatchesForRound(firstRound?.round, firstFallback);
+
+  // Set up grid columns
+  gridEl.style.display = 'grid';
+  gridEl.style.gridTemplateColumns = `repeat(${visibleRounds.length}, 1fr)`;
+  gridEl.style.gap = '32px';
+  gridEl.style.alignItems = 'stretch';
+  gridEl.style.minHeight = `${firstRoundCount * 90}px`;
+  gridEl.innerHTML = '';
+
+  visibleRounds.forEach((round, vi) => {
+    const matchMap = getRoundMatchMap(round);
+    const fallbackCount = matchMap.size > 0 ? Math.max(...matchMap.keys()) : (round?.matches?.length || 1);
+    const expectedCount = expectedMatchesForRound(round?.round, fallbackCount);
+
+    // Each match spans (firstRoundCount / expectedCount) grid rows so it
+    // centers between its two feeder matches from the previous round.
+    const stride = Math.max(1, Math.round(firstRoundCount / expectedCount));
+
+    const column = document.createElement('div');
+    column.className = 'teelo-bracket-round';
+    // Use CSS grid within each column for the matches
+    column.style.display = 'grid';
+    column.style.gridTemplateRows = `auto repeat(${firstRoundCount}, 1fr)`;
+    column.style.gap = '0';
+
+    // Header (row 1 of the inner grid)
+    const header = document.createElement('div');
+    header.className = 'teelo-bracket-round-header text-xs uppercase tracking-wider text-gray-400 font-bold text-center';
+    header.textContent = round?.label || round?.round || '';
+    column.appendChild(header);
+
+    // Matches
+    for (let position = 1; position <= expectedCount; position++) {
+      const match = matchMap.get(position);
+      const card = buildMatchCard(match, vi, position, !match);
+
+      // +2: 1 for 1-indexed grid rows, 1 for the header row
+      const rowStart = (position - 1) * stride + 2;
+      card.style.gridRow = `${rowStart} / span ${stride}`;
+      card.style.alignSelf = 'center';
+
+      column.appendChild(card);
+    }
+
+    gridEl.appendChild(column);
+  });
+
+  // Trailing connectors when the last visible round isn't the last round in the data
+  const hasTrailing = end < rounds.length - 1;
+
+  // Resize SVG to cover grid area
+  window.requestAnimationFrame(() => {
+    drawConnectors(gridEl, svgEl, hasTrailing);
+  });
+}
+
+function renderNav(navEl, rounds, activeIndex, onSelect) {
+  navEl.innerHTML = '';
+  const currentWindow = getVisibleWindow(rounds, activeIndex);
+  rounds.forEach((round, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = round?.round || round?.label || String(i + 1);
+    btn.className = 'px-3 py-1.5 text-xs font-semibold rounded-full border select-none transition-all duration-150 whitespace-nowrap';
+
+    const isActive = (i === activeIndex);
+    const isVisible = !isActive && (i >= currentWindow.start && i <= currentWindow.end);
+    const candidateWindow = getVisibleWindow(rounds, i);
+    const isNoOp = !isActive && (
+      candidateWindow.start === currentWindow.start &&
+      candidateWindow.end === currentWindow.end
+    );
+
+    if (isActive) {
+      btn.style.backgroundColor = '#ccff00';
+      btn.style.color = '#1a1a1a';
+      btn.style.borderColor = '#ccff00';
+      btn.classList.add('scale-[1.02]', 'shadow-sm', 'cursor-pointer');
+    } else if (isNoOp) {
+      btn.classList.add('border-gray-200', 'text-gray-500', 'bg-white');
+      btn.style.opacity = '0.4';
+      btn.style.cursor = 'default';
+    } else if (isVisible) {
+      btn.style.backgroundColor = '#f0f9d6';
+      btn.style.color = '#1a1a1a';
+      btn.style.borderColor = '#e2f0b0';
+      btn.classList.add('cursor-pointer');
+    } else {
+      btn.classList.add('border-gray-200', 'text-gray-500', 'bg-white', 'cursor-pointer');
+    }
+
+    if (!isNoOp) {
+      btn.addEventListener('click', () => onSelect(i));
+    }
+    navEl.appendChild(btn);
+  });
 }
 
 export function renderBracket(container, payload) {
@@ -160,64 +327,61 @@ export function renderBracket(container, payload) {
     return;
   }
 
-  const firstRoundMap = getRoundMatchMap(rounds[0]);
-  const firstFallback = Math.max(...Array.from(firstRoundMap.keys()), rounds[0]?.matches?.length || 0);
-  const firstRoundCount = expectedMatchesForRound(rounds[0]?.round, firstFallback);
-  const bracketHeight = Math.max(
-    BASE_MATCH_HEIGHT,
-    firstRoundCount * BASE_MATCH_HEIGHT + Math.max(firstRoundCount - 1, 0) * BASE_GAP
-  );
+  // Default activeIndex: second-to-last round (SF position), so last 3 rounds are visible
+  let activeIndex = Math.max(0, rounds.length - 2);
 
-  const content = document.createElement('div');
-  content.className = 'teelo-bracket-content relative inline-flex items-start gap-8 min-w-max pb-4';
+  // Nav bar
+  const nav = document.createElement('div');
+  nav.className = 'teelo-bracket-nav flex flex-wrap items-center gap-2 mb-4';
 
+  // Bracket wrapper (relative for SVG overlay)
+  const wrapper = document.createElement('div');
+  wrapper.className = 'teelo-bracket-content relative';
+  wrapper.style.overflowX = 'auto';
+
+  // SVG connector layer
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.classList.add('teelo-bracket-connectors');
   svg.style.position = 'absolute';
   svg.style.inset = '0';
   svg.style.pointerEvents = 'none';
   svg.style.zIndex = '0';
-  content.appendChild(svg);
+  wrapper.appendChild(svg);
 
-  rounds.forEach((round, roundIndex) => {
-    const matchMap = getRoundMatchMap(round);
-    const fallbackCount = Math.max(...Array.from(matchMap.keys()), round?.matches?.length || 0);
-    const expectedCount = expectedMatchesForRound(round?.round, fallbackCount);
-    const growth = Math.pow(2, roundIndex);
-    const verticalStride = growth * (BASE_MATCH_HEIGHT + BASE_GAP);
-    const topOffset = ((growth - 1) * (BASE_MATCH_HEIGHT + BASE_GAP)) / 2;
+  // Grid container (inside wrapper, above SVG)
+  const grid = document.createElement('div');
+  grid.className = 'teelo-bracket-grid relative z-[1]';
+  wrapper.appendChild(grid);
 
-    const column = document.createElement('div');
-    column.className = 'teelo-bracket-round relative z-[1]';
-    column.style.width = `${COLUMN_WIDTH}px`;
-
-    const header = document.createElement('div');
-    header.className = 'text-xs uppercase tracking-wider text-gray-400 font-bold mb-2 text-center';
-    header.style.height = `${HEADER_HEIGHT - 8}px`;
-    header.textContent = round?.label || round?.round || '';
-    column.appendChild(header);
-
-    const lane = document.createElement('div');
-    lane.className = 'relative';
-    lane.style.height = `${bracketHeight}px`;
-    column.appendChild(lane);
-
-    for (let position = 1; position <= expectedCount; position += 1) {
-      const match = matchMap.get(position);
-      const topPx = topOffset + (position - 1) * verticalStride;
-      lane.appendChild(buildMatchCard(match, roundIndex, position, topPx, !match));
-    }
-
-    content.appendChild(column);
-  });
+  function selectRound(index) {
+    activeIndex = index;
+    renderNav(nav, rounds, activeIndex, selectRound);
+    // Fade transition: need double-rAF so browser paints opacity:0 before we set 1
+    grid.style.transition = 'none';
+    grid.style.opacity = '0';
+    window.requestAnimationFrame(() => {
+      renderBracketGrid(grid, svg, rounds, activeIndex);
+      window.requestAnimationFrame(() => {
+        grid.style.transition = 'opacity 150ms';
+        grid.style.opacity = '1';
+      });
+    });
+  }
 
   container.innerHTML = '';
-  container.appendChild(content);
+  container.appendChild(nav);
+  container.appendChild(wrapper);
 
-  const redraw = () => drawConnectors(content, svg);
-  const debouncedRedraw = createDebounced(redraw, 100);
+  // Initial render
+  renderNav(nav, rounds, activeIndex, selectRound);
+  renderBracketGrid(grid, svg, rounds, activeIndex);
 
-  window.requestAnimationFrame(redraw);
+  // Resize handling
+  const debouncedRedraw = createDebounced(() => {
+    renderNav(nav, rounds, activeIndex, selectRound);
+    renderBracketGrid(grid, svg, rounds, activeIndex);
+  }, 150);
+
   window.addEventListener('resize', debouncedRedraw);
 
   cleanupMap.set(container, () => {

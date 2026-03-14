@@ -225,9 +225,33 @@
 }
 
 .teelo-bracket-match {
-    min-height: 70px;
+    min-height: 76px;
+    transition: box-shadow 150ms, transform 150ms;
+    max-width: 320px;
+}
+
+.teelo-bracket-match:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+    transform: scale(1.015);
 }
 
 .teelo-bracket-placeholder {
     border-style: dashed;
+}
+
+.teelo-bracket-round-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+    padding-bottom: 8px;
+    padding-top: 4px;
+}
+
+.teelo-bracket-nav {
+    /* flex layout handled inline; extra styles here if needed */
+}
+
+.teelo-bracket-grid {
+    padding-bottom: 1rem;
 }
