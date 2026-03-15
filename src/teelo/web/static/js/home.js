@@ -199,8 +199,6 @@ function renderMovers(data) {
 function renderBlogPosts(data) {
   const cardEl = byId('blog-post-card');
   const listEl = byId('blog-posts-list');
-  const wrapperEl = byId('blog-posts-wrapper');
-  const fadeEl = byId('blog-fade');
   if (!cardEl || !listEl) return;
 
   const posts = Array.isArray(data) ? data : (data ? [data] : []);
@@ -216,37 +214,42 @@ function renderBlogPosts(data) {
   `).join('');
 
   toggleHidden(cardEl, false);
+}
 
-  // After layout, cap blog height so right column doesn't exceed left column
-  requestAnimationFrame(() => {
-    if (!wrapperEl) return;
-    const grid = cardEl.closest('.grid');
-    if (!grid) return;
-    // Only apply on lg+ where the 2-col grid is active
-    const cols = getComputedStyle(grid).gridTemplateColumns;
-    if (!cols || cols === 'none' || !cols.includes(' ')) return;
+/** Cap blog height so right column doesn't exceed left column.
+ *  Must run after tournaments, movers AND blog have all rendered. */
+function equalizeBlogHeight() {
+  const cardEl = byId('blog-post-card');
+  const wrapperEl = byId('blog-posts-wrapper');
+  const fadeEl = byId('blog-fade');
+  if (!cardEl || !wrapperEl || cardEl.classList.contains('hidden')) return;
 
-    const leftCol = grid.children[0]; // tournaments card
-    const rightCol = grid.children[1]; // movers + blog wrapper
-    if (!leftCol || !rightCol) return;
+  const grid = cardEl.closest('.grid');
+  if (!grid) return;
+  // Only apply on lg+ where the 2-col grid is active
+  const cols = getComputedStyle(grid).gridTemplateColumns;
+  if (!cols || cols === 'none' || !cols.includes(' ')) return;
 
-    const leftHeight = leftCol.offsetHeight;
-    const rightNaturalHeight = rightCol.offsetHeight;
+  const leftCol = grid.children[0]; // tournaments card
+  const rightCol = grid.children[1]; // movers + blog wrapper
+  if (!leftCol || !rightCol) return;
 
-    if (rightNaturalHeight <= leftHeight) return; // already fits
+  const leftHeight = leftCol.offsetHeight;
+  const rightNaturalHeight = rightCol.offsetHeight;
 
-    // Calculate how much space the blog wrapper can use
-    const blogHeader = cardEl.querySelector('.border-b');
-    const blogHeaderHeight = blogHeader ? blogHeader.offsetHeight : 0;
-    const blogCardTop = cardEl.offsetTop - rightCol.offsetTop;
-    const availableForWrapper = leftHeight - blogCardTop - blogHeaderHeight;
+  if (rightNaturalHeight <= leftHeight) return; // already fits
 
-    if (availableForWrapper > 60) {
-      wrapperEl.style.maxHeight = `${availableForWrapper}px`;
-      wrapperEl.style.overflow = 'hidden';
-      toggleHidden(fadeEl, false);
-    }
-  });
+  // Calculate how much space the blog wrapper can use
+  const blogHeader = cardEl.querySelector('.border-b');
+  const blogHeaderHeight = blogHeader ? blogHeader.offsetHeight : 0;
+  const blogCardTop = cardEl.offsetTop - rightCol.offsetTop;
+  const availableForWrapper = leftHeight - blogCardTop - blogHeaderHeight;
+
+  if (availableForWrapper > 60) {
+    wrapperEl.style.maxHeight = `${availableForWrapper}px`;
+    wrapperEl.style.overflow = 'hidden';
+    toggleHidden(fadeEl, false);
+  }
 }
 
 export async function initHomePage() {
@@ -299,6 +302,9 @@ export async function initHomePage() {
     upcomingP, completedP, moversP, blogP,
   ]);
   window.lucide?.createIcons?.();
+
+  // Equalize after all sections are rendered and laid out
+  requestAnimationFrame(() => equalizeBlogHeight());
 
   // Click-to-detail navigation for match rows
   document.addEventListener('click', (e) => {
