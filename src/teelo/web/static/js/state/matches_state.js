@@ -10,6 +10,8 @@ export function createMatchesState() {
     status: [],
     player_id: null,
     player_name: '',
+    player_a_id: null,
+    player_b_id: null,
     tournament: '',
     date_from: '',
     date_to: '',
@@ -27,6 +29,8 @@ export function hydrateFromUrl(state, search) {
   state.gender = params.get('gender') || '';
   state.player_id = params.get('player_id') ? Number(params.get('player_id')) : null;
   state.player_name = params.get('player_name') || '';
+  state.player_a_id = params.get('player_a_id') ? Number(params.get('player_a_id')) : null;
+  state.player_b_id = params.get('player_b_id') ? Number(params.get('player_b_id')) : null;
   state.tournament = params.get('tournament') || '';
   state.date_from = params.get('date_from') || '';
   state.date_to = params.get('date_to') || '';
@@ -43,6 +47,8 @@ export function toApiQuery(state) {
     status: state.status,
     player_id: state.player_id,
     player: state.player_id ? '' : state.player_name,
+    player_a_id: state.player_a_id,
+    player_b_id: state.player_b_id,
     tournament: state.tournament,
     date_from: state.date_from,
     date_to: state.date_to,
@@ -62,6 +68,8 @@ export function toUrlQuery(state) {
     status: state.status,
     player_id: state.player_id,
     player_name: state.player_name,
+    player_a_id: state.player_a_id,
+    player_b_id: state.player_b_id,
     tournament: state.tournament,
     date_from: state.date_from,
     date_to: state.date_to,
