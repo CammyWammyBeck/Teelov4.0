@@ -1,13 +1,11 @@
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
-import hashlib
 import re
 from typing import Any, Optional
 
 from teelo.db.models import Match
 
 
-_SET_SCORE_RE = re.compile(r"^(\d+)-(\d+)(\(\d+\))?$")
 _SLUG_NON_ALNUM_RE = re.compile(r"[^a-z0-9\u00C0-\u024F]+")
 _SLUG_MULTI_HYPHEN_RE = re.compile(r"-+")
 
@@ -34,21 +32,6 @@ def resolve_date_preset(preset: str) -> tuple[Optional[date], Optional[date]]:
     return None, None
 
 
-def flip_score_for_display(score: Optional[str]) -> Optional[str]:
-    if not score:
-        return score
-    parts = score.split()
-    flipped_parts: list[str] = []
-    for part in parts:
-        match = _SET_SCORE_RE.match(part)
-        if match:
-            suffix = match.group(3) or ""
-            flipped_parts.append(f"{match.group(2)}-{match.group(1)}{suffix}")
-        else:
-            flipped_parts.append(part)
-    return " ".join(flipped_parts)
-
-
 def slugify_name(name: Optional[str]) -> str:
     if not name:
         return ""
@@ -60,7 +43,10 @@ def slugify_name(name: Optional[str]) -> str:
 def serialize_match(match: Match) -> dict:
     te = match.tournament_edition
     tournament = te.tournament if te else None
-    surface = (te.surface if te and te.surface else None) or (tournament.surface if tournament else None)
+    surface = (
+        (te.surface if te and te.surface else None)
+        or (tournament.surface if tournament else None)
+    )
     pa = match.player_a
     pb = match.player_b
     display_date = match.match_date or match.scheduled_date
@@ -70,11 +56,20 @@ def serialize_match(match: Match) -> dict:
         "player_url": (
             f"/players/{pa.id}/{slugify_name(pa.canonical_name)}"
             if pa and pa.id is not None
-            else (f"/players/{match.player_a_id}" if match.player_a_id is not None else None)
+            else (
+                f"/players/{match.player_a_id}"
+                if match.player_a_id is not None
+                else None
+            )
         ),
         "seed": match.player_a_seed,
         "elo_pre": round_elo(match.elo_pre_player_a),
-        "elo_change": round_elo(match.elo_post_player_a - match.elo_pre_player_a) if match.elo_post_player_a is not None and match.elo_pre_player_a is not None else None,
+        "elo_change": (
+            round_elo(match.elo_post_player_a - match.elo_pre_player_a)
+            if match.elo_post_player_a is not None
+            and match.elo_pre_player_a is not None
+            else None
+        ),
     }
     player_b_payload = {
         "id": pb.id if pb else match.player_b_id,
@@ -82,27 +77,24 @@ def serialize_match(match: Match) -> dict:
         "player_url": (
             f"/players/{pb.id}/{slugify_name(pb.canonical_name)}"
             if pb and pb.id is not None
-            else (f"/players/{match.player_b_id}" if match.player_b_id is not None else None)
+            else (
+                f"/players/{match.player_b_id}"
+                if match.player_b_id is not None
+                else None
+            )
         ),
         "seed": match.player_b_seed,
         "elo_pre": round_elo(match.elo_pre_player_b),
-        "elo_change": round_elo(match.elo_post_player_b - match.elo_pre_player_b) if match.elo_post_player_b is not None and match.elo_pre_player_b is not None else None,
+        "elo_change": (
+            round_elo(match.elo_post_player_b - match.elo_pre_player_b)
+            if match.elo_post_player_b is not None
+            and match.elo_pre_player_b is not None
+            else None
+        ),
     }
-    # Use only match.id for the swap key so the display order stays stable
-    # across status transitions (scheduled -> completed).  Including
-    # temporal_order caused the hash to change when a match gained a real
-    # match_date, flipping the displayed player sides mid-lifecycle.
-    swap_key = str(match.id)
-    swap_display_sides = (hashlib.blake2s(swap_key.encode("utf-8"), digest_size=1).digest()[0] & 1) == 1
-    display_score = match.score
-    if swap_display_sides:
-        player_a_payload, player_b_payload = player_b_payload, player_a_payload
-        display_score = flip_score_for_display(display_score)
     prediction_a_val = match.prediction_a
     if prediction_a_val is not None:
         prediction_a_val = float(prediction_a_val)
-        if swap_display_sides:
-            prediction_a_val = 1.0 - prediction_a_val
     return {
         "id": match.id,
         "tour": tournament.tour if tournament else None,
@@ -110,7 +102,8 @@ def serialize_match(match: Match) -> dict:
         "tournament_name": tournament.name if tournament else None,
         "tournament_code": tournament.tournament_code if tournament else None,
         "tournament_url": (
-            f"/tournaments/{tournament.tour.lower()}/{tournament.tournament_code}/{te.year}"
+            f"/tournaments/{tournament.tour.lower()}"
+            f"/{tournament.tournament_code}/{te.year}"
             if tournament and tournament.tour and te
             else None
         ),
@@ -119,13 +112,20 @@ def serialize_match(match: Match) -> dict:
         "round": match.round,
         "player_a": player_a_payload,
         "player_b": player_b_payload,
-        "score": display_score,
+        "score": match.score,
         "winner_id": match.winner_id,
         "status": match.status,
-        "match_date": display_date.isoformat() if display_date else None,
-        "match_date_display": display_date.strftime("%d %b %Y") if display_date else None,
-        "year": display_date.year if display_date else (te.year if te else None),
+        "match_date": (
+            display_date.isoformat() if display_date else None
+        ),
+        "match_date_display": (
+            display_date.strftime("%d %b %Y") if display_date else None
+        ),
+        "year": (
+            display_date.year
+            if display_date
+            else (te.year if te else None)
+        ),
         "prediction_a": prediction_a_val,
         "match_url": f"/matches/{match.id}",
-        "swap_display_sides": swap_display_sides,
     }
