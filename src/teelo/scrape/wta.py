@@ -87,6 +87,18 @@ class WTAScraper(BaseScraper):
         "qf": "QF",
         "sf": "SF",
         "f": "F",
+        # Qualifying rounds — WTA schedule page uses a single "Qualifying"
+        # label without distinguishing Q1/Q2/Q3, so map to Q1 as default.
+        "qualifying": "Q1",
+        "1st round qualifying": "Q1",
+        "2nd round qualifying": "Q2",
+        "3rd round qualifying": "Q3",
+        "qualifying first round": "Q1",
+        "qualifying second round": "Q2",
+        "qualifying final round": "Q3",
+        "q1": "Q1",
+        "q2": "Q2",
+        "q3": "Q3",
     }
 
     def _generate_external_id(

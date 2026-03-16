@@ -35,9 +35,11 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from teelo.db.models import Match, Player, TournamentEdition
+from teelo.db.models import Match, Player, TournamentEdition, estimate_match_date_from_round
 from teelo.scrape.base import ScrapedFixture
 from teelo.players.identity import PlayerIdentityService
+
+_QUALIFYING_ROUNDS = {"Q1", "Q2", "Q3"}
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,7 @@ class ScheduleIngestionStats:
     """Statistics from a schedule ingestion run."""
     total_fixtures: int = 0
     matches_updated: int = 0
+    matches_created: int = 0
     matches_not_found: int = 0
     skipped_no_player_ids: int = 0
     errors: list[str] = field(default_factory=list)
@@ -87,6 +90,7 @@ class ScheduleIngestionStats:
             f"Schedule ingestion complete:",
             f"  Total fixtures processed: {self.total_fixtures}",
             f"  Matches updated:          {self.matches_updated}",
+            f"  Matches created:          {self.matches_created}",
             f"  Matches not found:        {self.matches_not_found}",
             f"  Skipped (no player IDs):  {self.skipped_no_player_ids}",
         ]
@@ -170,6 +174,25 @@ def ingest_schedule(
                 )
 
             if not match:
+                # For qualifying rounds, create the match since it won't
+                # exist in the draw (WTA/WTA 125 draws only cover main draw).
+                if fixture.round in _QUALIFYING_ROUNDS and identity_service:
+                    match = _create_qualifying_match(
+                        session, fixture, edition, external_id, identity_service,
+                    )
+                    if match:
+                        stats.matches_created += 1
+                        # Also add to preloaded map so subsequent fixtures
+                        # with the same external_id are found on lookup.
+                        if match.external_id:
+                            matches_by_external_id[match.external_id] = match
+                        logger.info(
+                            "Created qualifying match for %s vs %s (%s %s)",
+                            fixture.player_a_name, fixture.player_b_name,
+                            fixture.round, fixture.tournament_id,
+                        )
+                        continue
+
                 stats.matches_not_found += 1
                 logger.debug(
                     "Match not found for %s vs %s (%s %s)",
@@ -392,8 +415,8 @@ def ingest_single_fixture(
     """
     stats = ingest_schedule(session, [fixture], edition)
 
-    if stats.matches_updated > 0:
-        # Re-query to return the updated match
+    if stats.matches_updated > 0 or stats.matches_created > 0:
+        # Re-query to return the updated/created match
         external_id = _make_external_id(
             year=fixture.tournament_year,
             tournament_id=fixture.tournament_id,
@@ -405,3 +428,130 @@ def ingest_single_fixture(
             return session.query(Match).filter(Match.external_id == external_id).first()
 
     return None
+
+
+def _create_qualifying_match(
+    session: Session,
+    fixture: ScrapedFixture,
+    edition: TournamentEdition,
+    external_id: Optional[str],
+    identity_service: PlayerIdentityService,
+) -> Optional[Match]:
+    """
+    Create a new Match row for a qualifying fixture not found in the draw.
+
+    WTA (and WTA 125) draws typically only include the main draw, so qualifying
+    matches won't exist yet. This creates them from schedule data so they can
+    be tracked, predicted, and later updated with results.
+
+    Args:
+        session: Database session
+        fixture: ScrapedFixture with qualifying round data
+        edition: TournamentEdition this fixture belongs to
+        external_id: Pre-computed external_id for deduplication
+        identity_service: Service for resolving player names to canonical IDs
+
+    Returns:
+        Newly created Match, or None if players couldn't be resolved
+    """
+    # Resolve players using the identity service
+    player_a_id = _resolve_player_for_creation(
+        session, fixture.player_a_name, fixture.player_a_external_id,
+        fixture.source, identity_service,
+    )
+    player_b_id = _resolve_player_for_creation(
+        session, fixture.player_b_name, fixture.player_b_external_id,
+        fixture.source, identity_service,
+    )
+
+    if not player_a_id or not player_b_id:
+        logger.warning(
+            "Could not resolve players for qualifying match: %s vs %s",
+            fixture.player_a_name, fixture.player_b_name,
+        )
+        return None
+
+    # Parse schedule data
+    scheduled_date = None
+    scheduled_datetime = None
+    if fixture.scheduled_date:
+        try:
+            scheduled_date = datetime.strptime(fixture.scheduled_date, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    if fixture.scheduled_date and fixture.scheduled_time:
+        for fmt in ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %I:%M %p"]:
+            try:
+                scheduled_datetime = datetime.strptime(
+                    f"{fixture.scheduled_date} {fixture.scheduled_time}", fmt,
+                )
+                break
+            except ValueError:
+                continue
+
+    # Estimate match date from round if no scheduled date
+    match_date = scheduled_date
+    match_date_estimated = False
+    if not match_date and edition.start_date and edition.end_date:
+        match_date = estimate_match_date_from_round(
+            round_code=fixture.round,
+            tournament_start=edition.start_date,
+            tournament_end=edition.end_date,
+        )
+        if match_date:
+            match_date_estimated = True
+
+    match = Match(
+        external_id=external_id,
+        source=fixture.source,
+        tournament_edition_id=edition.id,
+        round=fixture.round,
+        player_a_id=player_a_id,
+        player_b_id=player_b_id,
+        player_a_seed=fixture.player_a_seed,
+        player_b_seed=fixture.player_b_seed,
+        scheduled_date=scheduled_date,
+        scheduled_datetime=scheduled_datetime,
+        court=fixture.court,
+        match_date=match_date,
+        match_date_estimated=match_date_estimated,
+        status="scheduled",
+    )
+
+    match.update_temporal_order(
+        tournament_start=edition.start_date,
+        tournament_end=edition.end_date,
+    )
+
+    session.add(match)
+    session.flush()
+    return match
+
+
+def _resolve_player_for_creation(
+    session: Session,
+    name: str,
+    external_id: Optional[str],
+    source: str,
+    identity_service: PlayerIdentityService,
+) -> Optional[int]:
+    """
+    Resolve a player name/external_id to a canonical player_id, creating if needed.
+
+    Uses the same approach as draw ingestion: identity service first, then
+    create a new player if we have an external ID.
+    """
+    if not name:
+        return None
+
+    player_id, _ = identity_service.find_or_queue_player(
+        name=name, source=source, external_id=external_id,
+    )
+
+    if not player_id and external_id:
+        player_id = identity_service.create_player(
+            name=name, source=source, external_id=external_id,
+        )
+
+    return player_id
