@@ -605,9 +605,22 @@ def _update_match_with_result(
         match_date: Actual match date
         match_date_estimated: Whether the date was estimated
     """
-    # Update player IDs (should be the same, but ensure consistency)
+    # Detect if results scraper returns players in opposite order to what
+    # was stored (e.g. draw had A=Medvedev/B=Sinner but results have
+    # A=Sinner/B=Medvedev).  When this happens we must flip prediction_a
+    # so it still represents P(new player A wins).
+    players_swapped = (
+        match.player_a_id is not None
+        and match.player_b_id is not None
+        and match.player_a_id == player_b_id
+        and match.player_b_id == player_a_id
+    )
+
     match.player_a_id = player_a_id
     match.player_b_id = player_b_id
+
+    if players_swapped and match.prediction_a is not None:
+        match.prediction_a = 1.0 - float(match.prediction_a)
 
     # Update seeds if provided by results scraper
     if scraped.player_a_seed is not None:
@@ -636,9 +649,10 @@ def _update_match_with_result(
     if scraped.match_number is not None:
         match.match_number = scraped.match_number
 
-    # NOTE: Do NOT overwrite prediction_a, prediction_model_version,
-    # prediction_updated_at, or prediction_source here. These must be
-    # preserved for live prediction accuracy tracking.
+    # NOTE: prediction_a, prediction_model_version, prediction_updated_at,
+    # and prediction_source are preserved for live accuracy tracking.
+    # prediction_a is only flipped above when the player A/B assignment
+    # changes, to keep it consistent with the new player ordering.
 
     # Recompute temporal order
     match.update_temporal_order(
