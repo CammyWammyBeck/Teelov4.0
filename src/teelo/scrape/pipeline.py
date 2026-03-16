@@ -287,7 +287,11 @@ def _phase_checkpoint_key(task_params: TaskParams, phase: str) -> str:
 
 
 def _phase_fingerprint(items: list[tuple[Any, ...]]) -> str:
-    payload = json.dumps(sorted(items), separators=(",", ":"), ensure_ascii=True)
+    payload = json.dumps(
+        sorted(items, key=lambda t: tuple(x if x is not None else "" for x in t)),
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 
