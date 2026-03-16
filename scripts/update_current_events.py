@@ -141,10 +141,10 @@ async def discover_tour_tasks(
 _TERMINAL_STATUSES = frozenset(["completed", "retired", "walkover", "default"])
 
 
-def _get_completed_edition_keys(session, tasks: list) -> set[tuple[str, int]]:
+def _get_completed_edition_keys(session, tasks: list) -> set[tuple[str, int, str]]:
     """
-    Return the set of (tournament_code, year) pairs for which a completed
-    Final already exists in the database.
+    Return the set of (tournament_code, year, tour) tuples for which a
+    completed Final already exists in the database.
 
     Single batch query — one DB round-trip regardless of how many tasks
     were discovered.
@@ -155,7 +155,7 @@ def _get_completed_edition_keys(session, tasks: list) -> set[tuple[str, int]]:
     tournament_codes = list({task.params.tournament_id for task in tasks})
 
     rows = (
-        session.query(Tournament.tournament_code, TournamentEdition.year)
+        session.query(Tournament.tournament_code, TournamentEdition.year, Tournament.tour)
         .join(TournamentEdition, TournamentEdition.tournament_id == Tournament.id)
         .join(Match, Match.tournament_edition_id == TournamentEdition.id)
         .filter(
@@ -168,7 +168,7 @@ def _get_completed_edition_keys(session, tasks: list) -> set[tuple[str, int]]:
         .all()
     )
 
-    return {(row.tournament_code, row.year) for row in rows}
+    return {(row.tournament_code, row.year, row.tour) for row in rows}
 
 
 def enqueue_current_tasks(
@@ -185,13 +185,24 @@ def enqueue_current_tasks(
     When ``force`` is True the completed-edition check is skipped and all
     discovered tasks are enqueued regardless of their current DB state.
     """
+    # Mapping from task tour_key values to DB Tournament.tour values.
+    _TOUR_KEY_TO_DB_TOUR = {
+        "ATP": "ATP",
+        "CHALLENGER": "Challenger",
+        "ITF_MEN": "ITF",
+        "ITF_WOMEN": "ITF",
+        "WTA": "WTA",
+        "WTA_125": "WTA 125",
+    }
+
     # One batch query to find all already-finished editions upfront.
     completed_editions = set() if force else _get_completed_edition_keys(session, tasks)
 
     skipped = 0
     queue_payload = []
     for task in tasks:
-        edition_key = (task.params.tournament_id, task.params.year)
+        db_tour = _TOUR_KEY_TO_DB_TOUR.get(task.params.tour_key, task.params.tour_key)
+        edition_key = (task.params.tournament_id, task.params.year, db_tour)
         if edition_key in completed_editions:
             display_name = task.params.tournament_name or task.params.tournament_id
             print(f"  Skipping {display_name} ({task.params.year}) — final already completed.")
