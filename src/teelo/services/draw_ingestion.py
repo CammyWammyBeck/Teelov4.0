@@ -46,6 +46,7 @@ from sqlalchemy.orm import Session
 
 from teelo.db.models import (
     Match,
+    MatchFeatures,
     TournamentEdition,
     compute_temporal_order,
     estimate_match_date_from_round,
@@ -715,8 +716,23 @@ def _upsert_draw_match(
             and existing.player_a_id == player_b_id
             and existing.player_b_id == player_a_id
         )
-        if players_swapped and existing.prediction_a is not None:
-            existing.prediction_a = 1.0 - float(existing.prediction_a)
+        if players_swapped:
+            # Clear prediction — it was computed from features oriented
+            # for the old player_a/player_b assignment.
+            existing.prediction_a = None
+            existing.prediction_model_version = None
+            existing.prediction_updated_at = None
+            existing.prediction_source = None
+            # Delete stale features so the feature engine recomputes them
+            # with the correct player orientation on the next pipeline run.
+            session.query(MatchFeatures).filter(
+                MatchFeatures.match_id == existing.id
+            ).delete()
+            logger.info(
+                "Cleared stale features and prediction for match %s "
+                "due to player A/B swap",
+                existing.id,
+            )
 
         changed = False
         updates = {
