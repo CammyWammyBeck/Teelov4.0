@@ -59,23 +59,57 @@ export function buildFallbackCards(matches) {
 
 export function renderMatchesView(els, data, append) {
   const matches = data.matches || [];
+
+  // Hide skeleton and error state on any render
+  const skeleton = document.getElementById('skeleton-loading');
+  if (skeleton) skeleton.classList.add('hidden');
+  const errorState = document.getElementById('error-state');
+  if (errorState) errorState.classList.add('hidden');
+
   if (!append && matches.length === 0) {
     els.emptyState.classList.remove('hidden');
     els.tableBody.innerHTML = '';
     els.cardsContainer.innerHTML = '';
+    if (els.scrollSentinel) els.scrollSentinel.classList.add('hidden');
+    els.resultsCount.textContent = '0 matches';
     return;
   }
 
   els.emptyState.classList.add('hidden');
+
+  // Use server-rendered HTML if available, otherwise render client-side
+  const tableHtml = data.table_rows_html || buildFallbackTableRows(matches);
+  const cardsHtml = data.cards_html || buildFallbackCards(matches);
+
   if (append) {
-    els.tableBody.insertAdjacentHTML('beforeend', data.table_rows_html || '');
-    els.cardsContainer.insertAdjacentHTML('beforeend', data.cards_html || '');
+    els.tableBody.insertAdjacentHTML('beforeend', tableHtml);
+    els.cardsContainer.insertAdjacentHTML('beforeend', cardsHtml);
   } else {
-    els.tableBody.innerHTML = data.table_rows_html || '';
-    els.cardsContainer.innerHTML = data.cards_html || '';
+    els.tableBody.innerHTML = tableHtml;
+    els.cardsContainer.innerHTML = cardsHtml;
   }
-  els.resultsCount.textContent = `${formatNumber(data.total)} match${data.total === 1 ? '' : 'es'}`;
-  window.lucide?.createIcons?.();
+
+  // Update results count
+  if (data.total != null) {
+    els.resultsCount.textContent = `${formatNumber(data.total)} match${data.total === 1 ? '' : 'es'}`;
+  } else {
+    // When total is unknown (LIMIT+1 mode), show approximate count
+    const currentCount = els.tableBody.querySelectorAll('tr').length;
+    els.resultsCount.textContent = data.has_more ? `${formatNumber(currentCount)}+ matches` : `${formatNumber(currentCount)} match${currentCount === 1 ? '' : 'es'}`;
+  }
+
+  // Toggle sentinel visibility
+  if (els.scrollSentinel) {
+    els.scrollSentinel.classList.toggle('hidden', !data.has_more);
+  }
+
+  // Scope icon hydration to new content only
+  if (window.lucide?.createIcons) {
+    const containers = [els.tableBody?.parentElement, els.cardsContainer].filter(Boolean);
+    if (containers.length) {
+      try { window.lucide.createIcons({ nodes: containers }); } catch { window.lucide.createIcons(); }
+    }
+  }
 }
 
 export function renderSummaryTags(els, tags, onRemove) {

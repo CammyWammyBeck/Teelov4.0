@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from teelo.db.models import Match, MatchFeatures, Player, PlayerAlias, Tournament, TournamentEdition
@@ -22,21 +22,9 @@ router = APIRouter()
 
 @router.get('/api/matches')
 async def api_matches(db: Session = Depends(get_db), tour: Optional[str] = Query(None), gender: Optional[str] = Query(None), surface: Optional[str] = Query(None), level: Optional[str] = Query(None), round: Optional[str] = Query(None), status: Optional[str] = Query(None), player: Optional[str] = Query(None), player_id: Optional[int] = Query(None), player_a_id: Optional[int] = Query(None), player_b_id: Optional[int] = Query(None), tournament: Optional[str] = Query(None), date_from: Optional[str] = Query(None), date_to: Optional[str] = Query(None), date_preset: Optional[str] = Query(None), page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=100)):
-    # Track whether we need tournament/edition joins for filtering
-    needs_tournament_join = bool(tour or gender or level or tournament or surface)
-    needs_edition_join = bool(surface) or needs_tournament_join
-
-    def _apply_joins(q, *, for_count=False):
-        if needs_edition_join or not for_count:
-            q = q.outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id)
-        if needs_tournament_join or not for_count:
-            q = q.outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id)
-        return q
-
     raw_statuses = status.split(",") if status else None
     statuses = normalize_status_filter(raw_statuses)
 
-    # Build shared filter predicates (applied to both count and fetch queries)
     def _apply_filters(q, player_subquery=None):
         q = q.filter(Match.status.in_(statuses))
         if tour:
@@ -79,19 +67,18 @@ async def api_matches(db: Session = Depends(get_db), tour: Optional[str] = Query
         player_pattern = f"%{player}%"
         player_subquery = db.query(Player.id).filter(Player.canonical_name.ilike(player_pattern)).subquery()
 
-    # Efficient count query: only join what the active filters need
-    count_q = _apply_joins(db.query(func.count(Match.id)), for_count=True)
-    total = _apply_filters(count_q, player_subquery).scalar()
-
     # Fetch query: always join for eager loading
     fetch_q = db.query(Match).outerjoin(TournamentEdition, Match.tournament_edition_id == TournamentEdition.id).outerjoin(Tournament, TournamentEdition.tournament_id == Tournament.id).options(joinedload(Match.player_a), joinedload(Match.player_b), contains_eager(Match.tournament_edition).contains_eager(TournamentEdition.tournament))
     fetch_q = _apply_filters(fetch_q, player_subquery)
 
     offset = (page - 1) * per_page
-    matches = fetch_q.order_by(Match.match_date.desc().nullslast(), Match.temporal_order.desc().nullslast(), Match.id.desc()).offset(offset).limit(per_page).all()
+    # LIMIT+1 pattern: fetch one extra row to detect if more pages exist
+    rows = fetch_q.order_by(Match.match_date.desc().nullslast(), Match.temporal_order.desc().nullslast(), Match.id.desc()).offset(offset).limit(per_page + 1).all()
+    has_more = len(rows) > per_page
+    matches = rows[:per_page] if has_more else rows
     payload = [serialize_match(m) for m in matches]
-    t = templates.get_template('partials/match_rows.html')
-    return JSONResponse({"matches": payload, "table_rows_html": t.module.render_table_rows(payload), "cards_html": t.module.render_cards(payload), "total": total, "page": page, "per_page": per_page, "has_more": (offset + per_page) < total})
+    total = None if has_more else offset + len(matches)
+    return JSONResponse({"matches": payload, "total": total, "page": page, "per_page": per_page, "has_more": has_more})
 
 
 @router.get('/api/players/search')

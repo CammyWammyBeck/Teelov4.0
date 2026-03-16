@@ -119,6 +119,10 @@
                 <button id="clear-all-btn" class="text-xs text-content-faint hover:text-teelo-dark font-medium ml-2 transition-colors">Clear all</button>
             </div>
         </div>
+        <div id="default-status-hint" class="text-xs text-content-faint flex items-center gap-1.5 matches-filter-block matches-filter-block--full">
+            <i data-lucide="info" class="w-3.5 h-3.5"></i>
+            <span>Showing completed matches by default. Use <button id="show-all-statuses-btn" class="text-teelo-dark font-semibold hover:underline">More Filters</button> to include upcoming matches.</span>
+        </div>
     </div>
 
     <!-- Match Results Card -->
@@ -161,9 +165,61 @@
             <p class="text-sm text-content-faint mt-1">Try adjusting your filters</p>
         </div>
 
+        <!-- Skeleton loading (shown on initial load, hidden after first render) -->
+        <div id="skeleton-loading" class="divide-y divide-line-subtle/70">
+            <div class="skeleton-row px-5 py-4 flex items-center gap-4">
+                <div class="skeleton-pulse w-10 h-5 rounded"></div>
+                <div class="skeleton-pulse flex-1 h-4 rounded max-w-[200px]"></div>
+                <div class="skeleton-pulse w-24 h-4 rounded"></div>
+                <div class="skeleton-pulse w-12 h-4 rounded"></div>
+                <div class="skeleton-pulse w-24 h-4 rounded"></div>
+                <div class="skeleton-pulse w-16 h-4 rounded"></div>
+            </div>
+            <div class="skeleton-row px-5 py-4 flex items-center gap-4">
+                <div class="skeleton-pulse w-10 h-5 rounded"></div>
+                <div class="skeleton-pulse flex-1 h-4 rounded max-w-[180px]"></div>
+                <div class="skeleton-pulse w-20 h-4 rounded"></div>
+                <div class="skeleton-pulse w-12 h-4 rounded"></div>
+                <div class="skeleton-pulse w-28 h-4 rounded"></div>
+                <div class="skeleton-pulse w-16 h-4 rounded"></div>
+            </div>
+            <div class="skeleton-row px-5 py-4 flex items-center gap-4">
+                <div class="skeleton-pulse w-10 h-5 rounded"></div>
+                <div class="skeleton-pulse flex-1 h-4 rounded max-w-[220px]"></div>
+                <div class="skeleton-pulse w-24 h-4 rounded"></div>
+                <div class="skeleton-pulse w-12 h-4 rounded"></div>
+                <div class="skeleton-pulse w-20 h-4 rounded"></div>
+                <div class="skeleton-pulse w-16 h-4 rounded"></div>
+            </div>
+            <div class="skeleton-row px-5 py-4 flex items-center gap-4">
+                <div class="skeleton-pulse w-10 h-5 rounded"></div>
+                <div class="skeleton-pulse flex-1 h-4 rounded max-w-[160px]"></div>
+                <div class="skeleton-pulse w-24 h-4 rounded"></div>
+                <div class="skeleton-pulse w-12 h-4 rounded"></div>
+                <div class="skeleton-pulse w-24 h-4 rounded"></div>
+                <div class="skeleton-pulse w-16 h-4 rounded"></div>
+            </div>
+            <div class="skeleton-row px-5 py-4 flex items-center gap-4">
+                <div class="skeleton-pulse w-10 h-5 rounded"></div>
+                <div class="skeleton-pulse flex-1 h-4 rounded max-w-[190px]"></div>
+                <div class="skeleton-pulse w-20 h-4 rounded"></div>
+                <div class="skeleton-pulse w-12 h-4 rounded"></div>
+                <div class="skeleton-pulse w-28 h-4 rounded"></div>
+                <div class="skeleton-pulse w-16 h-4 rounded"></div>
+            </div>
+        </div>
+
         <!-- Scroll Sentinel / Loading Spinner -->
         <div id="scroll-sentinel" class="flex justify-center py-8">
             <div class="loading-spinner"></div>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="hidden text-center py-20">
+            <i data-lucide="alert-circle" class="w-12 h-12 text-status-danger mx-auto"></i>
+            <h3 class="text-lg font-semibold text-content-faint mt-4">Something went wrong</h3>
+            <p class="text-sm text-content-faint mt-1">Could not load matches. Please try again.</p>
+            <button id="retry-btn" class="mt-4 px-4 py-2 text-sm font-semibold bg-teelo-dark text-content-inverse rounded-lg hover:bg-surface-inverse transition-colors">Retry</button>
         </div>
         </div>
     </div>

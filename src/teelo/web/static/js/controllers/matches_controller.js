@@ -25,6 +25,37 @@ export function initMatchesPage() {
   if (els.playerSearch && state.player_name) els.playerSearch.value = state.player_name;
   if (els.tournamentSearch && state.tournament) els.tournamentSearch.value = state.tournament;
 
+  // Bug 1: Sync chip active states from hydrated URL state
+  function syncChipsFromState() {
+    queryAll('.filter-chip').forEach((chip) => {
+      const { filter, value } = chip.dataset;
+      let isActive = false;
+      if (filter === 'gender') {
+        isActive = state.gender === value;
+      } else if (filter === 'date_preset') {
+        isActive = state.date_preset === value;
+      } else if (MULTI_VALUE_FILTERS.includes(filter)) {
+        isActive = state[filter].includes(value);
+      }
+      chip.classList.toggle('active', isActive);
+    });
+    // Show custom date row if needed
+    const customRow = byId('custom-date-row');
+    if (customRow && state.date_preset === 'custom') {
+      customRow.classList.remove('hidden');
+    }
+  }
+  syncChipsFromState();
+
+  // Bug 4: Show/hide default status hint
+  function updateStatusHint() {
+    const statusHint = byId('default-status-hint');
+    if (statusHint) {
+      statusHint.classList.toggle('hidden', state.status.length > 0);
+    }
+  }
+  updateStatusHint();
+
   function syncUrl() {
     const qs = toUrlQuery(state);
     history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
@@ -62,7 +93,15 @@ export function initMatchesPage() {
     } catch (e) {
       if (e.name === 'AbortError') return; // superseded by newer request
       console.error(e);
-      els.emptyState.classList.remove('hidden');
+      const skeleton = document.getElementById('skeleton-loading');
+      if (skeleton) skeleton.classList.add('hidden');
+      const errorState = document.getElementById('error-state');
+      if (errorState) {
+        errorState.classList.remove('hidden');
+        els.emptyState.classList.add('hidden');
+      } else {
+        els.emptyState.classList.remove('hidden');
+      }
     } finally {
       state.loading = false;
       if (els.matchesWrapper) {
@@ -75,6 +114,7 @@ export function initMatchesPage() {
   function onFilterChange() {
     syncUrl();
     renderSummaryTags(els, summaryTags(), removeFilter);
+    updateStatusHint();
     fetchMatches(false);
   }
 
@@ -127,16 +167,42 @@ export function initMatchesPage() {
     onFilterChange();
   });
 
-  // Bug 2: Wire "More Filters" drawer open/close/apply
+  // Bug 2: Wire "More Filters" drawer open/close/apply with state isolation
   const drawerOverlay = byId('filter-drawer-overlay');
+  let drawerSnapshot = null;
+
   byId('more-filters-btn')?.addEventListener('click', () => {
+    // Snapshot state before drawer opens
+    drawerSnapshot = {
+      level: [...state.level],
+      round: [...state.round],
+      status: [...state.status],
+      tournament: state.tournament,
+    };
     drawerOverlay?.classList.add('open');
     window.lucide?.createIcons?.();
   });
   byId('close-drawer-btn')?.addEventListener('click', () => {
+    // Restore snapshot on cancel
+    if (drawerSnapshot) {
+      state.level = drawerSnapshot.level;
+      state.round = drawerSnapshot.round;
+      state.status = drawerSnapshot.status;
+      state.tournament = drawerSnapshot.tournament;
+      if (els.tournamentSearch) els.tournamentSearch.value = state.tournament;
+      // Re-sync drawer chips to restored state
+      queryAll('.filter-drawer .filter-chip').forEach((chip) => {
+        const { filter, value } = chip.dataset;
+        if (MULTI_VALUE_FILTERS.includes(filter)) {
+          chip.classList.toggle('active', state[filter].includes(value));
+        }
+      });
+      drawerSnapshot = null;
+    }
     drawerOverlay?.classList.remove('open');
   });
   byId('apply-drawer-btn')?.addEventListener('click', () => {
+    drawerSnapshot = null;  // Discard snapshot, keep current state
     drawerOverlay?.classList.remove('open');
     onFilterChange();
   });
@@ -157,19 +223,113 @@ export function initMatchesPage() {
     if (els.playerSearch) els.playerSearch.value = '';
     if (els.tournamentSearch) els.tournamentSearch.value = '';
     queryAll('.filter-chip').forEach((chip) => chip.classList.remove('active'));
+    // Bug 3: Clear date inputs and hide custom date row
+    const dateFrom = byId('date-from');
+    const dateTo = byId('date-to');
+    if (dateFrom) dateFrom.value = '';
+    if (dateTo) dateTo.value = '';
+    const customRow = byId('custom-date-row');
+    if (customRow) customRow.classList.add('hidden');
     onFilterChange();
   });
 
-  els.playerSearch?.addEventListener('change', () => {
-    state.player_name = els.playerSearch.value.trim();
-    state.player_id = null;
-    onFilterChange();
-  });
+  const DEBOUNCE_MS = 300;
 
-  els.tournamentSearch?.addEventListener('change', () => {
-    state.tournament = els.tournamentSearch.value.trim();
-    onFilterChange();
-  });
+  function debounce(fn, ms) {
+    let timer;
+    return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+  }
+
+  // Reusable player autocomplete wiring
+  function wirePlayerAutocomplete(inputEl, dropdownEl, stateKey, { onSelect, onClear } = {}) {
+    if (!inputEl || !dropdownEl) return;
+    let abort = null;
+    const search = debounce(async (query) => {
+      if (query.length < 2) { dropdownEl.classList.add('hidden'); return; }
+      if (abort) abort.abort();
+      abort = new AbortController();
+      try {
+        const data = await getJson(`/api/players/search?q=${encodeURIComponent(query)}&limit=8`, { signal: abort.signal });
+        if (!data.players?.length) { dropdownEl.classList.add('hidden'); return; }
+        dropdownEl.innerHTML = data.players.map(p =>
+          `<div class="autocomplete-item px-3 py-2 text-sm cursor-pointer hover:bg-surface-hover" data-id="${p.id}" data-name="${p.name}">${p.name}${p.nationality ? ` <span class="text-content-faint text-xs">(${p.nationality})</span>` : ''}</div>`
+        ).join('');
+        dropdownEl.classList.remove('hidden');
+        dropdownEl.querySelectorAll('.autocomplete-item').forEach(item => {
+          item.addEventListener('click', () => {
+            state[stateKey] = Number(item.dataset.id);
+            inputEl.value = item.dataset.name;
+            dropdownEl.classList.add('hidden');
+            if (onSelect) onSelect(item.dataset);
+          });
+        });
+      } catch (e) {
+        if (e.name !== 'AbortError') console.error(e);
+      }
+    }, DEBOUNCE_MS);
+    inputEl.addEventListener('input', () => {
+      const val = inputEl.value.trim();
+      if (!val) {
+        state[stateKey] = null;
+        dropdownEl.classList.add('hidden');
+        if (onClear) onClear();
+        return;
+      }
+      state[stateKey] = null;
+      search(val);
+    });
+    document.addEventListener('click', (e) => {
+      if (!inputEl.contains(e.target) && !dropdownEl.contains(e.target)) {
+        dropdownEl.classList.add('hidden');
+      }
+    });
+  }
+
+  // Player autocomplete (main filter)
+  if (els.playerSearch) {
+    const playerDropdown = byId('player-dropdown');
+    if (playerDropdown) {
+      wirePlayerAutocomplete(els.playerSearch, playerDropdown, 'player_id', {
+        onSelect(dataset) {
+          state.player_name = dataset.name;
+          onFilterChange();
+        },
+        onClear() {
+          state.player_name = '';
+          onFilterChange();
+        },
+      });
+
+      // While typing, update player_name so text search works
+      els.playerSearch.addEventListener('input', () => {
+        state.player_name = els.playerSearch.value.trim();
+      });
+
+      // Submit on Enter without selection (search by name)
+      els.playerSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          playerDropdown.classList.add('hidden');
+          state.player_name = els.playerSearch.value.trim();
+          state.player_id = null;
+          onFilterChange();
+        }
+      });
+    }
+  }
+
+  // H2H player autocomplete
+  wirePlayerAutocomplete(byId('h2h-player-a'), byId('h2h-player-a-dropdown'), 'player_a_id');
+  wirePlayerAutocomplete(byId('h2h-player-b'), byId('h2h-player-b-dropdown'), 'player_b_id');
+
+  // Tournament search (debounced)
+  if (els.tournamentSearch) {
+    const debouncedTournamentSearch = debounce(() => {
+      state.tournament = els.tournamentSearch.value.trim();
+      onFilterChange();
+    }, DEBOUNCE_MS);
+    els.tournamentSearch.addEventListener('input', debouncedTournamentSearch);
+  }
 
   const io = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting && state.has_more && !state.loading) {
@@ -178,6 +338,18 @@ export function initMatchesPage() {
     }
   }, { rootMargin: '240px' });
   if (els.scrollSentinel) io.observe(els.scrollSentinel);
+
+  // Bug 4: Wire the "More Filters" link inside the status hint
+  byId('show-all-statuses-btn')?.addEventListener('click', () => {
+    drawerOverlay?.classList.add('open');
+    window.lucide?.createIcons?.();
+  });
+
+  // Wire retry button in error state
+  document.getElementById('retry-btn')?.addEventListener('click', () => {
+    document.getElementById('error-state')?.classList.add('hidden');
+    fetchMatches(false);
+  });
 
   renderSummaryTags(els, summaryTags(), removeFilter);
   fetchMatches(false);
