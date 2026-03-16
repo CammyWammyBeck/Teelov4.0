@@ -123,4 +123,5 @@ def serialize_match(match: Match) -> dict:
         "year": display_date.year if display_date else (te.year if te else None),
         "prediction_a": prediction_a_val,
         "match_url": f"/matches/{match.id}",
+        "swap_display_sides": swap_display_sides,
     }

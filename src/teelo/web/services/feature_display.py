@@ -94,6 +94,57 @@ def format_feature_value(value: Any, feature_key: str) -> str:
 _SUFFIX_RE = re.compile(r"_[ab]$")
 _INFIX_RE = re.compile(r"_([ab])_")
 
+_SWAP_SUFFIX_RE = re.compile(r"_([ab])$")
+_SWAP_INFIX_RE = re.compile(r"_([ab])_")
+
+
+def swap_feature_sides(features: dict[str, Any]) -> dict[str, Any]:
+    """Swap player A/B feature values so they match the swapped display order.
+
+    Handles three patterns:
+      - Suffix:  'elo_a' <-> 'elo_b'
+      - Infix:   'h2h_a_wins' <-> 'h2h_b_wins'
+      - Diff:    'elo_diff' -> negated (since diff = a - b)
+      - Complement: 'h2h_a_dominance' -> 1 - value (since it's a / total)
+    """
+    swapped: dict[str, Any] = {}
+    for key, value in features.items():
+        # Suffix pattern: key ends with _a or _b
+        m = _SWAP_SUFFIX_RE.search(key)
+        if m:
+            player = m.group(1)
+            other = "b" if player == "a" else "a"
+            partner_key = key[: m.start()] + f"_{other}"
+            if partner_key in features:
+                # Swap: put partner's value under this key
+                swapped[key] = features[partner_key]
+                continue
+
+        # Infix pattern: key contains _a_ or _b_
+        m = _SWAP_INFIX_RE.search(key)
+        if m:
+            player = m.group(1)
+            other = "b" if player == "a" else "a"
+            partner_key = key[: m.start()] + f"_{other}_" + key[m.end() :]
+            if partner_key in features:
+                swapped[key] = features[partner_key]
+                continue
+
+        # Diff features: negate the value
+        if "diff" in key.lower() and isinstance(value, (int, float)):
+            swapped[key] = -value
+            continue
+
+        # Dominance-style complement features
+        if key == "h2h_a_dominance" and isinstance(value, (int, float)):
+            swapped[key] = 1.0 - value
+            continue
+
+        # Non-player-specific features pass through unchanged
+        swapped[key] = value
+
+    return swapped
+
 
 def _classify_player_key(key: str) -> tuple[str | None, str | None]:
     """Determine which player a feature belongs to and its base name.
