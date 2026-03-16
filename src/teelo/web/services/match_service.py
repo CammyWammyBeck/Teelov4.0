@@ -88,7 +88,11 @@ def serialize_match(match: Match) -> dict:
         "elo_pre": round_elo(match.elo_pre_player_b),
         "elo_change": round_elo(match.elo_post_player_b - match.elo_pre_player_b) if match.elo_post_player_b is not None and match.elo_pre_player_b is not None else None,
     }
-    swap_key = f"{match.id}:{match.temporal_order or 0}"
+    # Use only match.id for the swap key so the display order stays stable
+    # across status transitions (scheduled -> completed).  Including
+    # temporal_order caused the hash to change when a match gained a real
+    # match_date, flipping the displayed player sides mid-lifecycle.
+    swap_key = str(match.id)
     swap_display_sides = (hashlib.blake2s(swap_key.encode("utf-8"), digest_size=1).digest()[0] & 1) == 1
     display_score = match.score
     if swap_display_sides:
@@ -123,4 +127,5 @@ def serialize_match(match: Match) -> dict:
         "year": display_date.year if display_date else (te.year if te else None),
         "prediction_a": prediction_a_val,
         "match_url": f"/matches/{match.id}",
+        "swap_display_sides": swap_display_sides,
     }

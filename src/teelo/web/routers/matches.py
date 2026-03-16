@@ -11,7 +11,11 @@ from teelo.db.session import get_db
 from teelo.features import build_registry, default_preset_for_feature_set
 from teelo.match_statuses import normalize_status_filter
 from teelo.web.app_context import templates
-from teelo.web.services.feature_display import build_feature_groups, format_feature_value
+from teelo.web.services.feature_display import (
+    build_feature_groups,
+    format_feature_value,
+    swap_feature_sides,
+)
 from teelo.web.services.match_service import resolve_date_preset, serialize_match
 
 router = APIRouter()
@@ -143,8 +147,11 @@ async def match_detail(match_id: int, request: Request, db: Session = Depends(ge
         registry = build_registry(preset)
         grouped = registry.grouped_features()
         neutral = registry.neutral_groups()
+        features = match_features.features
+        if match_data.get("swap_display_sides"):
+            features = swap_feature_sides(features)
         feature_groups = build_feature_groups(
-            match_features.features, grouped, neutral,
+            features, grouped, neutral,
         )
 
     return templates.TemplateResponse("match_detail.html", {
