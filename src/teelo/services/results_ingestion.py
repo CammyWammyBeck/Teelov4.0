@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session
 
 from teelo.db.models import (
     Match,
+    MatchFeatures,
     Player,
     ROUND_ORDER,
     TournamentEdition,
@@ -390,6 +391,7 @@ def _process_single_result(
     if existing:
         if update_existing:
             _update_match_with_result(
+                session=session,
                 match=existing,
                 scraped=scraped,
                 edition=edition,
@@ -579,6 +581,7 @@ def _resolve_player(
 
 
 def _update_match_with_result(
+    session: Session,
     match: Match,
     scraped: ScrapedMatch,
     edition: TournamentEdition,
@@ -619,8 +622,23 @@ def _update_match_with_result(
     match.player_a_id = player_a_id
     match.player_b_id = player_b_id
 
-    if players_swapped and match.prediction_a is not None:
-        match.prediction_a = 1.0 - float(match.prediction_a)
+    if players_swapped:
+        # Clear prediction — it was computed from features oriented
+        # for the old player_a/player_b assignment.
+        match.prediction_a = None
+        match.prediction_model_version = None
+        match.prediction_updated_at = None
+        match.prediction_source = None
+        # Delete stale features so the feature engine recomputes them
+        # with the correct player orientation on the next pipeline run.
+        session.query(MatchFeatures).filter(
+            MatchFeatures.match_id == match.id
+        ).delete()
+        logger.info(
+            "Cleared stale features and prediction for match %s "
+            "due to player A/B swap",
+            match.id,
+        )
 
     # Update seeds if provided by results scraper
     if scraped.player_a_seed is not None:
@@ -649,10 +667,9 @@ def _update_match_with_result(
     if scraped.match_number is not None:
         match.match_number = scraped.match_number
 
-    # NOTE: prediction_a, prediction_model_version, prediction_updated_at,
-    # and prediction_source are preserved for live accuracy tracking.
-    # prediction_a is only flipped above when the player A/B assignment
-    # changes, to keep it consistent with the new player ordering.
+    # NOTE: prediction columns are preserved for live accuracy tracking,
+    # except when player A/B swap is detected above (features + prediction
+    # are invalidated so the pipeline recomputes with correct orientation).
 
     # Recompute temporal order
     match.update_temporal_order(
