@@ -705,6 +705,19 @@ def _upsert_draw_match(
             match_date_estimated = True
 
     if existing and overwrite:
+        # Detect if the draw re-scrape returns players in swapped order.
+        # The set comparison earlier passed ({A,B}=={B,A}), so the match
+        # wasn't cancelled, but prediction_a must be flipped to stay
+        # consistent with the new player ordering.
+        players_swapped = (
+            existing.player_a_id is not None
+            and existing.player_b_id is not None
+            and existing.player_a_id == player_b_id
+            and existing.player_b_id == player_a_id
+        )
+        if players_swapped and existing.prediction_a is not None:
+            existing.prediction_a = 1.0 - float(existing.prediction_a)
+
         changed = False
         updates = {
             "player_a_id": player_a_id,
