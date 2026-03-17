@@ -39,7 +39,6 @@ from sqlalchemy.orm import Session
 
 from teelo.db.models import (
     Match,
-    MatchFeatures,
     Player,
     ROUND_ORDER,
     TournamentEdition,
@@ -53,6 +52,30 @@ from teelo.scrape.parsers.score import ScoreParseError, parse_score
 logger = logging.getLogger(__name__)
 PlayerResolutionKey = tuple[str, str, Optional[str], Optional[str]]
 MatchPairKey = tuple[int, str, int, int]
+
+
+def _flip_score_structured(
+    score_structured: Optional[list[dict]],
+) -> Optional[list[dict]]:
+    """Swap 'a' and 'b' keys in a score_structured list.
+
+    Used when the incoming score is oriented to a different player_a/player_b
+    than the match's stored orientation.  Each set dict like
+    ``{"a": 6, "b": 4, "tb_a": 7, "tb_b": 5}`` becomes
+    ``{"a": 4, "b": 6, "tb_a": 5, "tb_b": 7}``.
+    """
+    if not score_structured:
+        return score_structured
+    flipped: list[dict] = []
+    for s in score_structured:
+        d: dict = {"a": s.get("b"), "b": s.get("a")}
+        if "tb_a" in s or "tb_b" in s:
+            d["tb_a"] = s.get("tb_b")
+            d["tb_b"] = s.get("tb_a")
+        if "retired" in s:
+            d["retired"] = s["retired"]
+        flipped.append(d)
+    return flipped
 
 
 def _determine_winner_id(
@@ -391,7 +414,6 @@ def _process_single_result(
     if existing:
         if update_existing:
             _update_match_with_result(
-                session=session,
                 match=existing,
                 scraped=scraped,
                 edition=edition,
@@ -581,7 +603,6 @@ def _resolve_player(
 
 
 def _update_match_with_result(
-    session: Session,
     match: Match,
     scraped: ScrapedMatch,
     edition: TournamentEdition,
@@ -598,58 +619,56 @@ def _update_match_with_result(
     walkover, etc.), preserving any schedule data (scheduled_date, court) that
     was already set.
 
+    Player A/B orientation is NEVER changed once a match is created.  If the
+    results scraper returns players in the opposite order, we map the incoming
+    data (seeds, score, winner) to the match's existing orientation.  This
+    keeps predictions, features, and ELO values stable.
+
     Args:
         match: Existing Match to update
         scraped: ScrapedMatch with result data
         edition: Tournament edition
-        player_a_id: Resolved player A ID
-        player_b_id: Resolved player B ID
-        score_structured: Parsed score structure
+        player_a_id: Resolved player A ID (from scraped ordering)
+        player_b_id: Resolved player B ID (from scraped ordering)
+        score_structured: Parsed score structure (oriented to scraped ordering)
         match_date: Actual match date
         match_date_estimated: Whether the date was estimated
     """
-    # Detect if results scraper returns players in opposite order to what
-    # was stored (e.g. draw had A=Medvedev/B=Sinner but results have
-    # A=Sinner/B=Medvedev).  When this happens we must flip prediction_a
-    # so it still represents P(new player A wins).
-    players_swapped = (
+    # Determine whether the incoming scraper ordering is reversed relative to
+    # the match's existing player_a/player_b.  We never change the match's
+    # orientation — instead we remap incoming data to fit.
+    reversed_order = (
         match.player_a_id is not None
         and match.player_b_id is not None
         and match.player_a_id == player_b_id
         and match.player_b_id == player_a_id
     )
 
-    match.player_a_id = player_a_id
-    match.player_b_id = player_b_id
+    # If match has no players yet, adopt the incoming orientation.
+    if match.player_a_id is None and match.player_b_id is None:
+        match.player_a_id = player_a_id
+        match.player_b_id = player_b_id
 
-    if players_swapped:
-        # Clear prediction — it was computed from features oriented
-        # for the old player_a/player_b assignment.
-        match.prediction_a = None
-        match.prediction_model_version = None
-        match.prediction_updated_at = None
-        match.prediction_source = None
-        # Delete stale features so the feature engine recomputes them
-        # with the correct player orientation on the next pipeline run.
-        session.query(MatchFeatures).filter(
-            MatchFeatures.match_id == match.id
-        ).delete()
-        logger.info(
-            "Cleared stale features and prediction for match %s "
-            "due to player A/B swap",
-            match.id,
-        )
-
-    # Update seeds if provided by results scraper
-    if scraped.player_a_seed is not None:
-        match.player_a_seed = scraped.player_a_seed
-    if scraped.player_b_seed is not None:
-        match.player_b_seed = scraped.player_b_seed
+    # Update seeds — map to correct player slots
+    if reversed_order:
+        if scraped.player_a_seed is not None:
+            match.player_b_seed = scraped.player_a_seed
+        if scraped.player_b_seed is not None:
+            match.player_a_seed = scraped.player_b_seed
+    else:
+        if scraped.player_a_seed is not None:
+            match.player_a_seed = scraped.player_a_seed
+        if scraped.player_b_seed is not None:
+            match.player_b_seed = scraped.player_b_seed
 
     # Set result fields
+    # winner_id is a player ID (not position-dependent), so it's correct as-is.
     match.winner_id = _determine_winner_id(scraped, player_a_id, player_b_id)
     match.score = scraped.score_raw
-    match.score_structured = score_structured
+    match.score_structured = (
+        _flip_score_structured(score_structured) if reversed_order
+        else score_structured
+    )
     match.status = scraped.status
     match.retirement_set = scraped.retirement_set
     match.duration_minutes = scraped.duration_minutes
@@ -667,9 +686,8 @@ def _update_match_with_result(
     if scraped.match_number is not None:
         match.match_number = scraped.match_number
 
-    # NOTE: prediction columns are preserved for live accuracy tracking,
-    # except when player A/B swap is detected above (features + prediction
-    # are invalidated so the pipeline recomputes with correct orientation).
+    # Predictions and features are preserved — player orientation never changes,
+    # so they remain valid.
 
     # Recompute temporal order
     match.update_temporal_order(
