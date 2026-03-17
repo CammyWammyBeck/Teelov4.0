@@ -46,7 +46,6 @@ from sqlalchemy.orm import Session
 
 from teelo.db.models import (
     Match,
-    MatchFeatures,
     TournamentEdition,
     compute_temporal_order,
     estimate_match_date_from_round,
@@ -64,6 +63,28 @@ from teelo.scrape.base import ScrapedDrawEntry
 from teelo.scrape.parsers.score import ScoreParseError, parse_score
 
 logger = logging.getLogger(__name__)
+
+
+def _flip_score_structured(
+    score_structured: Optional[list[dict]],
+) -> Optional[list[dict]]:
+    """Swap 'a' and 'b' keys in a score_structured list.
+
+    Used when the incoming score is oriented to a different player_a/player_b
+    than the match's stored orientation.
+    """
+    if not score_structured:
+        return score_structured
+    flipped: list[dict] = []
+    for s in score_structured:
+        d: dict = {"a": s.get("b"), "b": s.get("a")}
+        if "tb_a" in s or "tb_b" in s:
+            d["tb_a"] = s.get("tb_b")
+            d["tb_b"] = s.get("tb_a")
+        if "retired" in s:
+            d["retired"] = s["retired"]
+        flipped.append(d)
+    return flipped
 
 
 def _make_external_id(
@@ -670,12 +691,32 @@ def _upsert_draw_match(
         if existing.draw_position is None:
             existing.draw_position = entry.draw_position
             updated = True
-        if existing.player_a_seed is None and entry.player_a_seed is not None:
-            existing.player_a_seed = entry.player_a_seed
-            updated = True
-        if existing.player_b_seed is None and entry.player_b_seed is not None:
-            existing.player_b_seed = entry.player_b_seed
-            updated = True
+        # Detect if the existing match has players in opposite order to the
+        # draw entry.  This can happen when results ingestion created the match
+        # with a different A/B orientation (e.g. ATP results list winner first).
+        # We must NOT change player_a/player_b (overwrite=False) but we must
+        # map seeds from the entry to the correct slots on the existing match.
+        entry_swapped = (
+            existing.player_a_id is not None
+            and existing.player_b_id is not None
+            and existing.player_a_id == player_b_id
+            and existing.player_b_id == player_a_id
+        )
+        if entry_swapped:
+            # Entry's player_a corresponds to existing's player_b and vice versa
+            if existing.player_a_seed is None and entry.player_b_seed is not None:
+                existing.player_a_seed = entry.player_b_seed
+                updated = True
+            if existing.player_b_seed is None and entry.player_a_seed is not None:
+                existing.player_b_seed = entry.player_a_seed
+                updated = True
+        else:
+            if existing.player_a_seed is None and entry.player_a_seed is not None:
+                existing.player_a_seed = entry.player_a_seed
+                updated = True
+            if existing.player_b_seed is None and entry.player_b_seed is not None:
+                existing.player_b_seed = entry.player_b_seed
+                updated = True
         if external_id and not existing.external_id:
             conflict = context.matches_by_external_id.get(external_id)
             if conflict is None or conflict.id == existing.id:
@@ -706,43 +747,35 @@ def _upsert_draw_match(
             match_date_estimated = True
 
     if existing and overwrite:
-        # Detect if the draw re-scrape returns players in swapped order.
-        # The set comparison earlier passed ({A,B}=={B,A}), so the match
-        # wasn't cancelled, but prediction_a must be flipped to stay
-        # consistent with the new player ordering.
-        players_swapped = (
+        # Player A/B orientation is NEVER changed once set.  If the draw
+        # re-scrape returns players in the opposite order we remap seeds,
+        # score, and winner to the match's existing orientation.  This keeps
+        # predictions, features, and ELO values stable.
+        reversed_order = (
             existing.player_a_id is not None
             and existing.player_b_id is not None
             and existing.player_a_id == player_b_id
             and existing.player_b_id == player_a_id
         )
-        if players_swapped:
-            # Clear prediction — it was computed from features oriented
-            # for the old player_a/player_b assignment.
-            existing.prediction_a = None
-            existing.prediction_model_version = None
-            existing.prediction_updated_at = None
-            existing.prediction_source = None
-            # Delete stale features so the feature engine recomputes them
-            # with the correct player orientation on the next pipeline run.
-            session.query(MatchFeatures).filter(
-                MatchFeatures.match_id == existing.id
-            ).delete()
-            logger.info(
-                "Cleared stale features and prediction for match %s "
-                "due to player A/B swap",
-                existing.id,
-            )
+
+        if reversed_order:
+            mapped_a_seed = entry.player_b_seed
+            mapped_b_seed = entry.player_a_seed
+            mapped_score_structured = _flip_score_structured(score_structured)
+        else:
+            mapped_a_seed = entry.player_a_seed
+            mapped_b_seed = entry.player_b_seed
+            mapped_score_structured = score_structured
 
         changed = False
         updates = {
-            "player_a_id": player_a_id,
-            "player_b_id": player_b_id,
-            "player_a_seed": entry.player_a_seed,
-            "player_b_seed": entry.player_b_seed,
+            "player_a_id": existing.player_a_id if reversed_order else player_a_id,
+            "player_b_id": existing.player_b_id if reversed_order else player_b_id,
+            "player_a_seed": mapped_a_seed,
+            "player_b_seed": mapped_b_seed,
             "winner_id": winner_id,
             "score": entry.score_raw,
-            "score_structured": score_structured,
+            "score_structured": mapped_score_structured,
             "status": status,
             "match_date": match_date,
             "match_date_estimated": match_date_estimated,
