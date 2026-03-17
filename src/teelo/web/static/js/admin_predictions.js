@@ -498,7 +498,6 @@ async function loadBreakdown(source) {
         const confidenceColumns = [
             { key: 'n_matches', label: 'Matches' },
             { key: 'avg_confidence', label: 'Avg Confidence', format: formatPct },
-            { key: 'actual_win_rate', label: 'Actual Win Rate', format: formatPct },
             { key: 'accuracy', label: 'Accuracy', format: formatPct }
         ];
 
