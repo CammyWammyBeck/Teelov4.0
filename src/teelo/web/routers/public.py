@@ -519,7 +519,7 @@ def home_api_movers(
     if _movers_cache is not None and (now - _movers_cache_time) < _STATS_CACHE_TTL:
         return JSONResponse(_movers_cache)
 
-    cutoff = date.today() - timedelta(days=14)
+    cutoff = date.today() - timedelta(days=90)
     completed_statuses = get_status_group("historical_default")
 
     gain_a = (

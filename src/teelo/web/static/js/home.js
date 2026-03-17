@@ -204,8 +204,11 @@ function renderBlogPosts(data) {
   const posts = Array.isArray(data) ? data : (data ? [data] : []);
   if (posts.length === 0) return;
 
-  // Render all posts
-  listEl.innerHTML = posts.map(p => `
+  // On mobile (single-column), limit to 3 posts
+  const isMobile = window.innerWidth < 1024;
+  const visible = isMobile ? posts.slice(0, 3) : posts;
+
+  listEl.innerHTML = visible.map(p => `
     <div class="p-5">
       <p class="text-xs text-content-faint mb-1">${fmtDate(p.date)}</p>
       <a href="${p.url || '#'}" class="text-sm font-bold text-teelo-dark hover:underline decoration-teelo-lime decoration-2">${p.title || 'Read post'}</a>
