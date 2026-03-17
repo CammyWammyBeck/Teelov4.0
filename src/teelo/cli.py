@@ -36,6 +36,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     model_subparsers.add_parser("list", help="List available model files in S3")
 
+    features_backfill_parser = subparsers.add_parser(
+        "features-backfill", help="Recompute features for all matches using the latest preset"
+    )
+    features_backfill_parser.add_argument("--preset", default=None, help="Override preset name")
+    features_backfill_parser.add_argument("--feature-set", default=None, help="Override feature set name")
+
+    predictions_backfill_parser = subparsers.add_parser(
+        "predictions-backfill", help="Regenerate predictions for all completed matches"
+    )
+    predictions_backfill_parser.add_argument("--model", default=None, help="Model file path")
+    predictions_backfill_parser.add_argument("--feature-set", default=None, help="Override feature set name")
+
+    predictions_live_parser = subparsers.add_parser(
+        "predictions-live", help="Generate predictions for upcoming/scheduled matches"
+    )
+    predictions_live_parser.add_argument("--model", default=None, help="Model file path")
+    predictions_live_parser.add_argument("--feature-set", default=None, help="Override feature set name")
+
     return parser
 
 
@@ -88,6 +106,34 @@ def main() -> int:
 
         args.model_parser.print_help()
         return 1
+
+    if args.command == "features-backfill":
+        from teelo.features import build_registry, latest_preset
+        from teelo.features.engine import FeatureEngine
+
+        preset = args.preset or latest_preset()
+        feature_set_name = args.feature_set or preset
+
+        registry = build_registry(preset)
+        engine = FeatureEngine(registry=registry, feature_set_name=feature_set_name)
+        engine.run(backfill=True)
+        return 0
+
+    if args.command == "predictions-backfill":
+        from teelo.ml.predictor import BatchPredictor
+
+        predictor = BatchPredictor(args.model, args.feature_set, backfill=True)
+        count = predictor.predict()
+        print(f"Predicted {count} matches")
+        return 0
+
+    if args.command == "predictions-live":
+        from teelo.ml.predictor import BatchPredictor
+
+        predictor = BatchPredictor(args.model, args.feature_set, backfill=False)
+        count = predictor.predict()
+        print(f"Predicted {count} matches")
+        return 0
 
     parser.print_help()
     return 1

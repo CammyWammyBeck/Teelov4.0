@@ -124,7 +124,22 @@ EXCLUDED_TRIMMED_V2B = EXCLUDED_TRIMMED_V2 | {
     "round_F",
 }
 
+# Ordered from oldest to newest. Append new presets to the end.
+PRESET_ORDER: list[str] = [
+    "full",
+    "trimmed",
+    "baseline_v2",
+    "trimmed_v2",
+    "trimmed_v2b",
+]
 
+
+def latest_preset() -> str:
+    """Return the most recent preset name."""
+    return PRESET_ORDER[-1]
+
+
+# NOTE: PRESET_ORDER above is the canonical source of preset ordering.
 def default_preset_for_feature_set(feature_set_name: str) -> str:
     if feature_set_name == "trimmed_v1":
         return "trimmed"

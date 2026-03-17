@@ -9,7 +9,7 @@ import pandas as pd
 import sqlalchemy as sa
 import structlog
 import xgboost as xgb
-from sqlalchemy import bindparam, select, update
+from sqlalchemy import bindparam, select, true, update
 
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
@@ -57,7 +57,7 @@ class BatchPredictor:
 
             if self.backfill:
                 status_filter = Match.status.in_(("completed", "retired", "walkover", "default"))
-                extra_filter = Match.prediction_a.is_(None)
+                extra_filter = true()
             else:
                 status_filter = Match.status.in_(("upcoming", "scheduled"))
                 extra_filter = Match.prediction_a.is_(None)

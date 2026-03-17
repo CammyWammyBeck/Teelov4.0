@@ -441,7 +441,7 @@ def _expected_win_probability(player_elo: float | None, opponent_elo: float | No
 if __name__ == "__main__":
     import argparse
 
-    from teelo.features import build_registry
+    from teelo.features import build_registry, latest_preset
 
     parser = argparse.ArgumentParser(
         description="Compute and store match features in chronological order"
@@ -449,26 +449,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "--backfill", action="store_true", help="Recompute and overwrite features for all matches"
     )
-    parser.add_argument("--feature-set", default="baseline_v1", help="Feature set name")
     parser.add_argument(
         "--preset",
-        default="full",
-        choices=[
-            "full",
-            "trimmed",
-            "baseline_v1",
-            "trimmed_v1",
-            "baseline_v2",
-            "trimmed_v2",
-            "trimmed_v2b",
-        ],
-        help=(
-            "Feature preset: full/baseline_v1, trimmed/trimmed_v1, baseline_v2, "
-            "trimmed_v2, or trimmed_v2b"
-        ),
+        default=None,
+        help="Feature preset name (default: latest preset)",
+    )
+    parser.add_argument(
+        "--feature-set",
+        default=None,
+        help="Feature set name (default: same as preset)",
     )
     args = parser.parse_args()
 
-    registry = build_registry(args.preset)
-    engine = FeatureEngine(registry=registry, feature_set_name=args.feature_set)
+    preset = args.preset or latest_preset()
+    feature_set_name = args.feature_set or preset
+
+    registry = build_registry(preset)
+    engine = FeatureEngine(registry=registry, feature_set_name=feature_set_name)
     engine.run(backfill=args.backfill)
