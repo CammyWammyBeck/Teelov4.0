@@ -120,6 +120,9 @@
     </td>
     <td class="px-5 py-3 text-right">
         <span class="text-xs text-content-faint whitespace-nowrap">{{ m.match_date_display or '' }}</span>
+        {% if m.match_datetime_utc %}
+        <span class="block text-[11px] text-content-faint whitespace-nowrap" data-utc-time="{{ m.match_datetime_utc }}"></span>
+        {% endif %}
     </td>
     <td class="pr-3 py-3 w-8">
         <a href="{{ m.match_url if m.match_url is defined else '/matches/' ~ m.id }}" class="text-content-faintest group-hover:text-teelo-lime transition-colors" onclick="event.stopPropagation()" aria-label="View match details">
@@ -168,6 +171,9 @@
         <span class="{{ surface_cls(m.surface) }} font-medium">{{ m.surface or '' }}</span>
         <span class="text-content-faintest">·</span>
         <span>{{ m.match_date_display or '' }}</span>
+        {% if m.match_datetime_utc %}
+        <span data-utc-time="{{ m.match_datetime_utc }}"></span>
+        {% endif %}
     </div>
 
     {# Prediction bar (if available) #}

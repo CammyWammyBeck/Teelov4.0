@@ -1,4 +1,4 @@
-import { escapeHtml, formatNumber } from '../lib/format.js';
+import { escapeHtml, formatNumber, formatLocalTime } from '../lib/format.js';
 
 function playerHref(player) {
   if (!player?.id) return null;
@@ -157,7 +157,10 @@ export function buildFallbackTableRows(matches) {
             ${eloBadge(m.player_b)}
         </div>
     </td>
-    <td class="px-5 py-3 text-right"><span class="text-xs text-content-faint whitespace-nowrap">${escapeHtml(m.match_date_display || '')}</span></td>
+    <td class="px-5 py-3 text-right">
+        <span class="text-xs text-content-faint whitespace-nowrap">${escapeHtml(m.match_date_display || '')}</span>
+        ${m.match_datetime_utc ? `<span class="block text-[11px] text-content-faint whitespace-nowrap">${escapeHtml(formatLocalTime(m.match_datetime_utc))}</span>` : ''}
+    </td>
     <td class="pr-3 py-3 w-8"><a href="${escapeHtml(matchUrl)}" class="text-content-faintest group-hover:text-teelo-lime transition-colors" onclick="event.stopPropagation()" aria-label="View match details"><i data-lucide="chevron-right" class="w-4 h-4"></i></a></td>
 </tr>`;
     }).join('');
@@ -228,6 +231,7 @@ export function buildFallbackCards(matches) {
         <span class="${surfaceCls(surface)} font-medium">${escapeHtml(surface)}</span>
         <span class="text-content-faintest">\u00b7</span>
         <span>${escapeHtml(m.match_date_display || '')}</span>
+        ${m.match_datetime_utc ? `<span>${escapeHtml(formatLocalTime(m.match_datetime_utc))}</span>` : ''}
     </div>
     ${predHtml}
     <div class="flex items-center">
@@ -302,6 +306,18 @@ export function renderMatchesView(els, data, append) {
       try { window.lucide.createIcons({ nodes: containers }); } catch { window.lucide.createIcons(); }
     }
   }
+
+  // Convert UTC times to local
+  [els.tableBody, els.cardsContainer].forEach(container => {
+    if (!container) return;
+    container.querySelectorAll('[data-utc-time]').forEach(el => {
+      if (el.textContent) return; // already converted
+      const d = new Date(el.dataset.utcTime);
+      if (!isNaN(d.getTime())) {
+        el.textContent = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      }
+    });
+  });
 }
 
 export function renderSummaryTags(els, tags, onRemove) {

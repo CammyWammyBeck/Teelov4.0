@@ -16,6 +16,13 @@ export function formatShortDate(value) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+export function formatLocalTime(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
 export function slugifyName(name) {
   if (!name) return '';
   return name

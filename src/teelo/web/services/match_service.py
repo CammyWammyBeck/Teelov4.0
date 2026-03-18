@@ -50,6 +50,7 @@ def serialize_match(match: Match) -> dict:
     pa = match.player_a
     pb = match.player_b
     display_date = match.match_date or match.scheduled_date
+    display_datetime = match.match_datetime or match.scheduled_datetime
     player_a_payload = {
         "id": pa.id if pa else match.player_a_id,
         "name": pa.canonical_name if pa else "Unknown",
@@ -120,6 +121,11 @@ def serialize_match(match: Match) -> dict:
         ),
         "match_date_display": (
             display_date.strftime("%d %b %Y") if display_date else None
+        ),
+        "match_datetime_utc": (
+            display_datetime.isoformat() + "Z"
+            if display_datetime
+            else None
         ),
         "year": (
             display_date.year

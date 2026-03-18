@@ -53,6 +53,9 @@
             <span class="{{ surface_cls(match.surface) }} font-medium">{{ match.surface or '' }}</span>
             <span class="text-content-faintest">·</span>
             <span>{{ match.match_date_display or '' }}</span>
+            {% if match.match_datetime_utc %}
+            <span data-utc-time="{{ match.match_datetime_utc }}"></span>
+            {% endif %}
             {% if match.tournament_level %}
             <span class="text-content-faintest">·</span>
             <span>{{ match.tournament_level }}</span>
