@@ -90,12 +90,6 @@ export function buildFallbackTableRows(matches) {
         // Prediction
         const predA = m.prediction_a != null ? Math.round(m.prediction_a * 100) : null;
         const predB = predA != null ? 100 - predA : null;
-        const predHtml = predA != null
-            ? `<div class="flex flex-col items-center gap-0.5 text-[11px] leading-tight">
-                 <span class="${predA >= predB ? 'text-teelo-dark font-semibold' : 'text-content-faint'}">${predA}%</span>
-                 <span class="${predB > predA ? 'text-teelo-dark font-semibold' : 'text-content-faint'}">${predB}%</span>
-               </div>`
-            : '<span class="text-content-faintest text-[11px]">\u2014</span>';
 
         // Tournament name — link or span
         const tournamentName = escapeHtml(m.tournament_name || 'Unknown');
@@ -143,8 +137,18 @@ export function buildFallbackTableRows(matches) {
             ${playerACheck}
         </div>
     </td>
-    <td class="px-5 py-3 text-center">
-        <span class="inline-block px-2.5 py-1 bg-surface-alt rounded-md text-xs font-mono whitespace-nowrap group-hover:bg-teelo-lime/10 transition-colors ${scoreCls}">${escapeHtml(scoreDisplay)}</span>
+    <td class="px-3 py-3 text-center">
+        ${predA != null ? `<div class="flex flex-col items-center" style="min-width:110px;">
+            ${scoreDisplay !== 'vs' ? `<span class="text-teelo-dark font-semibold text-[11px] mb-1">${escapeHtml(scoreDisplay)}</span>` : ''}
+            <div class="flex justify-between w-full" style="font-size:10px;margin-bottom:2px;">
+                <span class="${predA >= predB ? 'font-semibold text-teelo-dark' : 'text-content-faint'}">${predA}%</span>
+                <span class="${predB > predA ? 'font-semibold text-teelo-dark' : 'text-content-faint'}">${predB}%</span>
+            </div>
+            <div class="flex w-full overflow-hidden" style="height:6px;border-radius:3px;">
+                <div class="bg-teelo-lime" style="width:${predA}%;border-radius:3px 0 0 3px;"></div>
+                <div class="bg-surface-muted" style="width:${predB}%;border-radius:0 3px 3px 0;"></div>
+            </div>
+        </div>` : `<span class="inline-block px-2.5 py-1 bg-surface-alt rounded-md text-xs font-mono whitespace-nowrap group-hover:bg-teelo-lime/10 transition-colors ${scoreCls}">${escapeHtml(scoreDisplay)}</span>`}
     </td>
     <td class="px-5 py-3">
         <div class="flex items-center gap-2">
@@ -153,7 +157,6 @@ export function buildFallbackTableRows(matches) {
             ${eloBadge(m.player_b)}
         </div>
     </td>
-    <td class="px-3 py-3 text-center">${predHtml}</td>
     <td class="px-5 py-3 text-right"><span class="text-xs text-content-faint whitespace-nowrap">${escapeHtml(m.match_date_display || '')}</span></td>
     <td class="pr-3 py-3 w-8"><a href="${escapeHtml(matchUrl)}" class="text-content-faintest group-hover:text-teelo-lime transition-colors" onclick="event.stopPropagation()" aria-label="View match details"><i data-lucide="chevron-right" class="w-4 h-4"></i></a></td>
 </tr>`;

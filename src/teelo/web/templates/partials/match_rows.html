@@ -90,8 +90,24 @@
             {% endif %}
         </div>
     </td>
-    <td class="px-5 py-3 text-center">
+    <td class="px-3 py-3 text-center">
+        {% if pred_a_pct is not none %}
+        <div class="flex flex-col items-center" style="min-width:110px;">
+            {% if score_display != 'vs' %}
+            <span class="text-teelo-dark font-semibold text-[11px] mb-1">{{ score_display }}</span>
+            {% endif %}
+            <div class="flex justify-between w-full" style="font-size:10px;margin-bottom:2px;">
+                <span class="{{ 'font-semibold text-teelo-dark' if pred_a_pct >= pred_b_pct else 'text-content-faint' }}">{{ pred_a_pct }}%</span>
+                <span class="{{ 'font-semibold text-teelo-dark' if pred_b_pct > pred_a_pct else 'text-content-faint' }}">{{ pred_b_pct }}%</span>
+            </div>
+            <div class="flex w-full overflow-hidden" style="height:6px;border-radius:3px;">
+                <div class="bg-teelo-lime" style="width:{{ pred_a_pct }}%;border-radius:3px 0 0 3px;"></div>
+                <div class="bg-surface-muted" style="width:{{ pred_b_pct }}%;border-radius:0 3px 3px 0;"></div>
+            </div>
+        </div>
+        {% else %}
         <span class="inline-block px-2.5 py-1 bg-surface-alt rounded-md text-xs font-mono whitespace-nowrap group-hover:bg-teelo-lime/10 transition-colors {% if score_display == 'vs' %}text-content-faint italic{% else %}text-teelo-dark font-semibold{% endif %}">{{ score_display }}</span>
+        {% endif %}
     </td>
     <td class="px-5 py-3">
         <div class="flex items-center gap-2">
@@ -101,16 +117,6 @@
             <a href="{{ player_b_url }}" class="text-sm hover:underline decoration-teelo-lime decoration-2 {% if is_winner_b %}text-teelo-dark font-bold{% else %}text-content-faint{% endif %}" onclick="event.stopPropagation()">{{ m.player_b.name }}</a>
             {{ elo_badge(m.player_b) }}
         </div>
-    </td>
-    <td class="px-3 py-3 text-center">
-        {% if pred_a_pct is not none %}
-        <div class="flex flex-col items-center gap-0.5 text-[11px] leading-tight">
-            <span class="{{ 'text-teelo-dark font-semibold' if pred_a_pct >= pred_b_pct else 'text-content-faint' }}">{{ pred_a_pct }}%</span>
-            <span class="{{ 'text-teelo-dark font-semibold' if pred_b_pct > pred_a_pct else 'text-content-faint' }}">{{ pred_b_pct }}%</span>
-        </div>
-        {% else %}
-        <span class="text-content-faintest text-[11px]">—</span>
-        {% endif %}
     </td>
     <td class="px-5 py-3 text-right">
         <span class="text-xs text-content-faint whitespace-nowrap">{{ m.match_date_display or '' }}</span>
