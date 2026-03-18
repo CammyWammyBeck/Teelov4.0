@@ -249,6 +249,16 @@
             if (e.target === mobileMenu) closeMenu();
         });
     </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('[data-utc-time]').forEach(function(el) {
+        var d = new Date(el.dataset.utcTime);
+        if (!isNaN(d.getTime())) {
+          el.textContent = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        }
+      });
+    });
+    </script>
     <script type="module" src="{{ url_for('static', path='/js/search.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
