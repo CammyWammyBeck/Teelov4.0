@@ -13,7 +13,7 @@ from teelo.db.models import Match, ModelEvaluationSnapshot, Player, PlayerEloSta
 from teelo.db.session import get_db
 from teelo.match_statuses import get_status_group
 from teelo.web.app_context import CONTENT_PATH, MATCHES_PAGE_STATUS_FILTERS, templates
-from teelo.web.services.match_service import serialize_match, slugify_name
+from teelo.web.services.match_service import serialize_match, slugify_name, upcoming_sort_expressions, completed_sort_expressions
 
 router = APIRouter()
 
@@ -204,11 +204,7 @@ def home_api_upcoming(
     upcoming = (
         _home_base_query(db)
         .filter(Match.status.in_(get_status_group("upcoming")))
-        .order_by(
-            func.coalesce(Match.scheduled_date, Match.match_date).asc().nullslast(),
-            Match.scheduled_datetime.asc().nullslast(),
-            Match.id.asc(),
-        )
+        .order_by(*upcoming_sort_expressions())
         .limit(10)
         .all()
     )
@@ -231,10 +227,7 @@ def home_api_completed(
     completed = (
         _home_base_query(db)
         .filter(Match.status.in_(get_status_group("historical_default")))
-        .order_by(
-            func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
-            Match.id.desc(),
-        )
+        .order_by(*completed_sort_expressions())
         .limit(10)
         .all()
     )
@@ -645,21 +638,14 @@ def home_api(
     upcoming = (
         home_base_query
         .filter(Match.status.in_(get_status_group("upcoming")))
-        .order_by(
-            func.coalesce(Match.scheduled_date, Match.match_date).asc().nullslast(),
-            Match.scheduled_datetime.asc().nullslast(),
-            Match.id.asc(),
-        )
+        .order_by(*upcoming_sort_expressions())
         .limit(10)
         .all()
     )
     completed = (
         home_base_query
         .filter(Match.status.in_(get_status_group("historical_default")))
-        .order_by(
-            func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
-            Match.id.desc(),
-        )
+        .order_by(*completed_sort_expressions())
         .limit(10)
         .all()
     )

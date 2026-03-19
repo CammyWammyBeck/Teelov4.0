@@ -62,6 +62,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+geo = ["geopy>=2.4", "timezonefinder>=8.0"]
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.23.0",

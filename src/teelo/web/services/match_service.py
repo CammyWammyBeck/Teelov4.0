@@ -2,12 +2,38 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import re
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
+
+from sqlalchemy import case, func
 
 from teelo.db.models import Match
 
 
 _SLUG_NON_ALNUM_RE = re.compile(r"[^a-z0-9\u00C0-\u024F]+")
 _SLUG_MULTI_HYPHEN_RE = re.compile(r"-+")
+
+
+def upcoming_sort_expressions():
+    """Standard sort order for upcoming matches: scheduled first, then by date/time."""
+    has_schedule = case(
+        (Match.scheduled_date.isnot(None), 0),
+        else_=1,
+    )
+    return [
+        has_schedule.asc(),
+        Match.scheduled_date.asc().nullslast(),
+        Match.scheduled_datetime.asc().nullslast(),
+        Match.id.asc(),
+    ]
+
+
+def completed_sort_expressions():
+    """Standard sort order for completed matches: most recent first."""
+    return [
+        func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
+        Match.temporal_order.desc().nullslast(),
+        Match.id.desc(),
+    ]
 
 
 def round_elo(value: Any) -> Optional[int]:
@@ -50,9 +76,22 @@ def serialize_match(match: Match) -> dict:
     pa = match.player_a
     pb = match.player_b
     exact_datetime = match.match_datetime or match.scheduled_datetime
+    # Convert naive local datetime to UTC using tournament timezone
+    tz_name = tournament.timezone if tournament else None
+    if exact_datetime and tz_name and exact_datetime.tzinfo is None:
+        try:
+            local_tz = ZoneInfo(tz_name)
+            exact_datetime = exact_datetime.replace(tzinfo=local_tz).astimezone(
+                timezone.utc
+            )
+        except (KeyError, ValueError):
+            pass  # unknown timezone — keep naive datetime
+    elif exact_datetime and exact_datetime.tzinfo is None:
+        # No timezone available — cannot produce a reliable UTC value
+        exact_datetime = None
     display_date = (
-        exact_datetime.date()
-        if exact_datetime
+        (match.match_datetime or match.scheduled_datetime or datetime.min).date()
+        if (match.match_datetime or match.scheduled_datetime)
         else (match.match_date or match.scheduled_date)
     )
     # If we have a date but no exact datetime, synthesize one at 23:59 UTC

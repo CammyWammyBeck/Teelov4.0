@@ -918,6 +918,16 @@ async def update_tournament_metadata(
         if ioc:
             tournament.country_ioc = ioc
 
+    # Populate timezone from city/country if not already set
+    if tournament.city and tournament.country and not tournament.timezone:
+        try:
+            from teelo.utils.geo import city_country_to_timezone
+            tz = city_country_to_timezone(tournament.city, tournament.country)
+            if tz:
+                tournament.timezone = tz
+        except Exception:
+            pass  # timezone is non-critical, don't fail the pipeline
+
     # Update Surface
     # Only update if current is generic/default and new is specific
     if scraped_match.tournament_surface:

@@ -1,5 +1,6 @@
 import { byId, toggleHidden } from './lib/dom.js';
 import { getJson } from './lib/http.js';
+import { hydrateMatchTimes } from './lib/time.js';
 import { buildFallbackCards, buildFallbackTableRows } from './renderers/matches.js';
 
 function statValue(value) {
@@ -49,6 +50,9 @@ function renderSection(prefix, sectionData) {
       ? (cardsHtml || buildFallbackCards(matches))
       : '';
   }
+
+  if (tableBodyEl) hydrateMatchTimes(tableBodyEl);
+  if (cardsEl) hydrateMatchTimes(cardsEl);
 
   toggleHidden(loadingEl, true);
   toggleHidden(contentEl, !hasMatches);

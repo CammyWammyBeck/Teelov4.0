@@ -1,4 +1,5 @@
 import { escapeHtml, formatLocalDate, formatNumber, formatLocalTime } from '../lib/format.js';
+import { hydrateMatchTimes } from '../lib/time.js';
 
 function playerHref(player) {
   if (!player?.id) return null;
@@ -306,7 +307,8 @@ export function renderMatchesView(els, data, append) {
       try { window.lucide.createIcons({ nodes: containers }); } catch { window.lucide.createIcons(); }
     }
   }
-
+  hydrateMatchTimes(els.tableBody);
+  hydrateMatchTimes(els.cardsContainer);
 }
 
 

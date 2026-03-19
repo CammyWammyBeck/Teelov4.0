@@ -506,3 +506,51 @@ def city_to_ioc(city: str) -> Optional[str]:
     if country:
         return country_to_ioc(country)
     return None
+
+
+def city_country_to_timezone(city: str | None, country: str | None) -> str | None:
+    """
+    Look up IANA timezone for a city/country pair using geocoding.
+
+    Uses geopy Nominatim to geocode city+country, then timezonefinder
+    to get the timezone from coordinates. Returns None if lookup fails.
+
+    Results are cached in-process to avoid repeated geocoding calls.
+    """
+    if not city or not country:
+        return None
+
+    cache_key = (city.strip().lower(), country.strip().lower())
+
+    if not hasattr(city_country_to_timezone, "_cache"):
+        city_country_to_timezone._cache = {}
+
+    cached = city_country_to_timezone._cache.get(cache_key)
+    if cached is not None:
+        return cached if cached != "" else None
+
+    try:
+        from geopy.geocoders import Nominatim
+        from timezonefinder import TimezoneFinder
+
+        if not hasattr(city_country_to_timezone, "_geocoder"):
+            city_country_to_timezone._geocoder = Nominatim(
+                user_agent="teelo-timezone-lookup", timeout=10,
+            )
+            city_country_to_timezone._tf = TimezoneFinder()
+
+        location = city_country_to_timezone._geocoder.geocode(
+            f"{city}, {country}", exactly_one=True,
+        )
+        if location is None:
+            city_country_to_timezone._cache[cache_key] = ""
+            return None
+
+        tz = city_country_to_timezone._tf.timezone_at(
+            lat=location.latitude, lng=location.longitude,
+        )
+        city_country_to_timezone._cache[cache_key] = tz or ""
+        return tz
+    except Exception:
+        city_country_to_timezone._cache[cache_key] = ""
+        return None

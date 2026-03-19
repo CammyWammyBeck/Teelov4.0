@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 from pathlib import Path
@@ -35,7 +36,7 @@ from teelo.db.session import get_db
 from teelo.match_statuses import get_status_group, normalize_status_filter
 from teelo.players.identity import PlayerIdentityService
 from teelo.web.admin_auth import authenticate_admin, mark_admin_login
-from teelo.web.services.match_service import slugify_name
+from teelo.web.services.match_service import slugify_name, upcoming_sort_expressions, completed_sort_expressions
 from teelo.web.services.sql_editor import (
     classify_query,
     execute_mutation,
@@ -200,17 +201,7 @@ async def home(
     upcoming_matches = (
         home_base_query
         .filter(Match.status.in_(get_status_group("upcoming")))
-        .order_by(
-            func.coalesce(
-                Match.scheduled_datetime,
-                Match.match_datetime,
-                func.cast(
-                    func.coalesce(Match.scheduled_date, Match.match_date),
-                    Match.scheduled_datetime.type,
-                ),
-            ).asc().nullslast(),
-            Match.id.asc(),
-        )
+        .order_by(*upcoming_sort_expressions())
         .limit(10)
         .all()
     )
@@ -218,17 +209,7 @@ async def home(
     completed_matches = (
         home_base_query
         .filter(Match.status.in_(get_status_group("historical_default")))
-        .order_by(
-            func.coalesce(
-                Match.match_datetime,
-                Match.scheduled_datetime,
-                func.cast(
-                    func.coalesce(Match.match_date, Match.scheduled_date),
-                    Match.match_datetime.type,
-                ),
-            ).desc().nullslast(),
-            Match.id.desc(),
-        )
+        .order_by(*completed_sort_expressions())
         .limit(10)
         .all()
     )
@@ -582,26 +563,25 @@ async def api_matches(
             pass
 
     if resolved_from:
-        query = query.filter(Match.match_date >= resolved_from)
+        query = query.filter(
+            or_(
+                Match.match_date >= resolved_from,
+                and_(Match.match_date.is_(None), Match.scheduled_date >= resolved_from),
+            )
+        )
     if resolved_to:
-        query = query.filter(Match.match_date <= resolved_to)
+        query = query.filter(
+            or_(
+                Match.match_date <= resolved_to,
+                and_(Match.match_date.is_(None), Match.scheduled_date <= resolved_to),
+            )
+        )
 
     # --- Get total count (before pagination) ---
     total = query.count()
 
     # --- Ordering and pagination ---
-    query = query.order_by(
-        func.coalesce(
-            Match.match_datetime,
-            Match.scheduled_datetime,
-            func.cast(
-                func.coalesce(Match.match_date, Match.scheduled_date),
-                Match.match_datetime.type,
-            ),
-        ).desc().nullslast(),
-        Match.temporal_order.desc().nullslast(),
-        Match.id.desc(),
-    )
+    query = query.order_by(*completed_sort_expressions())
     offset = (page - 1) * per_page
     matches = query.offset(offset).limit(per_page).all()
     serialized_matches = [_serialize_match(m) for m in matches]
@@ -1119,11 +1099,7 @@ def _build_player_records_payload(db: Session, player_id: int) -> dict[str, Any]
             Match.winner_id.isnot(None),
             or_(Match.player_a_id == player_id, Match.player_b_id == player_id),
         )
-        .order_by(
-            Match.match_date.desc().nullslast(),
-            Match.temporal_order.desc().nullslast(),
-            Match.id.desc(),
-        )
+        .order_by(*completed_sort_expressions())
         .limit(10)
         .all()
     )
@@ -1287,18 +1263,7 @@ async def api_player_matches(
     total = query.count()
     offset = (page - 1) * per_page
     matches = (
-        query.order_by(
-            func.coalesce(
-                Match.match_datetime,
-                Match.scheduled_datetime,
-                func.cast(
-                    func.coalesce(Match.match_date, Match.scheduled_date),
-                    Match.match_datetime.type,
-                ),
-            ).desc().nullslast(),
-            Match.temporal_order.desc().nullslast(),
-            Match.id.desc(),
-        )
+        query.order_by(*completed_sort_expressions())
         .offset(offset)
         .limit(per_page)
         .all()

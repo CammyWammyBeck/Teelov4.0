@@ -9,13 +9,18 @@ from sqlalchemy.orm import Session, contains_eager, joinedload
 from teelo.db.models import Match, MatchFeatures, Player, PlayerAlias, Tournament, TournamentEdition
 from teelo.db.session import get_db
 from teelo.features import build_registry, default_preset_for_feature_set
-from teelo.match_statuses import normalize_status_filter
+from teelo.match_statuses import normalize_status_filter, get_status_group
 from teelo.web.app_context import templates
 from teelo.web.services.feature_display import (
     build_feature_groups,
     format_feature_value,
 )
-from teelo.web.services.match_service import resolve_date_preset, serialize_match
+from teelo.web.services.match_service import (
+    resolve_date_preset,
+    serialize_match,
+    upcoming_sort_expressions,
+    completed_sort_expressions,
+)
 
 router = APIRouter()
 
@@ -47,9 +52,19 @@ async def api_matches(db: Session = Depends(get_db), tour: Optional[str] = Query
         if tournament:
             q = q.filter(Tournament.name.ilike(f"%{tournament}%"))
         if resolved_from:
-            q = q.filter(Match.match_date >= resolved_from)
+            q = q.filter(
+                or_(
+                    Match.match_date >= resolved_from,
+                    and_(Match.match_date.is_(None), Match.scheduled_date >= resolved_from),
+                )
+            )
         if resolved_to:
-            q = q.filter(Match.match_date <= resolved_to)
+            q = q.filter(
+                or_(
+                    Match.match_date <= resolved_to,
+                    and_(Match.match_date.is_(None), Match.scheduled_date <= resolved_to),
+                )
+            )
         return q
 
     resolved_from, resolved_to = (None, None)
@@ -73,7 +88,12 @@ async def api_matches(db: Session = Depends(get_db), tour: Optional[str] = Query
 
     offset = (page - 1) * per_page
     # LIMIT+1 pattern: fetch one extra row to detect if more pages exist
-    rows = fetch_q.order_by(Match.match_date.desc().nullslast(), Match.temporal_order.desc().nullslast(), Match.id.desc()).offset(offset).limit(per_page + 1).all()
+    upcoming_statuses = set(get_status_group("upcoming"))
+    if statuses and set(statuses).issubset(upcoming_statuses):
+        sort_exprs = upcoming_sort_expressions()
+    else:
+        sort_exprs = completed_sort_expressions()
+    rows = fetch_q.order_by(*sort_exprs).offset(offset).limit(per_page + 1).all()
     has_more = len(rows) > per_page
     matches = rows[:per_page] if has_more else rows
     payload = [serialize_match(m) for m in matches]

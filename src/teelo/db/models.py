@@ -443,6 +443,9 @@ class Tournament(Base):
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     country: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     country_ioc: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
+    # IANA timezone identifier (e.g., "America/New_York")
+    # Populated from city/country via geo lookup
+    timezone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # Playing conditions
     surface: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 'Hard', 'Clay', 'Grass'

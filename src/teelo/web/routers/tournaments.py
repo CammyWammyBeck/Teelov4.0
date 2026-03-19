@@ -10,7 +10,7 @@ from teelo.db.models import ROUND_ORDER, Match, Player, Tournament, TournamentEd
 from teelo.db.session import get_db
 from teelo.match_statuses import get_status_group
 from teelo.web.app_context import templates
-from teelo.web.services.match_service import serialize_match, slugify_name
+from teelo.web.services.match_service import serialize_match, slugify_name, upcoming_sort_expressions
 
 router = APIRouter()
 
@@ -642,18 +642,7 @@ async def api_tournament_matches(
             Match.id.desc(),
         )
     else:
-        fetch_q = fetch_q.order_by(
-            func.coalesce(
-                Match.scheduled_datetime,
-                Match.match_datetime,
-                func.cast(
-                    func.coalesce(Match.scheduled_date, Match.match_date),
-                    Match.scheduled_datetime.type,
-                ),
-            ).asc().nullslast(),
-            round_sort.asc(),
-            Match.id.asc(),
-        )
+        fetch_q = fetch_q.order_by(*upcoming_sort_expressions())
 
     matches = fetch_q.offset(offset).limit(per_page).all()
     payload = [serialize_match(match) for match in matches]
