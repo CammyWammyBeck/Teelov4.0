@@ -631,12 +631,26 @@ async def api_tournament_matches(
     if status_key == "completed":
         fetch_q = fetch_q.order_by(
             round_sort.desc(),
-            Match.match_date.desc().nullslast(),
+            func.coalesce(
+                Match.match_datetime,
+                Match.scheduled_datetime,
+                func.cast(
+                    func.coalesce(Match.match_date, Match.scheduled_date),
+                    Match.match_datetime.type,
+                ),
+            ).desc().nullslast(),
             Match.id.desc(),
         )
     else:
         fetch_q = fetch_q.order_by(
-            func.coalesce(Match.scheduled_date, Match.match_date).asc().nullslast(),
+            func.coalesce(
+                Match.scheduled_datetime,
+                Match.match_datetime,
+                func.cast(
+                    func.coalesce(Match.scheduled_date, Match.match_date),
+                    Match.scheduled_datetime.type,
+                ),
+            ).asc().nullslast(),
             round_sort.asc(),
             Match.id.asc(),
         )
