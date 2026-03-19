@@ -329,9 +329,22 @@ def _serialize_match(match: Match) -> dict:
     pa = match.player_a
     pb = match.player_b
     exact_datetime = match.match_datetime or match.scheduled_datetime
+    # Convert naive local datetime to UTC using tournament timezone
+    tz_name = tournament.timezone if tournament else None
+    if exact_datetime and tz_name and exact_datetime.tzinfo is None:
+        try:
+            local_tz = ZoneInfo(tz_name)
+            exact_datetime = exact_datetime.replace(tzinfo=local_tz).astimezone(
+                timezone.utc
+            )
+        except (KeyError, ValueError):
+            pass  # unknown timezone — keep naive datetime
+    elif exact_datetime and exact_datetime.tzinfo is None:
+        # No timezone available — cannot produce a reliable UTC value
+        exact_datetime = None
     display_date = (
-        exact_datetime.date()
-        if exact_datetime
+        (match.match_datetime or match.scheduled_datetime or datetime.min).date()
+        if (match.match_datetime or match.scheduled_datetime)
         else (match.match_date or match.scheduled_date)
     )
     # If we have a date but no exact datetime, synthesize one at 23:59 UTC

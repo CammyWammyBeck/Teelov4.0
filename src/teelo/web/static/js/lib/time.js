@@ -1,11 +1,12 @@
 /**
- * Hydrate <time> elements with data-utc attributes to show local time.
+ * Hydrate elements with data-utc-date / data-utc-time attributes to show local time.
  *
  * Usage: After inserting match rows HTML, call hydrateMatchTimes()
  * to convert UTC timestamps to the user's local time.
  *
- * Elements must have: data-utc="2026-03-19T14:00:00Z"
- * Optional: data-date-fallback="19 Mar 2026" (shown if no UTC time)
+ * Elements must have:
+ *   data-utc-date="2026-03-19T14:00:00Z"  — shows localized date (Today/Tomorrow/date)
+ *   data-utc-time="2026-03-19T14:00:00Z"  — shows localized time
  */
 
 const SHORT_TIME_FORMAT = {
@@ -21,7 +22,7 @@ const DATE_ONLY_FORMAT = {
 
 /**
  * Format a UTC ISO string to the user's local time.
- * Returns object with { datePart, timePart, full } for flexible display.
+ * Returns object with { datePart, timePart, dateLabel, full } for flexible display.
  */
 export function formatLocalTime(utcIso) {
   if (!utcIso) return null;
@@ -55,20 +56,25 @@ export function formatLocalTime(utcIso) {
 }
 
 /**
- * Hydrate all <time data-utc="..."> elements within a container.
+ * Hydrate all [data-utc-date] and [data-utc-time] elements within a container.
  * Call after inserting server-rendered match row HTML.
  */
 export function hydrateMatchTimes(container) {
   if (!container) return;
-  const elements = container.querySelectorAll('time[data-utc]');
-  for (const el of elements) {
-    const utc = el.dataset.utc;
-    const result = formatLocalTime(utc);
+  // Hydrate date elements
+  for (const el of container.querySelectorAll('[data-utc-date]')) {
+    const result = formatLocalTime(el.dataset.utcDate);
     if (result) {
-      el.textContent = result.full;
-      el.setAttribute('datetime', utc);
+      el.textContent = result.dateLabel;
+      el.title = `${result.datePart} (your local date)`;
+    }
+  }
+  // Hydrate time elements
+  for (const el of container.querySelectorAll('[data-utc-time]')) {
+    const result = formatLocalTime(el.dataset.utcTime);
+    if (result) {
+      el.textContent = result.timePart;
       el.title = `${result.datePart}, ${result.timePart} (your local time)`;
     }
-    // If no result, the server-rendered fallback text remains
   }
 }

@@ -1,5 +1,5 @@
-import { escapeHtml, formatLocalDate, formatNumber, formatLocalTime } from '../lib/format.js';
-import { hydrateMatchTimes } from '../lib/time.js';
+import { escapeHtml, formatNumber } from '../lib/format.js';
+import { hydrateMatchTimes, formatLocalTime } from '../lib/time.js';
 
 function playerHref(player) {
   if (!player?.id) return null;
@@ -82,6 +82,9 @@ export function buildFallbackTableRows(matches) {
         const playerBUrl = m.player_b?.player_url || `/players/${m.player_b?.id ?? ''}`;
         const scoreDisplay = m.status === 'walkover' ? 'W/O' : (m.score || 'vs');
         const matchUrl = m.match_url || `/matches/${m.id}`;
+        const _ft = formatLocalTime(m.match_datetime_utc);
+        const dateText = _ft ? _ft.dateLabel : (m.match_date_display || '');
+        const timeText = _ft ? _ft.timePart : '';
 
         const tour = m.tour || '';
         const level = m.tournament_level || '';
@@ -159,8 +162,8 @@ export function buildFallbackTableRows(matches) {
         </div>
     </td>
     <td class="px-5 py-3 text-right">
-        <span class="text-xs text-content-faint whitespace-nowrap"${m.match_datetime_utc ? ` data-utc-date="${escapeHtml(m.match_datetime_utc)}"` : ''}>${escapeHtml(m.match_datetime_utc ? formatLocalDate(m.match_datetime_utc) : (m.match_date_display || ''))}</span>
-        ${m.has_exact_time && m.match_datetime_utc ? `<span class="block text-[11px] text-content-faint whitespace-nowrap">${escapeHtml(formatLocalTime(m.match_datetime_utc))}</span>` : (!m.has_exact_time && (!m.score || m.score === 'vs') ? '<span class="block text-[11px] text-content-faint italic whitespace-nowrap">Not yet scheduled</span>' : '')}
+        <span class="text-xs text-content-faint whitespace-nowrap"${m.match_datetime_utc ? ` data-utc-date="${escapeHtml(m.match_datetime_utc)}"` : ''}>${escapeHtml(dateText)}</span>
+        ${m.has_exact_time && m.match_datetime_utc ? `<span class="block text-[11px] text-content-faint whitespace-nowrap" data-utc-time="${escapeHtml(m.match_datetime_utc)}">${escapeHtml(timeText)}</span>` : (!m.has_exact_time && (!m.score || m.score === 'vs') ? '<span class="block text-[11px] text-content-faint italic whitespace-nowrap">Not yet scheduled</span>' : '')}
     </td>
     <td class="pr-3 py-3 w-8"><a href="${escapeHtml(matchUrl)}" class="text-content-faintest group-hover:text-teelo-lime transition-colors" onclick="event.stopPropagation()" aria-label="View match details"><i data-lucide="chevron-right" class="w-4 h-4"></i></a></td>
 </tr>`;
@@ -178,6 +181,9 @@ export function buildFallbackCards(matches) {
         const playerBUrl = m.player_b?.player_url || `/players/${m.player_b?.id ?? ''}`;
         const scoreDisplay = m.status === 'walkover' ? 'W/O' : (m.score || 'vs');
         const matchUrl = m.match_url || `/matches/${m.id}`;
+        const _ft = formatLocalTime(m.match_datetime_utc);
+        const dateText = _ft ? _ft.dateLabel : (m.match_date_display || '');
+        const timeText = _ft ? _ft.timePart : '';
 
         const tour = m.tour || '';
         const level = m.tournament_level || '';
@@ -231,8 +237,8 @@ export function buildFallbackCards(matches) {
         <span class="w-1.5 h-1.5 rounded-full ${genderDotCls(gender, tour)} flex-shrink-0"></span>
         <span class="${surfaceCls(surface)} font-medium">${escapeHtml(surface)}</span>
         <span class="text-content-faintest">\u00b7</span>
-        <span${m.match_datetime_utc ? ` data-utc-date="${escapeHtml(m.match_datetime_utc)}"` : ''}>${escapeHtml(m.match_datetime_utc ? formatLocalDate(m.match_datetime_utc) : (m.match_date_display || ''))}</span>
-        ${m.has_exact_time && m.match_datetime_utc ? `<span>${escapeHtml(formatLocalTime(m.match_datetime_utc))}</span>` : (!m.has_exact_time && (!m.score || m.score === 'vs') ? '<span class="italic">Not yet scheduled</span>' : '')}
+        <span${m.match_datetime_utc ? ` data-utc-date="${escapeHtml(m.match_datetime_utc)}"` : ''}>${escapeHtml(dateText)}</span>
+        ${m.has_exact_time && m.match_datetime_utc ? `<span data-utc-time="${escapeHtml(m.match_datetime_utc)}">${escapeHtml(timeText)}</span>` : (!m.has_exact_time && (!m.score || m.score === 'vs') ? '<span class="italic">Not yet scheduled</span>' : '')}
     </div>
     ${predHtml}
     <div class="flex items-center">
