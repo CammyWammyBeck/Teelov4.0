@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import re
 from typing import Any, Optional
@@ -49,12 +49,25 @@ def serialize_match(match: Match) -> dict:
     )
     pa = match.player_a
     pb = match.player_b
-    display_datetime = match.match_datetime or match.scheduled_datetime
+    exact_datetime = match.match_datetime or match.scheduled_datetime
     display_date = (
-        display_datetime.date()
-        if display_datetime
+        exact_datetime.date()
+        if exact_datetime
         else (match.match_date or match.scheduled_date)
     )
+    # If we have a date but no exact datetime, synthesize one at 23:59 UTC
+    # so the client can still convert the date to local timezone
+    if exact_datetime:
+        display_datetime_utc = exact_datetime
+        has_exact_time = True
+    elif display_date:
+        display_datetime_utc = datetime.combine(
+            display_date, time(23, 59), tzinfo=timezone.utc
+        )
+        has_exact_time = False
+    else:
+        display_datetime_utc = None
+        has_exact_time = False
     player_a_payload = {
         "id": pa.id if pa else match.player_a_id,
         "name": pa.canonical_name if pa else "Unknown",
@@ -127,10 +140,11 @@ def serialize_match(match: Match) -> dict:
             display_date.strftime("%d %b %Y") if display_date else None
         ),
         "match_datetime_utc": (
-            display_datetime.isoformat() + "Z"
-            if display_datetime
+            display_datetime_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if display_datetime_utc
             else None
         ),
+        "has_exact_time": has_exact_time,
         "year": (
             display_date.year
             if display_date

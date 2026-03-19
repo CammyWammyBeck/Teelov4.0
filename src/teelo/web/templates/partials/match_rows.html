@@ -121,7 +121,11 @@
     <td class="px-5 py-3 text-right">
         {% if m.match_datetime_utc %}
         <span class="text-xs text-content-faint whitespace-nowrap" data-utc-date="{{ m.match_datetime_utc }}">{{ m.match_date_display or '' }}</span>
+        {% if m.has_exact_time %}
         <span class="block text-[11px] text-content-faint whitespace-nowrap" data-utc-time="{{ m.match_datetime_utc }}"></span>
+        {% elif m.score is not defined or not m.score or m.score == 'vs' %}
+        <span class="block text-[11px] text-content-faint italic whitespace-nowrap">Not yet scheduled</span>
+        {% endif %}
         {% else %}
         <span class="text-xs text-content-faint whitespace-nowrap">{{ m.match_date_display or '' }}</span>
         {% endif %}
@@ -174,7 +178,11 @@
         <span class="text-content-faintest">·</span>
         {% if m.match_datetime_utc %}
         <span data-utc-date="{{ m.match_datetime_utc }}">{{ m.match_date_display or '' }}</span>
+        {% if m.has_exact_time %}
         <span data-utc-time="{{ m.match_datetime_utc }}"></span>
+        {% elif m.score is not defined or not m.score or m.score == 'vs' %}
+        <span class="italic">Not yet scheduled</span>
+        {% endif %}
         {% else %}
         <span>{{ m.match_date_display or '' }}</span>
         {% endif %}

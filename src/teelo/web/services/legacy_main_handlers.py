@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 from pathlib import Path
@@ -201,8 +201,14 @@ async def home(
         home_base_query
         .filter(Match.status.in_(get_status_group("upcoming")))
         .order_by(
-            func.coalesce(Match.scheduled_date, Match.match_date).asc().nullslast(),
-            Match.scheduled_datetime.asc().nullslast(),
+            func.coalesce(
+                Match.scheduled_datetime,
+                Match.match_datetime,
+                func.cast(
+                    func.coalesce(Match.scheduled_date, Match.match_date),
+                    Match.scheduled_datetime.type,
+                ),
+            ).asc().nullslast(),
             Match.id.asc(),
         )
         .limit(10)
@@ -213,7 +219,14 @@ async def home(
         home_base_query
         .filter(Match.status.in_(get_status_group("historical_default")))
         .order_by(
-            func.coalesce(Match.match_date, Match.scheduled_date).desc().nullslast(),
+            func.coalesce(
+                Match.match_datetime,
+                Match.scheduled_datetime,
+                func.cast(
+                    func.coalesce(Match.match_date, Match.scheduled_date),
+                    Match.match_datetime.type,
+                ),
+            ).desc().nullslast(),
             Match.id.desc(),
         )
         .limit(10)
@@ -334,12 +347,25 @@ def _serialize_match(match: Match) -> dict:
 
     pa = match.player_a
     pb = match.player_b
-    display_datetime = match.match_datetime or match.scheduled_datetime
+    exact_datetime = match.match_datetime or match.scheduled_datetime
     display_date = (
-        display_datetime.date()
-        if display_datetime
+        exact_datetime.date()
+        if exact_datetime
         else (match.match_date or match.scheduled_date)
     )
+    # If we have a date but no exact datetime, synthesize one at 23:59 UTC
+    # so the client can still convert the date to local timezone
+    if exact_datetime:
+        display_datetime_utc = exact_datetime
+        has_exact_time = True
+    elif display_date:
+        display_datetime_utc = datetime.combine(
+            display_date, time(23, 59), tzinfo=timezone.utc
+        )
+        has_exact_time = False
+    else:
+        display_datetime_utc = None
+        has_exact_time = False
 
     player_a_payload = {
         "id": pa.id if pa else match.player_a_id,
@@ -397,10 +423,11 @@ def _serialize_match(match: Match) -> dict:
         "match_date": display_date.isoformat() if display_date else None,
         "match_date_display": display_date.strftime("%d %b %Y") if display_date else None,
         "match_datetime_utc": (
-            display_datetime.isoformat() + "Z"
-            if display_datetime
+            display_datetime_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if display_datetime_utc
             else None
         ),
+        "has_exact_time": has_exact_time,
         "year": display_date.year if display_date else (
             te.year if te else None
         ),
@@ -564,7 +591,14 @@ async def api_matches(
 
     # --- Ordering and pagination ---
     query = query.order_by(
-        Match.match_date.desc().nullslast(),
+        func.coalesce(
+            Match.match_datetime,
+            Match.scheduled_datetime,
+            func.cast(
+                func.coalesce(Match.match_date, Match.scheduled_date),
+                Match.match_datetime.type,
+            ),
+        ).desc().nullslast(),
         Match.temporal_order.desc().nullslast(),
         Match.id.desc(),
     )
@@ -1254,7 +1288,14 @@ async def api_player_matches(
     offset = (page - 1) * per_page
     matches = (
         query.order_by(
-            Match.match_date.desc().nullslast(),
+            func.coalesce(
+                Match.match_datetime,
+                Match.scheduled_datetime,
+                func.cast(
+                    func.coalesce(Match.match_date, Match.scheduled_date),
+                    Match.match_datetime.type,
+                ),
+            ).desc().nullslast(),
             Match.temporal_order.desc().nullslast(),
             Match.id.desc(),
         )
