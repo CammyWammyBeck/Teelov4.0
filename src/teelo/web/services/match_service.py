@@ -49,8 +49,12 @@ def serialize_match(match: Match) -> dict:
     )
     pa = match.player_a
     pb = match.player_b
-    display_date = match.match_date or match.scheduled_date
     display_datetime = match.match_datetime or match.scheduled_datetime
+    display_date = (
+        display_datetime.date()
+        if display_datetime
+        else (match.match_date or match.scheduled_date)
+    )
     player_a_payload = {
         "id": pa.id if pa else match.player_a_id,
         "name": pa.canonical_name if pa else "Unknown",

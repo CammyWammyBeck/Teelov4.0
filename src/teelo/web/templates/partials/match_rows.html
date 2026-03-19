@@ -119,9 +119,11 @@
         </div>
     </td>
     <td class="px-5 py-3 text-right">
-        <span class="text-xs text-content-faint whitespace-nowrap">{{ m.match_date_display or '' }}</span>
         {% if m.match_datetime_utc %}
+        <span class="text-xs text-content-faint whitespace-nowrap" data-utc-date="{{ m.match_datetime_utc }}">{{ m.match_date_display or '' }}</span>
         <span class="block text-[11px] text-content-faint whitespace-nowrap" data-utc-time="{{ m.match_datetime_utc }}"></span>
+        {% else %}
+        <span class="text-xs text-content-faint whitespace-nowrap">{{ m.match_date_display or '' }}</span>
         {% endif %}
     </td>
     <td class="pr-3 py-3 w-8">
@@ -170,9 +172,11 @@
         <span class="w-1.5 h-1.5 rounded-full {{ gender_dot_cls(m.gender, m.tour) }} flex-shrink-0"></span>
         <span class="{{ surface_cls(m.surface) }} font-medium">{{ m.surface or '' }}</span>
         <span class="text-content-faintest">·</span>
-        <span>{{ m.match_date_display or '' }}</span>
         {% if m.match_datetime_utc %}
+        <span data-utc-date="{{ m.match_datetime_utc }}">{{ m.match_date_display or '' }}</span>
         <span data-utc-time="{{ m.match_datetime_utc }}"></span>
+        {% else %}
+        <span>{{ m.match_date_display or '' }}</span>
         {% endif %}
     </div>
 

@@ -334,7 +334,12 @@ def _serialize_match(match: Match) -> dict:
 
     pa = match.player_a
     pb = match.player_b
-    display_date = match.match_date or match.scheduled_date
+    display_datetime = match.match_datetime or match.scheduled_datetime
+    display_date = (
+        display_datetime.date()
+        if display_datetime
+        else (match.match_date or match.scheduled_date)
+    )
 
     player_a_payload = {
         "id": pa.id if pa else match.player_a_id,
@@ -391,6 +396,11 @@ def _serialize_match(match: Match) -> dict:
         "status": match.status,
         "match_date": display_date.isoformat() if display_date else None,
         "match_date_display": display_date.strftime("%d %b %Y") if display_date else None,
+        "match_datetime_utc": (
+            display_datetime.isoformat() + "Z"
+            if display_datetime
+            else None
+        ),
         "year": display_date.year if display_date else (
             te.year if te else None
         ),
