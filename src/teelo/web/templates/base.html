@@ -251,6 +251,12 @@
     </script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('[data-utc-date]').forEach(function(el) {
+        var d = new Date(el.dataset.utcDate);
+        if (!isNaN(d.getTime())) {
+          el.textContent = d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+      });
       document.querySelectorAll('[data-utc-time]').forEach(function(el) {
         var d = new Date(el.dataset.utcTime);
         if (!isNaN(d.getTime())) {
