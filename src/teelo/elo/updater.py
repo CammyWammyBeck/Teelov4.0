@@ -1512,20 +1512,23 @@ class EloUpdater:
     def _refresh_pre_snapshots(
         self,
         session: Session,
-        touched_player_ids: set[int],
+        touched_player_ids: set[int] | None = None,
     ) -> int:
         """
-        Refresh elo_pre_player_a/b on upcoming/scheduled matches for touched players.
+        Refresh elo_pre_player_a/b on upcoming/scheduled matches.
 
-        After completing a processing batch, any future matches for those players
-        should have their pre-match ELO snapshot updated so predictions stay accurate.
+        After completing a processing batch, any future matches should have their
+        pre-match ELO snapshot updated so predictions stay accurate.
 
         Uses correlated subqueries against player_elo_states — one single UPDATE
         regardless of how many matches or players are involved.
 
+        When touched_player_ids is None, refreshes ALL upcoming/scheduled matches.
+        Otherwise, refreshes only matches involving touched players.
+
         Returns the number of upcoming match rows updated.
         """
-        if not touched_player_ids:
+        if touched_player_ids is not None and not touched_player_ids:
             return 0
 
         # Correlated subqueries pull the current rating per player
@@ -1540,16 +1543,21 @@ class EloUpdater:
             .scalar_subquery()
         )
 
-        stmt = (
-            update(Match)
-            .where(
-                Match.status.in_(("upcoming", "scheduled")),
-                Match.winner_id.is_(None),
+        conditions = [
+            Match.status.in_(("upcoming", "scheduled")),
+            Match.winner_id.is_(None),
+        ]
+        if touched_player_ids is not None:
+            conditions.append(
                 or_(
                     Match.player_a_id.in_(touched_player_ids),
                     Match.player_b_id.in_(touched_player_ids),
-                ),
+                )
             )
+
+        stmt = (
+            update(Match)
+            .where(*conditions)
             .values(
                 elo_pre_player_a=rating_a_subq,
                 elo_pre_player_b=rating_b_subq,
@@ -1559,3 +1567,11 @@ class EloUpdater:
         )
         result = session.execute(stmt)
         return result.rowcount
+
+    def refresh_all_pre_elo(self, session: Session) -> int:
+        """Refresh pre-ELO snapshots on ALL upcoming/scheduled matches.
+
+        Pulls current ratings from player_elo_states. Useful after fixture
+        ingestion to ensure every upcoming match has pre-match ELO populated.
+        """
+        return self._refresh_pre_snapshots(session)

@@ -643,6 +643,19 @@ async def _execute_current_task(
                 f"({timings['elo_update']:.2f}s)"
             )
 
+    # Always refresh pre-ELO on all upcoming matches — catches fixtures for
+    # players whose matches weren't completed in this run.
+    pre_elo_start = perf_counter()
+    updater = EloUpdater.from_session(session)
+    n_refreshed = updater.refresh_all_pre_elo(session)
+    session.commit()
+    timings["pre_elo_refresh"] = perf_counter() - pre_elo_start
+    if verbose:
+        print(
+            f"  Pre-ELO refresh: {n_refreshed} upcoming matches updated "
+            f"({timings['pre_elo_refresh']:.2f}s)"
+        )
+
     timings["total"] = perf_counter() - total_start
     results["timings"] = timings
     return results
