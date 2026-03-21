@@ -1,6 +1,6 @@
 # CLAUDE.md - Teelo v4.0 Agent Workflow
 
-Last updated: 2026-03-09
+Last updated: 2026-03-20
 
 This document defines how Claude Code delegates work using the codex-worker agent.
 
@@ -96,7 +96,7 @@ pip install -e ".[dev]"
 ### Run API
 
 ```bash
-uvicorn teelo.api.main:app --reload
+uvicorn teelo.web.main:app --reload
 ```
 
 ### Database migrations

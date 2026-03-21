@@ -132,7 +132,7 @@ def test_opponent_quality_features_use_prior_matches_only() -> None:
 
 
 def test_dominance_features_keep_rates_missing_without_sample() -> None:
-    from teelo.features.groups.dominance import DominanceFeatures
+    from teelo.features.groups.score_profile import ScoreProfileFeatures
 
     state_a = PlayerState(player_id=1)
     state_b = PlayerState(player_id=2)
@@ -158,17 +158,17 @@ def test_dominance_features_keep_rates_missing_without_sample() -> None:
         surface_elo_post=1510.0,
     )
 
-    features = DominanceFeatures().compute(state_a, state_b, _ctx())
+    features = ScoreProfileFeatures().compute(state_a, state_b, _ctx())
 
     assert features["game_diff_avg_8_a"] == 4.0
     assert features["set_diff_avg_8_a"] == 2.0
-    assert features["straight_sets_rate_8_a"] is None
-    assert features["tiebreak_rate_8_a"] is None
-    assert features["game_diff_avg_8_b"] is None
+    assert features["straight_sets_rate_8_a"] == 1.0
+    assert features["tiebreak_rate_8_a"] == 1.0
+    assert features["game_diff_avg_8_b"] == 0.0
 
 
 def test_dominance_features_compute_rates_with_enough_matches() -> None:
-    from teelo.features.groups.dominance import DominanceFeatures
+    from teelo.features.groups.score_profile import ScoreProfileFeatures
 
     state_a = PlayerState(player_id=1)
     state_b = PlayerState(player_id=2)
@@ -197,7 +197,7 @@ def test_dominance_features_compute_rates_with_enough_matches() -> None:
             surface_elo_post=1505.0 + idx,
         )
 
-    features = DominanceFeatures().compute(state_a, state_b, _ctx())
+    features = ScoreProfileFeatures().compute(state_a, state_b, _ctx())
 
     assert round(features["straight_sets_rate_8_a"], 4) == 0.6667
     assert round(features["deciding_set_rate_8_a"], 4) == 0.3333

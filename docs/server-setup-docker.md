@@ -56,10 +56,18 @@ docker compose run --rm teelo-update alembic upgrade head
 docker compose run --rm teelo-backfill
 ```
 
-## 6) Run current updates manually
+## 6) Run full hourly pipeline manually
+
+Runs the complete pipeline: ingest → ELO → features → predictions → metrics.
 
 ```bash
 docker compose run --rm teelo-update
+```
+
+To run just the ingest stage (scrape and store current events without downstream processing), use the `update-current` service instead:
+
+```bash
+docker compose run --rm update-current
 ```
 
 ## 7) View VNC in browser

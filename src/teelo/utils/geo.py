@@ -186,6 +186,11 @@ _LOWER_COUNTRY_TO_IOC: Optional[dict[str, str]] = None
 _CITY_TO_COUNTRY: Optional[dict[str, str]] = None
 
 _CITY_CACHE_PATH = Path(__file__).parent.parent.parent.parent / "scripts" / "city_country_cache.json"
+_CITY_COUNTRY_TIMEZONE_FALLBACKS: dict[tuple[str, str], str] = {
+    ("miami", "united states"): "America/New_York",
+    ("paris", "france"): "Europe/Paris",
+    ("melbourne", "australia"): "Australia/Melbourne",
+}
 
 
 def _get_city_lookup() -> dict[str, str]:
@@ -291,6 +296,9 @@ def city_country_to_timezone(city: str | None, country: str | None) -> str | Non
         return None
 
     cache_key = (city.strip().lower(), country.strip().lower())
+    fallback_tz = _CITY_COUNTRY_TIMEZONE_FALLBACKS.get(cache_key)
+    if fallback_tz is not None:
+        return fallback_tz
 
     if not hasattr(city_country_to_timezone, "_cache"):
         city_country_to_timezone._cache = {}

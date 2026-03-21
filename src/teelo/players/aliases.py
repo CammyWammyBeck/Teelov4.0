@@ -152,13 +152,13 @@ def compare_names(name1: str, name2: str) -> float:
     n1 = normalize_name(name1)
     n2 = normalize_name(name2)
 
-    # Exact match is always 1.0
-    if n1 == n2:
-        return 1.0
-
     # Empty strings don't match
     if not n1 or not n2:
         return 0.0
+
+    # Exact match is always 1.0
+    if n1 == n2:
+        return 1.0
 
     # Jaro-Winkler similarity (good for typos, gives more weight to prefix matches)
     jw_score = jellyfish.jaro_winkler_similarity(n1, n2)
@@ -185,9 +185,9 @@ def compare_names(name1: str, name2: str) -> float:
             first2 = parts2[0].rstrip(".")
 
             if len(first1) == 1 and first2.startswith(first1):
-                abbreviated_bonus = 0.15
+                abbreviated_bonus = 0.04
             elif len(first2) == 1 and first1.startswith(first2):
-                abbreviated_bonus = 0.15
+                abbreviated_bonus = 0.04
 
     # Take the best score from our algorithms
     base_score = max(jw_score, token_sort, partial)

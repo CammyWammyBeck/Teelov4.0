@@ -10,7 +10,8 @@ from __future__ import annotations
 from teelo.features.groups.activity import ActivityFeatures
 from teelo.features.groups.confidence import ConfidenceFeatures
 from teelo.features.groups.context import ContextFeatures
-from teelo.features.groups.dominance import DominanceFeatures
+from teelo.features.groups.score_profile import ScoreProfileFeatures
+from teelo.features.groups.country_performance import CountryPerformanceFeatures
 from teelo.features.groups.elo import EloCoreFeatures, EloHistoryFeatures, EloVarianceFeatures
 from teelo.features.groups.fatigue import FatigueFeatures
 from teelo.features.groups.form import FormFeatures
@@ -184,8 +185,9 @@ def build_registry(preset: str = "full") -> FeatureRegistry:
     registry.register(ActivityFeatures())
     if preset in {"baseline_v2", "trimmed_v2", "trimmed_v2b"}:
         registry.register(OpponentQualityFeatures())
-        registry.register(DominanceFeatures())
+        registry.register(ScoreProfileFeatures())
         registry.register(FatigueFeatures())
         registry.register(TournamentHistoryFeatures())
         registry.register(ConfidenceFeatures())
+        registry.register(CountryPerformanceFeatures())
     return registry

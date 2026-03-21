@@ -1,3 +1,5 @@
+> **Status: IMPLEMENTED** — This plan has been implemented. See `scripts/find_and_merge_duplicate_players.py` and changes in `src/teelo/players/identity.py`.
+
 # Fix Duplicate Player Records Across Sources
 
 ## Context

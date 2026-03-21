@@ -1,3 +1,5 @@
+> **Status: IMPLEMENTED** — This spec has been fully implemented. The hourly pipeline runs via `scripts/run_hourly_update.py` with stages: current_events_ingest, elo_incremental, feature_computation, predictions, metrics_snapshot. See `docs/server-setup-arch.md` and `docs/server-setup-docker.md` for deployment. Note: the actual ELO script is `scripts/update_elo.py` (not `update_elo_incremental.py` as proposed).
+
 # Hourly Update Pipeline Implementation Spec
 
 ## 1. Purpose and Scope

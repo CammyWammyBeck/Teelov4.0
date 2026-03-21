@@ -235,20 +235,16 @@ class PlayerIdentityService:
                 self._link_external_id(player_id, source, external_id)
             return player_id, "matched"
         if len(abbreviated_candidates) > 1:
-            strong_abbrev = [
-                c for c in abbreviated_candidates if c.confidence >= queue_threshold
-            ]
-            if len(strong_abbrev) > 1:
-                # Ambiguous high-confidence match; defer to manual review.
-                self._add_to_review_queue(
-                    name=name,
-                    normalized_name=normalized_name,
-                    source=source,
-                    external_id=external_id,
-                    candidates=strong_abbrev,
-                    match_context=match_context,
-                )
-                return None, "queued"
+            # Ambiguous abbreviated-name matches are risky; defer to manual review.
+            self._add_to_review_queue(
+                name=name,
+                normalized_name=normalized_name,
+                source=source,
+                external_id=external_id,
+                candidates=abbreviated_candidates,
+                match_context=match_context,
+            )
+            return None, "queued"
 
         # Strategy 3: Try fuzzy matching
         candidates = [

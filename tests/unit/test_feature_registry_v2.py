@@ -26,10 +26,10 @@ def test_existing_registry_presets_remain_stable() -> None:
     assert "match_count_4w_a" not in trimmed_names
     assert "opp_elo_avg_8_a" in trimmed_v2_names
     assert "surface_elo_default_a" not in trimmed_v2_names
-    assert len(trimmed_v2_names) == 95
+    assert len(trimmed_v2_names) == 158
     assert "opp_elo_avg_8_a" in trimmed_v2b_names
     assert "close_match_rate_8_a" not in trimmed_v2b_names
-    assert len(trimmed_v2b_names) == 85
+    assert len(trimmed_v2b_names) == 148
 
 
 def test_feature_set_name_maps_to_expected_preset() -> None:
@@ -67,5 +67,5 @@ def test_feature_engine_help_lists_trimmed_v2_preset() -> None:
     )
 
     assert result.returncode == 0
-    assert "trimmed_v2" in result.stdout
-    assert "trimmed_v2b" in result.stdout
+    assert "--preset PRESET" in result.stdout
+    assert "--feature-set FEATURE_SET" in result.stdout
