@@ -54,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
     predictions_live_parser.add_argument("--model", default=None, help="Model file path")
     predictions_live_parser.add_argument("--feature-set", default=None, help="Override feature set name")
 
+    retrain_parser = subparsers.add_parser(
+        "retrain", help="Full retrain pipeline: backfill features → train → evaluate → feature selection"
+    )
+    retrain_parser.add_argument("--preset", default="baseline_v2", help="Feature preset (default: baseline_v2)")
+    retrain_parser.add_argument("--holdout-year", type=int, default=2025, help="Holdout year for evaluation (default: 2025)")
+
     return parser
 
 
@@ -133,6 +139,50 @@ def main() -> int:
         predictor = BatchPredictor(args.model, args.feature_set, backfill=False)
         count = predictor.predict()
         print(f"Predicted {count} matches")
+        return 0
+
+    if args.command == "retrain":
+        import time
+
+        preset = args.preset
+        holdout_year = args.holdout_year
+        started = time.time()
+
+        print(f"=== Step 1/4: Feature backfill (preset={preset}) ===")
+        from teelo.features import build_registry
+        from teelo.features.engine import FeatureEngine
+
+        registry = build_registry(preset)
+        engine = FeatureEngine(registry=registry, feature_set_name=preset)
+        engine.run(backfill=True)
+
+        print(f"\n=== Step 2/4: Train model (feature_set={preset}) ===")
+        from teelo.ml.trainer import ModelTrainer
+        from teelo.ml.versioning import next_model_path
+
+        output_path = next_model_path()
+        trainer = ModelTrainer(preset, output_path)
+        trainer.train()
+
+        print(f"\n=== Step 3/4: Evaluate (holdout_year={holdout_year}) ===")
+        from teelo.ml.evaluator import ModelEvaluator
+
+        results = ModelEvaluator(output_path, preset).evaluate(holdout_year)
+        accuracy = results.get("accuracy", 0)
+        log_loss_val = results.get("log_loss", 0)
+        print(f"Accuracy: {accuracy:.4f}  Log loss: {log_loss_val:.4f}")
+
+        print(f"\n=== Step 4/4: Feature selection (feature_set={preset}) ===")
+        from teelo.ml.selection import FeatureSelector
+
+        FeatureSelector(preset).run()
+
+        elapsed = time.time() - started
+        hours, remainder = divmod(int(elapsed), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        print(f"\n=== Done in {hours}h {minutes}m {seconds}s ===")
+        print(f"  Model: {output_path}")
+        print(f"  Feature selection: models/feature_selection_report.json")
         return 0
 
     parser.print_help()

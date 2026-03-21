@@ -1,9 +1,11 @@
 # Teelo v4.0 — Complete Feature Reference
 
 **Last updated**: 2026-03-21
-**Total features**: 158 (current) → ~235 after Phase 1
+**Total features**: 221 (baseline_v2 preset)
 
 This document lists every feature in the ML pipeline, how it's calculated, and when it returns `None`. Keep this up to date when feature groups are added, modified, or removed.
+
+**Design principle**: Features never return `None` for insufficient sample size. Rates default to 0.5, averages to 0.0, ratios to 1.0 when the denominator is zero. Count companion features let the trained model decide data reliability. `None` is reserved for genuinely missing metadata (no surface, no date, no round).
 
 ---
 
@@ -11,26 +13,25 @@ This document lists every feature in the ML pipeline, how it's calculated, and w
 
 | Group | File | Features | Status |
 |---|---|---|---|
-| context | `groups/context.py` | 22 (+3 planned) | Active |
-| elo_core | `groups/elo.py` | 12 (+4 planned) | Active |
+| context | `groups/context.py` | 25 | Active |
+| elo_core | `groups/elo.py` | 14 | Active |
 | elo_history | `groups/elo.py` | 2 | Active |
 | elo_variance | `groups/elo.py` | 8 | Active |
 | form | `groups/form.py` | 38 | Active |
 | h2h | `groups/h2h.py` | 12 | Active |
 | activity | `groups/activity.py` | 18 | Active |
-| opponent_quality | `groups/opponent_quality.py` | 10 | Active |
-| dominance | `groups/dominance.py` | 14 | Active (will be absorbed into score_profile) |
-| fatigue | `groups/fatigue.py` | 7 | Active |
-| tournament_history | `groups/tournament_history.py` | 4 | Active |
-| confidence | `groups/confidence.py` | 13 | Active |
-| score_profile | `groups/score_profile.py` | 56 | Planned (Phase 1) — replaces dominance |
-| country_performance | `groups/country_performance.py` | 14 | Planned (Phase 1) |
+| opponent_quality | `groups/opponent_quality.py` | 10 | Active (baseline_v2+) |
+| score_profile | `groups/score_profile.py` | 56 | Active (baseline_v2+) |
+| fatigue | `groups/fatigue.py` | 7 | Active (baseline_v2+) |
+| tournament_history | `groups/tournament_history.py` | 4 | Active (baseline_v2+) |
+| confidence | `groups/confidence.py` | 13 | Active (baseline_v2+) |
+| country_performance | `groups/country_performance.py` | 14 | Active (baseline_v2+) |
 
 ---
 
-## 1. Context Features (`context.py`) — 22 features
+## 1. Context Features (`context.py`) — 25 features
 
-One-hot encodings for surface, level, round, and tour metadata.
+One-hot encodings for surface, level, round, and tour metadata, plus calendar features.
 
 | Feature | Calculation | None When |
 |---|---|---|
@@ -56,20 +57,15 @@ One-hot encodings for surface, level, round, and tour metadata.
 | `round_RR` | 1.0 if Round Robin | Round missing |
 | `tour_wta` | 1.0 if WTA tour | Tour missing |
 | `year` | Float year (e.g. 2026.0) | Year missing |
-
-### Planned additions (Phase 1):
-
-| Feature | Calculation | None When |
-|---|---|---|
 | `month_sin` | `sin(2π × month / 12)` | Match date missing |
 | `month_cos` | `cos(2π × month / 12)` | Match date missing |
 | `year_progress` | `day_of_year / 365` | Match date missing |
 
 ---
 
-## 2. ELO Features (`elo.py`) — 22 features (3 sub-groups)
+## 2. ELO Features (`elo.py`) — 24 features (3 sub-groups)
 
-### 2a. ELO Core — 12 features
+### 2a. ELO Core — 14 features
 
 | Feature | Calculation | None When |
 |---|---|---|
@@ -81,39 +77,32 @@ One-hot encodings for surface, level, round, and tour metadata.
 | `surface_elo_diff` | `surface_elo_a - surface_elo_b` | Either surface ELO None |
 | `peak_elo_a` | Player A peak career ELO | Never |
 | `peak_elo_b` | Player B peak career ELO | Never |
-| `peak_ratio_a` | `elo_current / elo_peak` | `elo_peak <= 0` |
-| `peak_ratio_b` | Same for player B | `elo_peak <= 0` |
-| `elo_expected_a` | Expected win prob for A from ELO diff | Never |
-| `elo_expected_b` | `1 - elo_expected_a` | Never |
-
-### Planned additions to ELO Core (Phase 1):
-
-| Feature | Calculation | None When |
-|---|---|---|
+| `peak_ratio_a` | `elo_current / elo_peak` (1.0 if peak ≤ 0) | Never |
+| `peak_ratio_b` | Same for player B | Never |
 | `surface_gap_a` | `surface_elo[surface] - elo_current` | Surface missing or no surface ELO |
 | `surface_gap_b` | Same for player B | Same |
-| `off_surface_elo_a` | Average ELO across other surfaces | Surface missing or < 1 other surface |
+| `off_surface_elo_a` | Average ELO across other surfaces | Surface missing, no surface ELO, or no other surfaces |
 | `off_surface_elo_b` | Same for player B | Same |
 
 ### 2b. ELO History — 2 features
 
-| Feature | Calculation | Min Sample | None When |
-|---|---|---|---|
-| `elo_momentum_a` | `last_elo - first_elo` in history window (up to 8) | 2 entries | History < 2 |
-| `elo_momentum_b` | Same for player B | 2 entries | Same |
+| Feature | Calculation | None When |
+|---|---|---|
+| `elo_momentum_a` | `last_elo - first_elo` in history window (up to 8). Returns 0.0 if < 2 entries | Never |
+| `elo_momentum_b` | Same for player B | Never |
 
 ### 2c. ELO Variance — 8 features
 
-| Feature | Calculation | Min Sample | None When |
-|---|---|---|---|
-| `elo_var_8_a` | Sample variance of ELO deltas, last 8 | 3 entries | Window < 3 |
-| `elo_var_8_b` | Same for player B | 3 entries | Same |
-| `elo_var_16_a` | Same, last 16 | 3 entries | Same |
-| `elo_var_16_b` | Same for player B | 3 entries | Same |
-| `elo_var_32_a` | Same, last 32 | 3 entries | Same |
-| `elo_var_32_b` | Same for player B | 3 entries | Same |
-| `elo_var_64_a` | Same, last 64 | 3 entries | Same |
-| `elo_var_64_b` | Same for player B | 3 entries | Same |
+| Feature | Calculation | None When |
+|---|---|---|
+| `elo_var_8_a` | Sample variance of ELO deltas, last 8. Returns 0.0 if < 3 entries | Never |
+| `elo_var_8_b` | Same for player B | Never |
+| `elo_var_16_a` | Same, last 16 | Never |
+| `elo_var_16_b` | Same for player B | Never |
+| `elo_var_32_a` | Same, last 32 | Never |
+| `elo_var_32_b` | Same for player B | Never |
+| `elo_var_64_a` | Same, last 64 | Never |
+| `elo_var_64_b` | Same for player B | Never |
 
 ---
 
@@ -123,16 +112,18 @@ Rolling win rates across time windows plus surface/level/career rates.
 
 ### Win rate by time window (16 features)
 
-| Feature | Window | Min Sample | None When |
-|---|---|---|---|
-| `win_rate_4w_a`, `win_rate_4w_b` | 28 days | 5 matches | Date missing or < 5 matches |
-| `win_rate_8w_a`, `win_rate_8w_b` | 56 days | 5 matches | Same |
-| `win_rate_16w_a`, `win_rate_16w_b` | 112 days | 5 matches | Same |
-| `win_rate_32w_a`, `win_rate_32w_b` | 224 days | 5 matches | Same |
-| `win_rate_64w_a`, `win_rate_64w_b` | 448 days | 5 matches | Same |
-| `win_rate_128w_a`, `win_rate_128w_b` | 896 days | 5 matches | Same |
-| `win_rate_256w_a`, `win_rate_256w_b` | 1792 days | 5 matches | Same |
-| `win_rate_512w_a`, `win_rate_512w_b` | 3584 days | 5 matches | Same |
+| Feature | Window | None When |
+|---|---|---|
+| `win_rate_4w_a`, `win_rate_4w_b` | 28 days | Date missing |
+| `win_rate_8w_a`, `win_rate_8w_b` | 56 days | Same |
+| `win_rate_16w_a`, `win_rate_16w_b` | 112 days | Same |
+| `win_rate_32w_a`, `win_rate_32w_b` | 224 days | Same |
+| `win_rate_64w_a`, `win_rate_64w_b` | 448 days | Same |
+| `win_rate_128w_a`, `win_rate_128w_b` | 896 days | Same |
+| `win_rate_256w_a`, `win_rate_256w_b` | 1792 days | Same |
+| `win_rate_512w_a`, `win_rate_512w_b` | 3584 days | Same |
+
+Win rates return 0.5 when no matches exist in the window.
 
 ### Match count by time window (16 features)
 
@@ -149,14 +140,14 @@ Rolling win rates across time windows plus surface/level/career rates.
 
 ### Static rates (6 features)
 
-| Feature | Calculation | Min Sample | None When |
-|---|---|---|---|
-| `surface_win_rate_a` | `surface_wins / (surface_wins + surface_losses)` | 5 surface matches | Surface missing or < 5 |
-| `surface_win_rate_b` | Same for player B | 5 surface matches | Same |
-| `level_win_rate_a` | `level_wins / (level_wins + level_losses)` | 5 level matches | < 5 at level |
-| `level_win_rate_b` | Same for player B | 5 level matches | Same |
-| `career_win_rate_a` | `wins_total / (wins_total + losses_total)` | 10 career matches | < 10 career |
-| `career_win_rate_b` | Same for player B | 10 career matches | Same |
+| Feature | Calculation | None When |
+|---|---|---|
+| `surface_win_rate_a` | `surface_wins / (surface_wins + surface_losses)`. Returns 0.5 if 0 matches | Surface missing |
+| `surface_win_rate_b` | Same for player B | Same |
+| `level_win_rate_a` | `level_wins / (level_wins + level_losses)`. Returns 0.5 if 0 matches | Never |
+| `level_win_rate_b` | Same for player B | Never |
+| `career_win_rate_a` | `wins_total / (wins_total + losses_total)`. Returns 0.5 if 0 matches | Never |
+| `career_win_rate_b` | Same for player B | Never |
 
 ---
 
@@ -175,7 +166,7 @@ Rolling win rates across time windows plus surface/level/career rates.
 | `h2h_a_wins_level` | H2H wins at current level | Never |
 | `h2h_b_wins_level` | Same for player B | Never |
 | `h2h_total` | `h2h_a_wins + h2h_b_wins` | Never |
-| `h2h_a_dominance` | `h2h_a_wins / h2h_total` | `h2h_total == 0` |
+| `h2h_a_dominance` | `h2h_a_wins / h2h_total`. Returns 0.5 if total is 0 | Never |
 
 ---
 
@@ -193,8 +184,8 @@ Rolling win rates across time windows plus surface/level/career rates.
 | `matches_8w_b` | Same for player B | Same |
 | `matches_16w_a` | Matches in last 112 days | Same |
 | `matches_16w_b` | Same for player B | Same |
-| `games_last_match_a` | `games_won + games_lost` from most recent match | No prior matches |
-| `games_last_match_b` | Same for player B | Same |
+| `games_last_match_a` | `games_won + games_lost` from most recent match. Returns 0.0 if no prior matches | Never |
+| `games_last_match_b` | Same for player B | Never |
 | `games_tournament_a` | Total games in current tournament edition | Never (0 fallback) |
 | `games_tournament_b` | Same for player B | Never |
 | `seed_a` | Player A seed as float | Seed missing or 0 |
@@ -210,41 +201,67 @@ All computed from the last 8 matches.
 
 | Feature | Calculation | None When |
 |---|---|---|
-| `opp_elo_avg_8_a` | Average opponent ELO (last 8, non-None) | No usable values |
-| `opp_elo_avg_8_b` | Same for player B | Same |
-| `opp_surface_elo_avg_8_a` | Average opponent surface ELO (last 8) | No usable values |
-| `opp_surface_elo_avg_8_b` | Same for player B | Same |
-| `wins_vs_higher_elo_8_a` | Count of wins where `expected_win_prob < 0.5` | No recent matches |
-| `wins_vs_higher_elo_8_b` | Same for player B | Same |
-| `losses_vs_lower_elo_8_a` | Count of losses where `expected_win_prob > 0.5` | No recent matches |
-| `losses_vs_lower_elo_8_b` | Same for player B | Same |
-| `elo_overperf_8_a` | Mean `(actual - expected_win_prob)` over last 8 | No usable residuals |
-| `elo_overperf_8_b` | Same for player B | Same |
+| `opp_elo_avg_8_a` | Average opponent ELO (last 8, non-None). Returns 0.0 if no usable values | Never |
+| `opp_elo_avg_8_b` | Same for player B | Never |
+| `opp_surface_elo_avg_8_a` | Average opponent surface ELO (last 8). Returns 0.0 if no usable values | Never |
+| `opp_surface_elo_avg_8_b` | Same for player B | Never |
+| `wins_vs_higher_elo_8_a` | Count of wins where `expected_win_prob < 0.5`. Returns 0.0 if no recent matches | Never |
+| `wins_vs_higher_elo_8_b` | Same for player B | Never |
+| `losses_vs_lower_elo_8_a` | Count of losses where `expected_win_prob > 0.5`. Returns 0.0 if no recent matches | Never |
+| `losses_vs_lower_elo_8_b` | Same for player B | Never |
+| `elo_overperf_8_a` | Mean `(actual - expected_win_prob)` over last 8. Returns 0.0 if no usable residuals | Never |
+| `elo_overperf_8_b` | Same for player B | Never |
 
 ---
 
-## 7. Dominance Features (`dominance.py`) — 14 features
+## 7. Score Profile Features (`score_profile.py`) — 56 features
 
-**Status**: Will be absorbed into score_profile in Phase 1.
+Two windows (8 and 64 matches) plus clutch matchup (128 matches). Replaced the former `dominance` group.
 
-All computed from last 8 matches. Min sample: 3.
+### Score Profile — Window 8 (16 features)
 
 | Feature | Calculation | None When |
 |---|---|---|
-| `game_diff_avg_8_a` | Mean `(games_won - games_lost)` | No matches |
-| `game_diff_avg_8_b` | Same for player B | Same |
-| `set_diff_avg_8_a` | Mean `(sets_won - sets_lost)` | No matches |
-| `set_diff_avg_8_b` | Same for player B | Same |
-| `straight_sets_rate_8_a` | Proportion with `straight_sets=True` | < 3 matches |
-| `straight_sets_rate_8_b` | Same for player B | Same |
-| `deciding_set_rate_8_a` | Proportion with `deciding_set_played=True` | < 3 matches |
-| `deciding_set_rate_8_b` | Same for player B | Same |
-| `tiebreak_rate_8_a` | Proportion with `tiebreaks_played > 0` | < 3 matches |
-| `tiebreak_rate_8_b` | Same for player B | Same |
-| `tiebreak_win_rate_8_a` | `tiebreaks_won / tiebreaks_played` | < 3 matches OR no tiebreaks |
-| `tiebreak_win_rate_8_b` | Same for player B | Same |
-| `close_match_rate_8_a` | Proportion with `close_match=True` | < 3 matches |
-| `close_match_rate_8_b` | Same for player B | Same |
+| `game_diff_avg_8_a`, `_b` | Mean `(games_won - games_lost)`. Returns 0.0 if no matches | Never |
+| `set_diff_avg_8_a`, `_b` | Mean `(sets_won - sets_lost)`. Returns 0.0 if no matches | Never |
+| `straight_sets_rate_8_a`, `_b` | Proportion with `straight_sets=True`. Returns 0.5 if no matches | Never |
+| `deciding_set_rate_8_a`, `_b` | Proportion with `deciding_set_played=True`. Returns 0.5 if no matches | Never |
+| `tiebreak_rate_8_a`, `_b` | Proportion with `tiebreaks_played > 0`. Returns 0.5 if no matches | Never |
+| `tiebreak_win_rate_8_a`, `_b` | `tiebreaks_won / tiebreaks_played`. Returns 0.5 if no tiebreaks | Never |
+| `tiebreaks_played_8_a`, `_b` | Count of tiebreaks played in window | Never (0 fallback) |
+| `close_match_rate_8_a`, `_b` | Proportion with `close_match=True`. Returns 0.5 if no matches | Never |
+
+### Score Profile — Window 64 (26 features)
+
+| Feature | Calculation | None When |
+|---|---|---|
+| `game_diff_avg_64_a`, `_b` | Mean `(games_won - games_lost)`. Returns 0.0 if no matches | Never |
+| `set_diff_avg_64_a`, `_b` | Mean `(sets_won - sets_lost)`. Returns 0.0 if no matches | Never |
+| `straight_sets_rate_64_a`, `_b` | Proportion with `straight_sets=True`. Returns 0.5 if no matches | Never |
+| `deciding_set_rate_64_a`, `_b` | Proportion with `deciding_set_played=True`. Returns 0.5 if no matches | Never |
+| `tiebreak_rate_64_a`, `_b` | Proportion with `tiebreaks_played > 0`. Returns 0.5 if no matches | Never |
+| `tiebreak_win_rate_64_a`, `_b` | `tiebreaks_won / tiebreaks_played`. Returns 0.5 if no tiebreaks | Never |
+| `tiebreaks_played_64_a`, `_b` | Count of tiebreaks played in window | Never (0 fallback) |
+| `close_match_rate_64_a`, `_b` | Proportion with `close_match=True`. Returns 0.5 if no matches | Never |
+| `deciding_set_win_rate_64_a`, `_b` | Wins in deciding sets / deciding sets played. Returns 0.5 if no deciding sets | Never |
+| `deciding_sets_played_64_a`, `_b` | Count of deciding sets in window | Never (0 fallback) |
+| `comeback_rate_64_a`, `_b` | Wins after losing 1st set / first sets lost. Returns 0.5 if no first sets lost | Never |
+| `first_sets_lost_64_a`, `_b` | Count of first sets lost in window | Never (0 fallback) |
+| `straight_sets_win_rate_64_a`, `_b` | `straight_sets AND won` / total wins. Returns 0.5 if no wins | Never |
+
+### Clutch Matchup — Window 128 (14 features)
+
+Clutch score = `0.4 * tiebreak_win_rate + 0.3 * deciding_set_win_rate + 0.3 * comeback_rate` (from 64-match window). Thresholds: clutch > 0.55, non-clutch < 0.40.
+
+| Feature | Calculation | None When |
+|---|---|---|
+| `vs_clutch_win_rate_a`, `_b` | Win rate vs clutch opponents (last 128). Returns 0.5 if 0 clutch matches | Never |
+| `vs_clutch_matches_a`, `_b` | Count of clutch opponent matches | Never (0 fallback) |
+| `vs_normal_clutch_win_rate_a`, `_b` | Win rate vs normal opponents. Returns 0.5 if 0 normal matches | Never |
+| `vs_normal_clutch_matches_a`, `_b` | Count of normal opponent matches | Never (0 fallback) |
+| `vs_non_clutch_win_rate_a`, `_b` | Win rate vs non-clutch opponents. Returns 0.5 if 0 non-clutch matches | Never |
+| `vs_non_clutch_matches_a`, `_b` | Count of non-clutch opponent matches | Never (0 fallback) |
+| `opponent_clutch_score_a`, `_b` | Opponent's raw clutch_score | Opponent has no clutch score yet |
 
 ---
 
@@ -264,12 +281,12 @@ All computed from last 8 matches. Min sample: 3.
 
 ## 9. Tournament History Features (`tournament_history.py`) — 4 features
 
-| Feature | Calculation | Min Sample | None When |
-|---|---|---|---|
-| `tournament_match_count_a` | Matches at this tournament (all editions) | — | Never (0 fallback) |
-| `tournament_match_count_b` | Same for player B | — | Never |
-| `tournament_win_rate_a` | `tournament_wins / tournament_matches` | 2 matches | Tournament ID missing or < 2 |
-| `tournament_win_rate_b` | Same for player B | 2 matches | Same |
+| Feature | Calculation | None When |
+|---|---|---|
+| `tournament_match_count_a` | Matches at this tournament (all editions) | Never (0 fallback) |
+| `tournament_match_count_b` | Same for player B | Never |
+| `tournament_win_rate_a` | `tournament_wins / tournament_matches`. Returns 0.5 if 0 matches | Tournament ID missing |
+| `tournament_win_rate_b` | Same for player B | Same |
 
 ---
 
@@ -295,70 +312,19 @@ Meta-features indicating data availability and sample sizes.
 
 ---
 
-## Planned: Score Profile Features (`score_profile.py`) — 56 features
+## 11. Country Performance Features (`country_performance.py`) — 14 features
 
-**Phase 1** — Replaces dominance group. Two windows (8 and 64 matches) plus clutch matchup (128 matches).
-
-### Score Profile — Window 8 (min sample 3)
+All-time records by tournament country and region.
 
 | Feature | Calculation | None When |
 |---|---|---|
-| `game_diff_avg_8_a`, `_b` | Mean `(games_won - games_lost)` | No matches |
-| `set_diff_avg_8_a`, `_b` | Mean `(sets_won - sets_lost)` | No matches |
-| `straight_sets_rate_8_a`, `_b` | Proportion with `straight_sets=True` | < 3 matches |
-| `deciding_set_rate_8_a`, `_b` | Proportion with `deciding_set_played=True` | < 3 matches |
-| `tiebreak_rate_8_a`, `_b` | Proportion with `tiebreaks_played > 0` | < 3 matches |
-| `tiebreak_win_rate_8_a`, `_b` | `tiebreaks_won / tiebreaks_played` | < 3 matches OR no tiebreaks |
-| `tiebreaks_played_8_a`, `_b` | Count of tiebreaks played in window | Never (0 fallback) |
-| `close_match_rate_8_a`, `_b` | Proportion with `close_match=True` | < 3 matches |
-
-### Score Profile — Window 64 (min sample 5)
-
-| Feature | Calculation | None When |
-|---|---|---|
-| `game_diff_avg_64_a`, `_b` | Mean `(games_won - games_lost)` | No matches |
-| `set_diff_avg_64_a`, `_b` | Mean `(sets_won - sets_lost)` | No matches |
-| `straight_sets_rate_64_a`, `_b` | Proportion with `straight_sets=True` | < 5 matches |
-| `deciding_set_rate_64_a`, `_b` | Proportion with `deciding_set_played=True` | < 5 matches |
-| `tiebreak_rate_64_a`, `_b` | Proportion with `tiebreaks_played > 0` | < 5 matches |
-| `tiebreak_win_rate_64_a`, `_b` | `tiebreaks_won / tiebreaks_played` | < 5 matches OR no tiebreaks |
-| `tiebreaks_played_64_a`, `_b` | Count of tiebreaks played in window | Never (0 fallback) |
-| `close_match_rate_64_a`, `_b` | Proportion with `close_match=True` | < 5 matches |
-| `deciding_set_win_rate_64_a`, `_b` | Wins in deciding sets / deciding sets played | < 5 matches OR no deciding sets |
-| `deciding_sets_played_64_a`, `_b` | Count of deciding sets in window | Never (0 fallback) |
-| `comeback_rate_64_a`, `_b` | Wins after losing 1st set / first sets lost | < 5 matches OR no first sets lost |
-| `first_sets_lost_64_a`, `_b` | Count of first sets lost in window | Never (0 fallback) |
-| `straight_sets_win_rate_64_a`, `_b` | `straight_sets AND won` / total wins | < 5 matches OR no wins |
-
-### Clutch Matchup — Window 128 (min sample 5)
-
-Clutch score = `0.4 * tiebreak_win_rate + 0.3 * deciding_set_win_rate + 0.3 * comeback_rate` (from 64-match window). Thresholds: clutch > 0.55, non-clutch < 0.40.
-
-| Feature | Calculation | None When |
-|---|---|---|
-| `vs_clutch_win_rate_a`, `_b` | Win rate vs clutch opponents (last 128) | < 5 clutch matches |
-| `vs_clutch_matches_a`, `_b` | Count of clutch opponent matches | Never (0 fallback) |
-| `vs_normal_clutch_win_rate_a`, `_b` | Win rate vs normal opponents | < 5 normal matches |
-| `vs_normal_clutch_matches_a`, `_b` | Count of normal opponent matches | Never (0 fallback) |
-| `vs_non_clutch_win_rate_a`, `_b` | Win rate vs non-clutch opponents | < 5 non-clutch matches |
-| `vs_non_clutch_matches_a`, `_b` | Count of non-clutch opponent matches | Never (0 fallback) |
-| `opponent_clutch_score_a`, `_b` | Opponent's raw clutch_score | Opponent has no clutch score |
-
----
-
-## Planned: Country Performance Features (`country_performance.py`) — 14 features
-
-**Phase 1** — All-time records (not windowed). Min sample: 5 matches for rates.
-
-| Feature | Calculation | None When |
-|---|---|---|
-| `country_win_rate_a`, `_b` | Win rate in tournament country | < 5 country matches or country unknown |
+| `country_win_rate_a`, `_b` | Win rate in tournament country. Returns 0.5 if 0 matches or country unknown | Never |
 | `country_matches_a`, `_b` | Matches played in this country | Never (0 fallback) |
-| `country_delta_a`, `_b` | `country_win_rate - career_win_rate` | Either rate is None |
-| `region_win_rate_a`, `_b` | Win rate in this region | < 5 region matches or region unknown |
+| `country_delta_a`, `_b` | `country_win_rate - career_win_rate`. Returns 0.0 if country unknown | Never |
+| `region_win_rate_a`, `_b` | Win rate in this region. Returns 0.5 if 0 matches or region unknown | Never |
 | `region_matches_a`, `_b` | Matches played in this region | Never (0 fallback) |
-| `region_delta_a`, `_b` | `region_win_rate - career_win_rate` | Either rate is None |
-| `is_home_a`, `_b` | 1.0 if nationality == tournament country | Nationality or country unknown |
+| `region_delta_a`, `_b` | `region_win_rate - career_win_rate`. Returns 0.0 if region unknown | Never |
+| `is_home_a`, `_b` | 1.0 if nationality == tournament country. Returns 0.0 if either unknown | Never |
 
 ---
 
@@ -366,10 +332,8 @@ Clutch score = `0.4 * tiebreak_win_rate + 0.3 * deciding_set_win_rate + 0.3 * co
 
 | Preset | Description | Feature Count |
 |---|---|---|
-| `full` | context + elo (all 3) + form + h2h + activity | 110 |
-| `trimmed` | `full` minus 20 named features | 90 |
-| `baseline_v2` | `full` + opponent_quality + dominance + fatigue + tournament_history + confidence | 158 |
-| `trimmed_v2` | `baseline_v2` minus 63 named features | 95 |
-| `trimmed_v2b` | `baseline_v2` minus 73 named features (current production) | 85 |
-
-After Phase 1, the `baseline_v2` equivalent will include score_profile (replacing dominance) + country_performance + calendar + surface gap extensions = ~235 features.
+| `full` | context + elo (all 3) + form + h2h + activity | 117 |
+| `trimmed` | `full` minus 20 named features | 97 |
+| `baseline_v2` | `full` + opponent_quality + score_profile + fatigue + tournament_history + confidence + country_performance | 221 |
+| `trimmed_v2` | `baseline_v2` minus 63 named features | 158 |
+| `trimmed_v2b` | `baseline_v2` minus 73 named features (current production) | 148 |
