@@ -185,6 +185,16 @@ class FeatureEngine:
                     straight_sets_b = (not player_a_won) and sets_a == 0 and sets_b >= 2
                     close_match = deciding_set_played or (tiebreaks_a + tiebreaks_b) > 0
 
+                    # Compute first_set_lost for comeback tracking
+                    first_set_lost_a = False
+                    first_set_lost_b = False
+                    if row.score_structured and len(row.score_structured) > 0:
+                        first_set = row.score_structured[0]
+                        fs_a = first_set.get("a", 0)
+                        fs_b = first_set.get("b", 0)
+                        first_set_lost_a = fs_a < fs_b
+                        first_set_lost_b = fs_b < fs_a
+
                     record_a = MatchRecord(
                         temporal_order=row.temporal_order,
                         won=player_a_won,
@@ -206,6 +216,10 @@ class FeatureEngine:
                         deciding_set_played=deciding_set_played,
                         straight_sets=straight_sets_a,
                         close_match=close_match,
+                        first_set_lost=first_set_lost_a,
+                        opponent_clutch_score=state_b.clutch_score,
+                        opponent_specialist_score=_specialist_score(state_b, surface),
+                        country_ioc=ctx.tournament_country_ioc,
                     )
                     record_b = MatchRecord(
                         temporal_order=row.temporal_order,
@@ -228,11 +242,17 @@ class FeatureEngine:
                         deciding_set_played=deciding_set_played,
                         straight_sets=straight_sets_b,
                         close_match=close_match,
+                        first_set_lost=first_set_lost_b,
+                        opponent_clutch_score=state_a.clutch_score,
+                        opponent_specialist_score=_specialist_score(state_a, surface),
+                        country_ioc=ctx.tournament_country_ioc,
                     )
 
                     state_a.update(record_a, elo_post_a, surface_elo_post_a)
                     state_b.update(record_b, elo_post_b, surface_elo_post_b)
                     updated_states += 1
+                    state_a.clutch_score = _compute_clutch_score(state_a)
+                    state_b.clutch_score = _compute_clutch_score(state_b)
 
                 if len(self._batch) >= BATCH_SIZE:
                     self._flush_batch(session, feature_set.id)
@@ -391,6 +411,32 @@ def _to_float(value: Decimal | float | int | None, default: float | None) -> flo
     if value is None:
         return default
     return float(value)
+
+
+def _specialist_score(state: PlayerState, surface: str | None) -> float | None:
+    """Compute surface specialist score: surface_elo - overall_elo."""
+    if surface is None or surface not in state.surface_elo:
+        return None
+    return state.surface_elo[surface] - state.elo_current
+
+
+def _compute_clutch_score(state: PlayerState) -> float | None:
+    """Compute rolling clutch score from last 64 matches."""
+    records = list(state.matches)[-64:]
+    if len(records) < 5:
+        return None
+    tb_played = sum(r.tiebreaks_played for r in records)
+    tb_won = sum(r.tiebreaks_won for r in records)
+    ds_played = sum(1 for r in records if r.deciding_set_played)
+    ds_won = sum(1 for r in records if r.deciding_set_played and r.won)
+    fsl = sum(1 for r in records if r.first_set_lost)
+    fsl_won = sum(1 for r in records if r.first_set_lost and r.won)
+
+    tb_rate = tb_won / tb_played if tb_played >= 3 else 0.5
+    ds_rate = ds_won / ds_played if ds_played >= 3 else 0.5
+    cb_rate = fsl_won / fsl if fsl >= 3 else 0.5
+
+    return 0.4 * tb_rate + 0.3 * ds_rate + 0.3 * cb_rate
 
 
 def _compute_games(score_structured: Any) -> tuple[int, int]:
