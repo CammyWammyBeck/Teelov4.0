@@ -324,3 +324,48 @@ def city_country_to_timezone(city: str | None, country: str | None) -> str | Non
     except Exception:
         city_country_to_timezone._cache[cache_key] = ""
         return None
+
+
+# ---------------------------------------------------------------------------
+# Region mapping (IOC code → region)
+# ---------------------------------------------------------------------------
+
+REGION_MEMBERS: dict[str, set[str]] = {
+    "Europe": {
+        "ALB", "AND", "ARM", "AUT", "AZE", "BEL", "BIH", "BLR", "BUL",
+        "CRO", "CYP", "CZE", "DEN", "ESP", "EST", "FIN", "FRA", "GBR",
+        "GEO", "GER", "GRE", "HUN", "IRL", "ISL", "ISR", "ITA", "LAT",
+        "LTU", "LUX", "MDA", "MKD", "MLT", "MNE", "MON", "NED", "NOR",
+        "POL", "POR", "ROU", "RUS", "SLO", "SRB", "SVK", "SWE", "SUI",
+        "UKR",
+    },
+    "Asia-Pacific": {
+        "AUS", "BAN", "CHN", "HKG", "INA", "IND", "JPN", "KAZ", "KGZ",
+        "KOR", "MAS", "MYA", "NZL", "PAK", "PHI", "SGP", "SRI", "THA",
+        "TJK", "TKM", "TPE", "UZB", "VIE",
+    },
+    "Americas": {
+        "ARG", "BAH", "BAR", "BER", "BOL", "BRA", "CAN", "CHI", "COL",
+        "CRC", "CUB", "DOM", "ECU", "ESA", "GUA", "HAI", "HON", "JAM",
+        "MEX", "NCA", "PAN", "PAR", "PER", "PUR", "TTO", "URU", "USA",
+        "VEN",
+    },
+    "Middle East & Africa": {
+        "ALG", "ANG", "BDI", "BEN", "BOT", "BRN", "BUR", "CAM", "CGO",
+        "CHA", "CIV", "CMR", "COD", "COM", "DJI", "EGY", "ERI", "ETH",
+        "GAB", "GAM", "GHA", "GUI", "GNB", "IRQ", "JOR", "KEN", "KSA",
+        "KUW", "LBA", "LBN", "LBR", "LES", "MAD", "MAR", "MAW", "MLI",
+        "MOZ", "MRI", "MTN", "NAM", "NGR", "NIG", "OMA", "QAT", "RSA",
+        "RWA", "SEN", "SEY", "SLE", "SOM", "SSD", "SUD", "SWZ", "SYR",
+        "TAN", "TOG", "TUN", "TUR", "UAE", "UGA", "YEM", "ZAM", "ZIM",
+    },
+}
+
+IOC_TO_REGION: dict[str, str] = {
+    ioc: region for region, members in REGION_MEMBERS.items() for ioc in members
+}
+
+
+def ioc_to_region(ioc: str) -> str | None:
+    """Return the region name for an IOC country code, or None if unknown."""
+    return IOC_TO_REGION.get(ioc)
