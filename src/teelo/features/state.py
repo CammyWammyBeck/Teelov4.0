@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import NamedTuple
 
+from teelo.utils.geo import ioc_to_region
+
 
 class MatchRecord(NamedTuple):
     temporal_order: int
@@ -134,6 +136,20 @@ class PlayerState:
                 match_date=record.match_date,
             )
         )
+
+        if record.country_ioc is not None:
+            wins, losses = self.country_record.get(record.country_ioc, (0, 0))
+            if record.won:
+                self.country_record[record.country_ioc] = (wins + 1, losses)
+            else:
+                self.country_record[record.country_ioc] = (wins, losses + 1)
+            region = ioc_to_region(record.country_ioc)
+            if region is not None:
+                rwins, rlosses = self.region_record.get(region, (0, 0))
+                if record.won:
+                    self.region_record[region] = (rwins + 1, rlosses)
+                else:
+                    self.region_record[region] = (rwins, rlosses + 1)
 
     def has_observed_surface_elo(self, surface: str | None) -> bool:
         if surface is None:
