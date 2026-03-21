@@ -53,6 +53,10 @@ class EloCoreFeatures(FeatureGroup):
             "peak_elo_b",
             "peak_ratio_a",
             "peak_ratio_b",
+            "surface_gap_a",
+            "surface_gap_b",
+            "off_surface_elo_a",
+            "off_surface_elo_b",
         ]
 
     def compute(
@@ -75,7 +79,7 @@ class EloCoreFeatures(FeatureGroup):
         peak_ratio_a = state_a.elo_current / state_a.elo_peak if state_a.elo_peak > 0 else None
         peak_ratio_b = state_b.elo_current / state_b.elo_peak if state_b.elo_peak > 0 else None
 
-        return {
+        features: dict[str, float | None] = {
             "elo_a": elo_a,
             "elo_b": elo_b,
             "elo_diff": elo_a - elo_b,
@@ -87,6 +91,24 @@ class EloCoreFeatures(FeatureGroup):
             "peak_ratio_a": peak_ratio_a,
             "peak_ratio_b": peak_ratio_b,
         }
+
+        # Surface gap features
+        for suffix, state in (("a", state_a), ("b", state_b)):
+            if ctx.surface and ctx.surface in state.surface_elo:
+                features[f"surface_gap_{suffix}"] = (
+                    state.surface_elo[ctx.surface] - state.elo_current
+                )
+                other_elos = [
+                    v for k, v in state.surface_elo.items() if k != ctx.surface
+                ]
+                features[f"off_surface_elo_{suffix}"] = (
+                    sum(other_elos) / len(other_elos) if other_elos else None
+                )
+            else:
+                features[f"surface_gap_{suffix}"] = None
+                features[f"off_surface_elo_{suffix}"] = None
+
+        return features
 
 
 class EloHistoryFeatures(FeatureGroup):
