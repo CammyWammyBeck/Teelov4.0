@@ -2,15 +2,18 @@
 
 **Created**: 2026-03-21
 **Status**: Draft
+**Scope**: Plan steps 3–9 (state changes + score_profile + country_performance + calendar + surface gap). Specialist matchup and ELO matchup are Phase 2 (steps 10–14).
 
 ## Goal
 
-Expand the feature pipeline from ~95 to ~160+ features by implementing Phase 1 of the feature expansion plan: score profile (absorbing dominance), clutch matchup, country performance, calendar context, and surface gap features.
+Expand the feature pipeline from ~158 to ~230+ features by implementing Phase 1 of the feature expansion plan: score profile (absorbing dominance), clutch matchup, country performance, calendar context, and surface gap features.
+
+Note: The original plan estimated ~36 new features for Phase 1, but the decision to keep both 8-match and 64-match windows (absorbing dominance rather than replacing it) increases this to ~77 new features. This is intentional — more features enables better feature selection later.
 
 ## Design Decisions
 
 - **Dominance merge**: The existing `dominance.py` group is absorbed into `score_profile.py`. Both 8-match and 64-match windows are kept (short = recent form, long = career tendency). `dominance.py` is deleted.
-- **Sample size companions**: Every rate feature has a count companion per the plan's design principle. Rate features return `None` below minimum sample thresholds; count features always return a value.
+- **Sample size companions**: Rate features where the denominator is a subset of matches (tiebreaks, deciding sets, comeback opportunities) get explicit count companions. Rate features where the denominator is simply "matches in window" do not need a separate companion — the window size is implicit.
 - **Clutch classification**: Computed from 64-window score profile rates, stored on `PlayerState`, snapshotted to `MatchRecord` as `opponent_clutch_score` for historical bucketing.
 
 ---
@@ -18,6 +21,8 @@ Expand the feature pipeline from ~95 to ~160+ features by implementing Phase 1 o
 ## 1. State Changes
 
 ### 1.1 MatchRecord (NamedTuple) — 4 new fields
+
+**Must be appended after `close_match` (the last existing field) to preserve NamedTuple positional ordering.**
 
 ```python
 first_set_lost: bool = False           # True if player lost the first set
@@ -42,6 +47,8 @@ region_record: dict[str, tuple[int, int]] = field(default_factory=dict)   # {reg
 - `clutch_score`: recomputed after each state update from the last 64 matches' tiebreak/deciding-set/comeback rates
 - `country_record` / `region_record`: updated in `PlayerState.update()` when `MatchRecord.country_ioc` is not None
 
+**Region resolution in `update()`**: Import `ioc_to_region()` from `src/teelo/utils/geo.py` (see section 3.1 for the mapping). This avoids circular dependencies — the mapping lives in the utility layer, not in a feature group.
+
 ### 1.3 MatchContext (dataclass) — 3 new fields
 
 ```python
@@ -53,15 +60,16 @@ player_b_nationality: str | None = None     # from Player.nationality_ioc
 ### 1.4 Engine Changes
 
 **`_load_matches()`**:
-- Add `Tournament.country_ioc` to the SELECT columns
+- Add `Tournament.country_ioc.label("tournament_country_ioc")` to the SELECT columns (labeled to avoid ambiguity with any other `country_ioc` column)
 
 **Player nationality loading**:
-- Load all player nationalities in a single query at startup: `{player_id: nationality_ioc}`
-- Pass into `MatchContext` construction
+- Import `Player` model into `engine.py`
+- At the start of `run()`, before the main loop, load all nationalities: `select(Player.id, Player.nationality_ioc)` → build `{player_id: nationality_ioc}` dict
+- Store as instance variable `self._nationalities`
 
 **`MatchContext` construction**:
-- Set `tournament_country_ioc` from `row.country_ioc`
-- Set `player_a_nationality` and `player_b_nationality` from the nationality dict
+- Set `tournament_country_ioc` from `row.tournament_country_ioc`
+- Set `player_a_nationality` and `player_b_nationality` from `self._nationalities.get(row.player_a_id)`
 
 **Score parsing** — extend to compute `first_set_lost`:
 ```python
@@ -94,12 +102,7 @@ state_a.clutch_score = _compute_clutch_score(state_a)
 state_b.clutch_score = _compute_clutch_score(state_b)
 ```
 
-**Post-update country/region record**:
-In `PlayerState.update()`, if `record.country_ioc` is not None:
-- Update `self.country_record[record.country_ioc]`
-- Resolve region from IOC code, update `self.region_record[region]`
-
-**Helper functions** (in engine.py or a shared utility):
+**Helper functions** (in engine.py):
 ```python
 def _specialist_score(state: PlayerState, surface: str | None) -> float | None:
     if surface is None or surface not in state.surface_elo:
@@ -117,12 +120,15 @@ def _compute_clutch_score(state: PlayerState) -> float | None:
     fsl = sum(1 for r in records if r.first_set_lost)
     fsl_won = sum(1 for r in records if r.first_set_lost and r.won)
 
-    tb_rate = tb_won / tb_played if tb_played >= 3 else 0.5  # neutral default
+    # Require minimum sub-samples; use neutral 0.5 default otherwise
+    tb_rate = tb_won / tb_played if tb_played >= 3 else 0.5
     ds_rate = ds_won / ds_played if ds_played >= 3 else 0.5
     cb_rate = fsl_won / fsl if fsl >= 3 else 0.5
 
     return 0.4 * tb_rate + 0.3 * ds_rate + 0.3 * cb_rate
 ```
+
+**Note on `tiebreaks_played`**: On `MatchRecord`, `tiebreaks_played` is the **match total** (both players' tiebreaks summed), while `tiebreaks_won` is per-player. This means tiebreak_win_rate = `player_tiebreaks_won / total_tiebreaks_in_match`, which is correct — a player winning 1 of 2 tiebreaks gets 0.5.
 
 ---
 
@@ -135,20 +141,24 @@ Absorbs all dominance features and adds new score profile + clutch matchup featu
 
 ### 2.1 Score Profile Features (two windows)
 
-Window 8: min sample 3. Window 64: min sample 5.
+Window 8: min sample 3 (preserves existing dominance behavior). Window 64: min sample 5.
+
+**Tiebreak win rate threshold**: Requires BOTH minimum matches in window AND non-zero `tiebreaks_played` denominator (preserving the dual-check from existing `dominance.py` lines 101–102).
 
 | Feature | W=8 | W=64 | Sample companion |
 |---|---|---|---|
-| `game_diff_avg_{W}_{a,b}` | Yes | Yes | — |
-| `set_diff_avg_{W}_{a,b}` | Yes | Yes | — |
-| `straight_sets_rate_{W}_{a,b}` | Yes | Yes | — |
-| `deciding_set_rate_{W}_{a,b}` | Yes | Yes | — |
-| `tiebreak_rate_{W}_{a,b}` | Yes | Yes | — |
+| `game_diff_avg_{W}_{a,b}` | Yes | Yes | — (continuous, not a rate) |
+| `set_diff_avg_{W}_{a,b}` | Yes | Yes | — (continuous, not a rate) |
+| `straight_sets_rate_{W}_{a,b}` | Yes | Yes | — (denominator = matches in window) |
+| `deciding_set_rate_{W}_{a,b}` | Yes | Yes | — (denominator = matches in window) |
+| `tiebreak_rate_{W}_{a,b}` | Yes | Yes | — (denominator = matches in window) |
 | `tiebreak_win_rate_{W}_{a,b}` | Yes | Yes | `tiebreaks_played_{W}_{a,b}` |
-| `close_match_rate_{W}_{a,b}` | Yes | Yes | — |
+| `close_match_rate_{W}_{a,b}` | Yes | Yes | — (denominator = matches in window) |
 | `deciding_set_win_rate_{W}_{a,b}` | — | Yes | `deciding_sets_played_64_{a,b}` |
 | `comeback_rate_{W}_{a,b}` | — | Yes | `first_sets_lost_64_{a,b}` |
-| `straight_sets_win_rate_{W}_{a,b}` | — | Yes | — |
+| `straight_sets_win_rate_{W}_{a,b}` | — | Yes | — (denominator = wins in window) |
+
+**Note on sample size companions**: Rate features whose denominator is "matches in window" (e.g., `straight_sets_rate`) don't need explicit count companions — the denominator is always the window size (or total matches if fewer). Only features with subset denominators (tiebreaks played, deciding sets played, first sets lost) get companions, as those denominators vary meaningfully between players.
 
 ### 2.2 Clutch Matchup Features (128-match window, min sample 5)
 
@@ -157,10 +167,12 @@ Uses `MatchRecord.opponent_clutch_score` to bucket historical opponents:
 - **Normal**: 0.40 ≤ opponent_clutch_score ≤ 0.55
 - **Non-clutch**: opponent_clutch_score < 0.40
 
+Only matches where `opponent_clutch_score is not None` are considered (early-career opponents may not have enough data for a clutch score).
+
 | Feature | Description |
 |---|---|
 | `vs_clutch_win_rate_{a,b}` | Win rate vs clutch opponents |
-| `vs_clutch_matches_{a,b}` | Count of matches vs clutch (sample size) |
+| `vs_clutch_matches_{a,b}` | Count of matches vs clutch (sample size, always populated) |
 | `vs_normal_clutch_win_rate_{a,b}` | Win rate vs normal opponents |
 | `vs_normal_clutch_matches_{a,b}` | Count (sample size) |
 | `vs_non_clutch_win_rate_{a,b}` | Win rate vs non-clutch opponents |
@@ -169,10 +181,14 @@ Uses `MatchRecord.opponent_clutch_score` to bucket historical opponents:
 
 ### 2.3 Total Feature Count
 
-- Window-8 features: 7 rates × 2 players + 1 companion × 2 = **16**
-- Window-64 features: 10 rates × 2 players + 3 companions × 2 = **26**
+- Window-8 features: 7 metrics × 2 players + 1 companion × 2 = **16**
+- Window-64 features: 10 metrics × 2 players + 3 companions × 2 = **26**
 - Clutch matchup: 7 features × 2 players = **14**
 - **Total**: 56 features
+
+### 2.4 Backward Compatibility
+
+The W=8 features keep identical names to the old dominance group (e.g., `tiebreak_win_rate_8_a`). Existing exclusion sets in `__init__.py` (`EXCLUDED_TRIMMED_V2`, `EXCLUDED_TRIMMED_V2B`) reference these names and remain valid without changes. The group name changes from `"dominance"` to `"score_profile"` — any code keying on group name (display, neutral_display) needs updating.
 
 ---
 
@@ -180,7 +196,7 @@ Uses `MatchRecord.opponent_clutch_score` to bucket historical opponents:
 
 **File**: `src/teelo/features/groups/country_performance.py` (new)
 
-All-time records (not windowed). Min sample for rates: 5 matches.
+All-time records (not windowed — country-specific data is already sparse). Min sample for rates: 5 matches.
 
 | Feature | Description |
 |---|---|
@@ -194,9 +210,11 @@ All-time records (not windowed). Min sample for rates: 5 matches.
 
 **Total**: 14 features
 
-### Region Mapping
+**`career_win_rate` dependency**: Computed inline from `state.wins_total / (state.wins_total + state.losses_total)`. Returns `None` (and delta returns `None`) if total matches < 10, consistent with `form.py`'s threshold.
 
-IOC code → region lookup. Module-level constant:
+### 3.1 Region Mapping
+
+**Location**: `src/teelo/utils/geo.py` — add `REGION_MEMBERS` dict and `ioc_to_region(ioc: str) -> str | None` function. Both `PlayerState.update()` and `country_performance.py` import from here. No circular dependencies.
 
 ```python
 REGION_MEMBERS: dict[str, set[str]] = {
@@ -212,9 +230,17 @@ REGION_MEMBERS: dict[str, set[str]] = {
     "Middle East & Africa": {"UAE", "QAT", "KSA", "RSA", "EGY", "MAR", "TUN", "NGR",
                               "KEN", "ZIM", "BRN", "OMA", "JOR", "LBN", "TUR", ...},
 }
+
+# Reverse lookup built at module load
+IOC_TO_REGION: dict[str, str] = {
+    ioc: region for region, members in REGION_MEMBERS.items() for ioc in members
+}
+
+def ioc_to_region(ioc: str) -> str | None:
+    return IOC_TO_REGION.get(ioc)
 ```
 
-Build a reverse lookup `IOC_TO_REGION: dict[str, str]` at module load.
+Note: The `...` in sets above means the full list will be populated during implementation using all IOC codes present in the database.
 
 ---
 
@@ -258,11 +284,12 @@ Return `None` if surface is None or player has no surface ELO data.
 - Remove `DominanceFeatures` import and registration
 - Add `ScoreProfileFeatures` import and registration
 - Add `CountryPerformanceFeatures` import and registration
-- Update all presets that reference dominance feature names to use new score_profile names
+- Existing exclusion sets (`EXCLUDED_TRIMMED_V2`, `EXCLUDED_TRIMMED_V2B`) reference W=8 feature names (e.g., `deciding_set_rate_8_a`) — these names are preserved in score_profile, so **no exclusion set changes needed**
+- Add new score_profile and country_performance features to appropriate presets
 
 ### Feature Set Migration
 
-A full backfill is required. The old `dominance` features in stored feature vectors will be replaced by the new `score_profile` features. The `INSERT ... ON CONFLICT DO UPDATE` pattern in the engine handles this — existing rows get overwritten.
+A full backfill is required. The old `dominance` features in stored feature vectors will be replaced by the new `score_profile` features. The `INSERT ... ON CONFLICT DO UPDATE` pattern in the engine handles this — existing rows get overwritten with the full new feature set.
 
 ---
 
@@ -270,22 +297,25 @@ A full backfill is required. The old `dominance` features in stored feature vect
 
 | File | Action |
 |---|---|
-| `src/teelo/features/state.py` | Add fields to MatchRecord, PlayerState, MatchContext |
-| `src/teelo/features/engine.py` | Extend _load_matches, MatchContext construction, score parsing, state update, add helpers |
-| `src/teelo/features/groups/score_profile.py` | **New** — score profile + clutch matchup |
-| `src/teelo/features/groups/country_performance.py` | **New** — country/region performance |
+| `src/teelo/features/state.py` | Add fields to MatchRecord (4), PlayerState (3), MatchContext (3) |
+| `src/teelo/features/engine.py` | Extend _load_matches (add country_ioc), load player nationalities, extend MatchContext construction, extend score parsing (first_set_lost), add MatchRecord fields, add clutch recompute post-update, add helper functions |
+| `src/teelo/features/groups/score_profile.py` | **New** — score profile (W=8, W=64) + clutch matchup (W=128) |
+| `src/teelo/features/groups/country_performance.py` | **New** — country/region win rates + is_home |
 | `src/teelo/features/groups/dominance.py` | **Delete** — absorbed into score_profile |
-| `src/teelo/features/groups/context.py` | Add calendar features |
-| `src/teelo/features/groups/elo.py` | Add surface gap features |
-| `src/teelo/features/__init__.py` | Update registry, presets |
-| `src/teelo/utils/geo.py` | Add region mapping if not already present |
+| `src/teelo/features/groups/context.py` | Add 3 calendar features (month_sin, month_cos, year_progress) |
+| `src/teelo/features/groups/elo.py` | Add 4 features to EloCoreFeatures (surface_gap, off_surface_elo) |
+| `src/teelo/features/__init__.py` | Update registry (remove dominance, add score_profile + country_performance), update presets |
+| `src/teelo/utils/geo.py` | Add REGION_MEMBERS, IOC_TO_REGION, ioc_to_region() |
 
 ---
 
 ## 7. Invariants & Constraints
 
 - **No leakage**: All features computed from state BEFORE match outcome updates state. Clutch score is updated AFTER feature computation.
-- **Sample size companions**: Every rate feature has a count companion. Rates return `None` below threshold; counts always return a value (even 0).
+- **Tiebreak win rate dual-check**: Requires both minimum matches in window AND non-zero tiebreaks_played denominator (preserving existing dominance.py behavior).
+- **NamedTuple ordering**: New MatchRecord fields appended after `close_match` to preserve positional args.
+- **Region mapping in utility layer**: `REGION_MEMBERS` and `ioc_to_region()` live in `geo.py`, imported by both `PlayerState.update()` and `country_performance.py`.
 - **Trinomial thresholds**: Clutch (0.40/0.55) are initial estimates. Calibrate from distribution after first backfill.
-- **Backward compatibility**: Old `dominance` feature names disappear. Any code referencing them (presets, display) must be updated.
+- **Backward compatibility**: Old `dominance` feature names preserved in score_profile W=8 — existing exclusion sets remain valid. Group name changes from "dominance" to "score_profile".
 - **Country coverage**: 100% of tournaments have `country_ioc` populated (Phase 0 complete).
+- **Feature count increase**: Phase 1 adds ~77 net new features (not ~36 as originally estimated) due to dual-window approach. This is intentional — feature selection will narrow later.
