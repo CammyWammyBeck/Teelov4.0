@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from teelo.features.registry import FeatureGroup
 from teelo.features.state import MatchContext, PlayerState
 
@@ -39,6 +41,9 @@ class ContextFeatures(FeatureGroup):
             "round_RR",
             "tour_wta",
             "year",
+            "month_sin",
+            "month_cos",
+            "year_progress",
         ]
 
     def compute(
@@ -95,5 +100,16 @@ class ContextFeatures(FeatureGroup):
             features["tour_wta"] = 1.0 if ctx.tour.upper() == "WTA" else 0.0
 
         features["year"] = float(ctx.year) if ctx.year else None
+
+        # Calendar features
+        if ctx.match_date is not None:
+            month = ctx.match_date.month
+            features["month_sin"] = math.sin(2 * math.pi * month / 12)
+            features["month_cos"] = math.cos(2 * math.pi * month / 12)
+            features["year_progress"] = ctx.match_date.timetuple().tm_yday / 365
+        else:
+            features["month_sin"] = None
+            features["month_cos"] = None
+            features["year_progress"] = None
 
         return features
