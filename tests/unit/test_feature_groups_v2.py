@@ -21,6 +21,10 @@ def _record(
     deciding_set_played: bool = False,
     straight_sets: bool = False,
     close_match: bool = False,
+    first_set_lost: bool = False,
+    opponent_clutch_score: float | None = None,
+    opponent_specialist_score: float | None = None,
+    country_ioc: str | None = None,
     tournament_id: int = 77,
     tournament_edition_id: int = 101,
     surface: str = "Clay",
@@ -47,6 +51,10 @@ def _record(
         deciding_set_played=deciding_set_played,
         straight_sets=straight_sets,
         close_match=close_match,
+        first_set_lost=first_set_lost,
+        opponent_clutch_score=opponent_clutch_score,
+        opponent_specialist_score=opponent_specialist_score,
+        country_ioc=country_ioc,
     )
 
 

@@ -29,6 +29,10 @@ class MatchRecord(NamedTuple):
     deciding_set_played: bool = False
     straight_sets: bool = False
     close_match: bool = False
+    first_set_lost: bool = False
+    opponent_clutch_score: float | None = None
+    opponent_specialist_score: float | None = None
+    country_ioc: str | None = None
 
 
 class H2HRecord(NamedTuple):
@@ -55,6 +59,9 @@ class MatchContext:
     tournament_edition_id: int | None
     tournament_id: int | None = None
     match_date_estimated: bool = False
+    tournament_country_ioc: str | None = None
+    player_a_nationality: str | None = None
+    player_b_nationality: str | None = None
 
 
 @dataclass
@@ -78,6 +85,9 @@ class PlayerState:
     tournament_matches: dict[int, int] = field(default_factory=lambda: defaultdict(int))
     tournament_wins: dict[int, int] = field(default_factory=lambda: defaultdict(int))
     tournament_losses: dict[int, int] = field(default_factory=lambda: defaultdict(int))
+    clutch_score: float | None = None
+    country_record: dict[str, tuple[int, int]] = field(default_factory=dict)
+    region_record: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     def update(self, record: MatchRecord, elo_post: float, surface_elo_post: float | None) -> None:
         self.matches.append(record)
