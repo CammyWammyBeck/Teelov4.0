@@ -5,9 +5,6 @@ from __future__ import annotations
 from teelo.features.registry import FeatureGroup
 from teelo.features.state import MatchContext, PlayerState
 
-_MIN_RATE_SAMPLE = 2
-
-
 class TournamentHistoryFeatures(FeatureGroup):
     @property
     def name(self) -> str:
@@ -41,7 +38,7 @@ class TournamentHistoryFeatures(FeatureGroup):
         if tournament_id is None:
             return None
         total = state.tournament_matches.get(tournament_id, 0)
-        if total < _MIN_RATE_SAMPLE:
-            return None
+        if total == 0:
+            return 0.5
         wins = state.tournament_wins.get(tournament_id, 0)
         return wins / total

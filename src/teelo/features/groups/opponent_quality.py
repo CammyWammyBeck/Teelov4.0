@@ -14,7 +14,7 @@ def _recent_records(state: PlayerState, limit: int = _WINDOW) -> list[MatchRecor
 
 def _average(values: list[float]) -> float | None:
     if not values:
-        return None
+        return 0.0
     return sum(values) / len(values)
 
 
@@ -72,7 +72,7 @@ class OpponentQualityFeatures(FeatureGroup):
     def _wins_vs_higher(self, state: PlayerState) -> float | None:
         records = _recent_records(state)
         if not records:
-            return None
+            return 0.0
         return float(
             sum(
                 1
@@ -84,7 +84,7 @@ class OpponentQualityFeatures(FeatureGroup):
     def _losses_vs_lower(self, state: PlayerState) -> float | None:
         records = _recent_records(state)
         if not records:
-            return None
+            return 0.0
         return float(
             sum(
                 1

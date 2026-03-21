@@ -25,7 +25,7 @@ def _win_rate_in_window(
         if record.won:
             wins += 1
 
-    win_rate = (wins / total) if total >= 5 else None
+    win_rate = (wins / total) if total > 0 else 0.5
     return win_rate, float(total)
 
 
@@ -36,8 +36,8 @@ def _surface_win_rate(state: PlayerState, surface: str | None) -> float | None:
     wins = state.surface_wins[surface]
     losses = state.surface_losses[surface]
     total = wins + losses
-    if total < 5:
-        return None
+    if total == 0:
+        return 0.5
     return wins / total
 
 
@@ -45,15 +45,15 @@ def _level_win_rate(state: PlayerState, level_code: str) -> float | None:
     wins = state.level_wins[level_code]
     losses = state.level_losses[level_code]
     total = wins + losses
-    if total < 5:
-        return None
+    if total == 0:
+        return 0.5
     return wins / total
 
 
 def _career_win_rate(state: PlayerState) -> float | None:
     total = state.wins_total + state.losses_total
-    if total < 10:
-        return None
+    if total == 0:
+        return 0.5
     return state.wins_total / total
 
 

@@ -17,7 +17,7 @@ def _surface_elo(state: PlayerState, ctx: MatchContext) -> float | None:
 def _elo_momentum(state: PlayerState, window: int = 8) -> float | None:
     history = list(state.elo_history)
     if len(history) < 2:
-        return None
+        return 0.0
 
     window_entries = history[-window:]
     first_elo = window_entries[0][1]
@@ -29,7 +29,7 @@ def _elo_delta_variance(state: PlayerState, window: int) -> float | None:
     history = list(state.elo_history)
     window_entries = history[-window:]
     if len(window_entries) < 3:
-        return None
+        return 0.0
 
     elo_values = [entry[1] for entry in window_entries]
     deltas = [current - previous for previous, current in zip(elo_values, elo_values[1:])]
@@ -76,8 +76,8 @@ class EloCoreFeatures(FeatureGroup):
         else:
             surface_elo_diff = surface_elo_a - surface_elo_b
 
-        peak_ratio_a = state_a.elo_current / state_a.elo_peak if state_a.elo_peak > 0 else None
-        peak_ratio_b = state_b.elo_current / state_b.elo_peak if state_b.elo_peak > 0 else None
+        peak_ratio_a = state_a.elo_current / state_a.elo_peak if state_a.elo_peak > 0 else 1.0
+        peak_ratio_b = state_b.elo_current / state_b.elo_peak if state_b.elo_peak > 0 else 1.0
 
         features: dict[str, float | None] = {
             "elo_a": elo_a,

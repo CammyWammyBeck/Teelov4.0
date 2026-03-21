@@ -106,7 +106,7 @@ class H2HFeatures(FeatureGroup):
         )
 
         h2h_total = float(h2h_a_wins + h2h_b_wins)
-        h2h_a_dominance = (h2h_a_wins / h2h_total) if h2h_total > 0 else None
+        h2h_a_dominance = (h2h_a_wins / h2h_total) if h2h_total > 0 else 0.5
 
         return {
             "h2h_a_wins": h2h_a_wins,

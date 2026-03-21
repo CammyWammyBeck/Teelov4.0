@@ -128,7 +128,7 @@ def test_opponent_quality_features_use_prior_matches_only() -> None:
     assert features["wins_vs_higher_elo_8_a"] == 1.0
     assert features["losses_vs_lower_elo_8_a"] == 1.0
     assert features["elo_overperf_8_a"] == -0.025000000000000022
-    assert features["opp_elo_avg_8_b"] is None
+    assert features["opp_elo_avg_8_b"] == 0.0
 
 
 def test_dominance_features_keep_rates_missing_without_sample() -> None:
@@ -328,8 +328,8 @@ def test_tournament_history_features_use_only_prior_tournament_history() -> None
 
     assert features["tournament_match_count_a"] == 1.0
     assert features["tournament_match_count_b"] == 0.0
-    assert features["tournament_win_rate_a"] is None
-    assert features["tournament_win_rate_b"] is None
+    assert features["tournament_win_rate_a"] == 1.0
+    assert features["tournament_win_rate_b"] == 0.5
 
 
 def test_confidence_features_emit_numeric_companions_for_sparse_signals() -> None:

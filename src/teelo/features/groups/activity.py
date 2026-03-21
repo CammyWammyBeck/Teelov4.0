@@ -59,7 +59,7 @@ class ActivityFeatures(FeatureGroup):
 
         def _games_last_match(state: PlayerState) -> float | None:
             if not state.matches:
-                return None
+                return 0.0
             record = state.matches[-1]
             return float(record.games_won + record.games_lost)
 
