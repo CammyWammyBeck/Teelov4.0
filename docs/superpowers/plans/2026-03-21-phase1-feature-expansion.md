@@ -666,15 +666,16 @@ def _ctx() -> MatchContext:
     )
 
 
-def test_returns_none_below_min_sample_8() -> None:
+def test_returns_default_with_no_matches() -> None:
     group = ScoreProfileFeatures()
     state_a = PlayerState(player_id=1)
     state_b = PlayerState(player_id=2)
-    # Only 2 matches — below min sample 3 for W=8
-    for i in range(2):
-        state_a.matches.append(_record(temporal_order=i, won=True, straight_sets=True))
     features = group.compute(state_a, state_b, _ctx())
-    assert features["straight_sets_rate_8_a"] is None
+    # No matches — rates return 0.5 (uninformative), diffs return 0.0
+    assert features["straight_sets_rate_8_a"] == 0.5
+    assert features["tiebreak_win_rate_8_a"] == 0.5
+    assert features["game_diff_avg_8_a"] == 0.0
+    assert features["tiebreaks_played_8_a"] == 0
 
 
 def test_window_8_straight_sets_rate() -> None:
@@ -690,7 +691,7 @@ def test_window_8_straight_sets_rate() -> None:
     assert features["straight_sets_rate_8_a"] == 0.5
 
 
-def test_tiebreak_win_rate_requires_nonzero_denominator() -> None:
+def test_tiebreak_win_rate_default_when_no_tiebreaks() -> None:
     group = ScoreProfileFeatures()
     state_a = PlayerState(player_id=1)
     state_b = PlayerState(player_id=2)
@@ -700,8 +701,8 @@ def test_tiebreak_win_rate_requires_nonzero_denominator() -> None:
             tiebreaks_played=0, tiebreaks_won=0,
         ))
     features = group.compute(state_a, state_b, _ctx())
-    # Enough matches but no tiebreaks played — must be None
-    assert features["tiebreak_win_rate_8_a"] is None
+    # No tiebreaks played — returns 0.5 default, not None
+    assert features["tiebreak_win_rate_8_a"] == 0.5
     assert features["tiebreaks_played_8_a"] == 0
 
 
@@ -757,7 +758,7 @@ def test_clutch_matchup_features() -> None:
 
 
 def test_clutch_matchup_all_none_opponents() -> None:
-    """When all opponents lack clutch scores, matchup rates should be None, counts 0."""
+    """When all opponents lack clutch scores, matchup rates default to 0.5, counts 0."""
     group = ScoreProfileFeatures()
     state_a = PlayerState(player_id=1)
     state_b = PlayerState(player_id=2)
@@ -767,7 +768,7 @@ def test_clutch_matchup_all_none_opponents() -> None:
             opponent_clutch_score=None,
         ))
     features = group.compute(state_a, state_b, _ctx())
-    assert features["vs_clutch_win_rate_a"] is None
+    assert features["vs_clutch_win_rate_a"] == 0.5
     assert features["vs_clutch_matches_a"] == 0
     assert features["vs_normal_clutch_matches_a"] == 0
     assert features["vs_non_clutch_matches_a"] == 0
@@ -800,9 +801,6 @@ from teelo.features.state import MatchContext, MatchRecord, PlayerState
 _W8 = 8
 _W64 = 64
 _W128 = 128
-_MIN_8 = 3
-_MIN_64 = 5
-_MIN_CLUTCH = 5
 
 # Clutch classification thresholds
 _CLUTCH_HIGH = 0.55
@@ -813,46 +811,46 @@ def _records(state: PlayerState, limit: int) -> list[MatchRecord]:
     return list(state.matches)[-limit:]
 
 
-def _rate(numerator: float, denominator: int, min_sample: int) -> float | None:
-    if denominator < min_sample:
-        return None
+def _rate(numerator: float, denominator: int) -> float:
+    """Return rate, or 0.5 (uninformative) when denominator is 0."""
+    if denominator == 0:
+        return 0.5
     return numerator / denominator
 
 
-def _average(values: list[float]) -> float | None:
+def _average(values: list[float]) -> float:
+    """Return mean, or 0.0 (neutral) when empty."""
     if not values:
-        return None
+        return 0.0
     return sum(values) / len(values)
 
 
 # ---- Window-based score profile features ----
 
-def _game_diff_avg(records: list[MatchRecord]) -> float | None:
+def _game_diff_avg(records: list[MatchRecord]) -> float:
     return _average([float(r.games_won - r.games_lost) for r in records])
 
 
-def _set_diff_avg(records: list[MatchRecord]) -> float | None:
+def _set_diff_avg(records: list[MatchRecord]) -> float:
     return _average([float(r.sets_won - r.sets_lost) for r in records])
 
 
-def _straight_sets_rate(records: list[MatchRecord], min_sample: int) -> float | None:
-    return _rate(sum(1.0 for r in records if r.straight_sets), len(records), min_sample)
+def _straight_sets_rate(records: list[MatchRecord]) -> float:
+    return _rate(sum(1.0 for r in records if r.straight_sets), len(records))
 
 
-def _deciding_set_rate(records: list[MatchRecord], min_sample: int) -> float | None:
-    return _rate(sum(1.0 for r in records if r.deciding_set_played), len(records), min_sample)
+def _deciding_set_rate(records: list[MatchRecord]) -> float:
+    return _rate(sum(1.0 for r in records if r.deciding_set_played), len(records))
 
 
-def _tiebreak_rate(records: list[MatchRecord], min_sample: int) -> float | None:
-    return _rate(sum(1.0 for r in records if r.tiebreaks_played > 0), len(records), min_sample)
+def _tiebreak_rate(records: list[MatchRecord]) -> float:
+    return _rate(sum(1.0 for r in records if r.tiebreaks_played > 0), len(records))
 
 
-def _tiebreak_win_rate(records: list[MatchRecord], min_sample: int) -> float | None:
-    if len(records) < min_sample:
-        return None
+def _tiebreak_win_rate(records: list[MatchRecord]) -> float:
     denom = sum(r.tiebreaks_played for r in records)
     if denom == 0:
-        return None
+        return 0.5
     return sum(r.tiebreaks_won for r in records) / denom
 
 
@@ -860,16 +858,14 @@ def _tiebreaks_played_count(records: list[MatchRecord]) -> float:
     return float(sum(r.tiebreaks_played for r in records))
 
 
-def _close_match_rate(records: list[MatchRecord], min_sample: int) -> float | None:
-    return _rate(sum(1.0 for r in records if r.close_match), len(records), min_sample)
+def _close_match_rate(records: list[MatchRecord]) -> float:
+    return _rate(sum(1.0 for r in records if r.close_match), len(records))
 
 
-def _deciding_set_win_rate(records: list[MatchRecord], min_sample: int) -> float | None:
-    if len(records) < min_sample:
-        return None
+def _deciding_set_win_rate(records: list[MatchRecord]) -> float:
     ds = [r for r in records if r.deciding_set_played]
-    if len(ds) < min_sample:
-        return None
+    if not ds:
+        return 0.5
     return sum(1.0 for r in ds if r.won) / len(ds)
 
 
@@ -877,12 +873,10 @@ def _deciding_sets_played(records: list[MatchRecord]) -> float:
     return float(sum(1 for r in records if r.deciding_set_played))
 
 
-def _comeback_rate(records: list[MatchRecord], min_sample: int) -> float | None:
-    if len(records) < min_sample:
-        return None
+def _comeback_rate(records: list[MatchRecord]) -> float:
     fsl = [r for r in records if r.first_set_lost]
-    if len(fsl) < min_sample:
-        return None
+    if not fsl:
+        return 0.5
     return sum(1.0 for r in fsl if r.won) / len(fsl)
 
 
@@ -890,12 +884,10 @@ def _first_sets_lost(records: list[MatchRecord]) -> float:
     return float(sum(1 for r in records if r.first_set_lost))
 
 
-def _straight_sets_win_rate(records: list[MatchRecord], min_sample: int) -> float | None:
-    if len(records) < min_sample:
-        return None
+def _straight_sets_win_rate(records: list[MatchRecord]) -> float:
     wins = [r for r in records if r.won]
     if not wins:
-        return None
+        return 0.5
     return sum(1.0 for r in wins if r.straight_sets) / len(wins)
 
 
@@ -1000,27 +992,27 @@ class ScoreProfileFeatures(FeatureGroup):
             # Window 8
             features[f"game_diff_avg_8_{suffix}"] = _game_diff_avg(r8)
             features[f"set_diff_avg_8_{suffix}"] = _set_diff_avg(r8)
-            features[f"straight_sets_rate_8_{suffix}"] = _straight_sets_rate(r8, _MIN_8)
-            features[f"deciding_set_rate_8_{suffix}"] = _deciding_set_rate(r8, _MIN_8)
-            features[f"tiebreak_rate_8_{suffix}"] = _tiebreak_rate(r8, _MIN_8)
-            features[f"tiebreak_win_rate_8_{suffix}"] = _tiebreak_win_rate(r8, _MIN_8)
+            features[f"straight_sets_rate_8_{suffix}"] = _straight_sets_rate(r8)
+            features[f"deciding_set_rate_8_{suffix}"] = _deciding_set_rate(r8)
+            features[f"tiebreak_rate_8_{suffix}"] = _tiebreak_rate(r8)
+            features[f"tiebreak_win_rate_8_{suffix}"] = _tiebreak_win_rate(r8)
             features[f"tiebreaks_played_8_{suffix}"] = _tiebreaks_played_count(r8)
-            features[f"close_match_rate_8_{suffix}"] = _close_match_rate(r8, _MIN_8)
+            features[f"close_match_rate_8_{suffix}"] = _close_match_rate(r8)
 
             # Window 64
             features[f"game_diff_avg_64_{suffix}"] = _game_diff_avg(r64)
             features[f"set_diff_avg_64_{suffix}"] = _set_diff_avg(r64)
-            features[f"straight_sets_rate_64_{suffix}"] = _straight_sets_rate(r64, _MIN_64)
-            features[f"deciding_set_rate_64_{suffix}"] = _deciding_set_rate(r64, _MIN_64)
-            features[f"tiebreak_rate_64_{suffix}"] = _tiebreak_rate(r64, _MIN_64)
-            features[f"tiebreak_win_rate_64_{suffix}"] = _tiebreak_win_rate(r64, _MIN_64)
+            features[f"straight_sets_rate_64_{suffix}"] = _straight_sets_rate(r64)
+            features[f"deciding_set_rate_64_{suffix}"] = _deciding_set_rate(r64)
+            features[f"tiebreak_rate_64_{suffix}"] = _tiebreak_rate(r64)
+            features[f"tiebreak_win_rate_64_{suffix}"] = _tiebreak_win_rate(r64)
             features[f"tiebreaks_played_64_{suffix}"] = _tiebreaks_played_count(r64)
-            features[f"close_match_rate_64_{suffix}"] = _close_match_rate(r64, _MIN_64)
-            features[f"deciding_set_win_rate_64_{suffix}"] = _deciding_set_win_rate(r64, _MIN_64)
+            features[f"close_match_rate_64_{suffix}"] = _close_match_rate(r64)
+            features[f"deciding_set_win_rate_64_{suffix}"] = _deciding_set_win_rate(r64)
             features[f"deciding_sets_played_64_{suffix}"] = _deciding_sets_played(r64)
-            features[f"comeback_rate_64_{suffix}"] = _comeback_rate(r64, _MIN_64)
+            features[f"comeback_rate_64_{suffix}"] = _comeback_rate(r64)
             features[f"first_sets_lost_64_{suffix}"] = _first_sets_lost(r64)
-            features[f"straight_sets_win_rate_64_{suffix}"] = _straight_sets_win_rate(r64, _MIN_64)
+            features[f"straight_sets_win_rate_64_{suffix}"] = _straight_sets_win_rate(r64)
 
             # Clutch matchup
             buckets = _clutch_bucket_stats(r128, _CLUTCH_LOW, _CLUTCH_HIGH)
@@ -1032,7 +1024,7 @@ class ScoreProfileFeatures(FeatureGroup):
                 w, _l, t = buckets[bucket_key]
                 features[f"{feat_prefix}_matches_{suffix}"] = float(t)
                 features[f"{feat_prefix}_win_rate_{suffix}"] = (
-                    w / t if t >= _MIN_CLUTCH else None
+                    w / t if t > 0 else 0.5
                 )
 
             # Opponent's current clutch score
@@ -1119,14 +1111,14 @@ def test_country_win_rate() -> None:
     assert features["country_matches_a"] == 5
 
 
-def test_country_win_rate_below_min_sample() -> None:
+def test_country_win_rate_small_sample() -> None:
     group = CountryPerformanceFeatures()
     state_a = _state_with_country_record(
-        country_record={"GBR": (2, 1)},  # only 3 matches
+        country_record={"GBR": (2, 1)},  # only 3 matches — still computed
     )
     state_b = PlayerState(player_id=2)
     features = group.compute(state_a, state_b, _ctx())
-    assert features["country_win_rate_a"] is None
+    assert features["country_win_rate_a"] == 2 / 3
     assert features["country_matches_a"] == 3
 
 
@@ -1160,8 +1152,9 @@ def test_no_country_on_context() -> None:
     state_a = PlayerState(player_id=1)
     state_b = PlayerState(player_id=2)
     features = group.compute(state_a, state_b, _ctx(country_ioc=None))
-    assert features["country_win_rate_a"] is None
+    assert features["country_win_rate_a"] == 0.5  # default, no data
     assert features["country_matches_a"] == 0
+    assert features["is_home_a"] == 0.0
 
 
 def test_feature_names_count() -> None:
@@ -1188,14 +1181,10 @@ from teelo.features.registry import FeatureGroup
 from teelo.features.state import MatchContext, PlayerState
 from teelo.utils.geo import ioc_to_region
 
-_MIN_SAMPLE = 5
-_MIN_CAREER = 10
-
-
-def _career_win_rate(state: PlayerState) -> float | None:
+def _career_win_rate(state: PlayerState) -> float:
     total = state.wins_total + state.losses_total
-    if total < _MIN_CAREER:
-        return None
+    if total == 0:
+        return 0.5
     return state.wins_total / total
 
 
@@ -1240,44 +1229,32 @@ class CountryPerformanceFeatures(FeatureGroup):
                 wins, losses = state.country_record[country]
                 total = wins + losses
                 features[f"country_matches_{suffix}"] = float(total)
-                if total >= _MIN_SAMPLE:
-                    wr = wins / total
-                    features[f"country_win_rate_{suffix}"] = wr
-                    features[f"country_delta_{suffix}"] = (
-                        wr - career_wr if career_wr is not None else None
-                    )
-                else:
-                    features[f"country_win_rate_{suffix}"] = None
-                    features[f"country_delta_{suffix}"] = None
+                wr = wins / total if total > 0 else 0.5
+                features[f"country_win_rate_{suffix}"] = wr
+                features[f"country_delta_{suffix}"] = wr - career_wr
             else:
-                features[f"country_win_rate_{suffix}"] = None
+                features[f"country_win_rate_{suffix}"] = 0.5
                 features[f"country_matches_{suffix}"] = 0.0
-                features[f"country_delta_{suffix}"] = None
+                features[f"country_delta_{suffix}"] = 0.0
 
             # Region features
             if region and region in state.region_record:
                 wins, losses = state.region_record[region]
                 total = wins + losses
                 features[f"region_matches_{suffix}"] = float(total)
-                if total >= _MIN_SAMPLE:
-                    wr = wins / total
-                    features[f"region_win_rate_{suffix}"] = wr
-                    features[f"region_delta_{suffix}"] = (
-                        wr - career_wr if career_wr is not None else None
-                    )
-                else:
-                    features[f"region_win_rate_{suffix}"] = None
-                    features[f"region_delta_{suffix}"] = None
+                wr = wins / total if total > 0 else 0.5
+                features[f"region_win_rate_{suffix}"] = wr
+                features[f"region_delta_{suffix}"] = wr - career_wr
             else:
-                features[f"region_win_rate_{suffix}"] = None
+                features[f"region_win_rate_{suffix}"] = 0.5
                 features[f"region_matches_{suffix}"] = 0.0
-                features[f"region_delta_{suffix}"] = None
+                features[f"region_delta_{suffix}"] = 0.0
 
             # Is home
             if nationality and country:
                 features[f"is_home_{suffix}"] = 1.0 if nationality == country else 0.0
             else:
-                features[f"is_home_{suffix}"] = None
+                features[f"is_home_{suffix}"] = 0.0
 
         return features
 ```
@@ -1631,7 +1608,75 @@ git commit -m "feat: replace DominanceFeatures with ScoreProfileFeatures + Count
 
 ---
 
-### Task 12: Run full test suite and verify feature counts
+### Task 12: Remove min-sample None returns from existing feature groups
+
+**Files:**
+- Modify: `src/teelo/features/groups/form.py`
+- Modify: `src/teelo/features/groups/elo.py`
+- Modify: `src/teelo/features/groups/h2h.py`
+- Modify: `src/teelo/features/groups/activity.py`
+- Modify: `src/teelo/features/groups/opponent_quality.py`
+- Modify: `src/teelo/features/groups/tournament_history.py`
+
+**Design principle:** Features never return `None` due to insufficient sample size. When denominator is 0, return a neutral default. `None` is only for missing metadata (no surface, no date). The model uses count/confidence companion features to judge reliability.
+
+**Defaults by type:**
+- Win rates / proportions → `0.5`
+- Diffs / averages / counts → `0.0`
+- ELO momentum / variance → `0.0`
+- ELO values → `1500.0`
+- Ratios (peak_ratio) → `1.0`
+
+- [ ] **Step 1: Update form.py**
+
+Remove all min-sample checks. Changes:
+- `_win_rate_in_window()`: Remove `if count < 5: return None, count` → return `0.5, count` when count is 0
+- `_surface_win_rate()`: Remove `if total < 5: return None` → return `0.5` when total is 0
+- `_level_win_rate()`: Remove `if total < 5: return None` → return `0.5` when total is 0
+- `_career_win_rate()`: Remove `if total < 10: return None` → return `0.5` when total is 0
+
+- [ ] **Step 2: Update elo.py**
+
+- `EloHistoryFeatures`: `elo_momentum` — Remove `if len < 2: return None` → return `0.0` when history length < 2
+- `EloVarianceFeatures`: `elo_var_*` — Remove `if len < 3: return None` → return `0.0` when insufficient history
+- `EloCoreFeatures`: `peak_ratio` — Remove `if elo_peak <= 0: return None` → return `1.0`
+
+- [ ] **Step 3: Update h2h.py**
+
+- `h2h_a_dominance`: Remove `if h2h_total == 0: return None` → return `0.5`
+
+- [ ] **Step 4: Update activity.py**
+
+- `games_last_match`: Remove `return None` when no prior matches → return `0.0`
+
+- [ ] **Step 5: Update opponent_quality.py**
+
+- `_average()`: Remove `if not values: return None` → return `0.0` when empty (affects `opp_elo_avg`, `opp_surface_elo_avg`, `elo_overperf`)
+- Note: `opp_elo_avg` returning `0.0` for an empty list vs `1500.0` is debatable. `0.0` is clearly a "no data" signal when combined with the sample count companion in confidence.py. Use `0.0`.
+- `wins_vs_higher_elo` / `losses_vs_lower_elo`: Remove `return None` when no records → return `0.0`
+
+- [ ] **Step 6: Update tournament_history.py**
+
+- `tournament_win_rate`: Remove `if total < 2: return None` → return `0.5` when total is 0
+
+- [ ] **Step 7: Update existing tests**
+
+Any existing tests that assert `is None` for rate features with small samples need updating to assert the new default values instead. Run tests to find failures:
+
+Run: `pytest tests/ -v --timeout=30`
+
+Fix any assertions that expected `None` but now get a default value.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/teelo/features/groups/ tests/
+git commit -m "refactor: remove min-sample None returns from all feature groups — always return defaults"
+```
+
+---
+
+### Task 13: Run full test suite and verify feature counts
 
 **Files:**
 - No new files
@@ -1698,4 +1743,5 @@ git commit -m "chore: verify Phase 1 feature expansion — all tests pass, featu
 | 9 | Extend context.py with calendar | `context.py`, tests |
 | 10 | Extend elo.py with surface gap | `elo.py`, tests |
 | 11 | Update registry, delete dominance | `__init__.py`, `dominance.py` |
-| 12 | Full verification | — |
+| 12 | Remove min-sample None returns from existing groups | `form.py`, `elo.py`, `h2h.py`, `activity.py`, `opponent_quality.py`, `tournament_history.py` |
+| 13 | Full verification | — |

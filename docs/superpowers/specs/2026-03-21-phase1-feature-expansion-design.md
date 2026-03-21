@@ -12,6 +12,7 @@ Note: The original plan estimated ~36 new features for Phase 1, but the decision
 
 ## Design Decisions
 
+- **No None for insufficient data**: Features NEVER return `None` due to insufficient sample size. If the denominator is 0, return a neutral default (0.5 for rates/proportions, 0.0 for diffs/averages/counts, 1.0 for ratios, 1500.0 for ELO values). Count companion features tell the model how much data backs each rate — the model learns what's reliable. No minimum sample thresholds. Features MAY still return `None` for missing metadata (no surface, no date, no round) — that is a data quality issue, not a sample size issue. **This principle applies retroactively to all existing feature groups.**
 - **Dominance merge**: The existing `dominance.py` group is absorbed into `score_profile.py`. Both 8-match and 64-match windows are kept (short = recent form, long = career tendency). `dominance.py` is deleted.
 - **Sample size companions**: Rate features where the denominator is a subset of matches (tiebreaks, deciding sets, comeback opportunities) get explicit count companions. Rate features where the denominator is simply "matches in window" do not need a separate companion — the window size is implicit.
 - **Clutch classification**: Computed from 64-window score profile rates, stored on `PlayerState`, snapshotted to `MatchRecord` as `opponent_clutch_score` for historical bucketing.
@@ -312,7 +313,7 @@ A full backfill is required. The old `dominance` features in stored feature vect
 ## 7. Invariants & Constraints
 
 - **No leakage**: All features computed from state BEFORE match outcome updates state. Clutch score is updated AFTER feature computation.
-- **Tiebreak win rate dual-check**: Requires both minimum matches in window AND non-zero tiebreaks_played denominator (preserving existing dominance.py behavior).
+- **No None for sample size**: Features return defaults (0.5/0.0/1.0) when denominator is 0, never None. Count companions tell the model reliability. Applied to all groups — new and existing.
 - **NamedTuple ordering**: New MatchRecord fields appended after `close_match` to preserve positional args.
 - **Region mapping in utility layer**: `REGION_MEMBERS` and `ioc_to_region()` live in `geo.py`, imported by both `PlayerState.update()` and `country_performance.py`.
 - **Trinomial thresholds**: Clutch (0.40/0.55) are initial estimates. Calibrate from distribution after first backfill.
