@@ -1,0 +1,10414 @@
+{
+  "'S-HERTOGENBOSCH": [
+    "Netherlands",
+    "NED"
+  ],
+  "AACHEN": [
+    "Germany",
+    "GER"
+  ],
+  "AARHUS": [
+    "Denmark",
+    "DEN"
+  ],
+  "ABIDJAN": [
+    "Ivory Coast",
+    "CIV"
+  ],
+  "ABUJA": [
+    "Nigeria",
+    "NGR"
+  ],
+  "ACAPULCO": [
+    "Mexico",
+    "MEX"
+  ],
+  "ACCRA": [
+    "Ghana",
+    "GHA"
+  ],
+  "ADANA": [
+    "Turkey",
+    "TUR"
+  ],
+  "ADDIS ABABA": [
+    "Ethiopia",
+    "ETH"
+  ],
+  "ADELAIDE": [
+    "Australia",
+    "AUS"
+  ],
+  "AFULA": [
+    "Israel",
+    "ISR"
+  ],
+  "AGADIR": [
+    "Morocco",
+    "MAR"
+  ],
+  "AGRI": [
+    "Turkey",
+    "TUR"
+  ],
+  "AGUASCALIENTES": [
+    "Mexico",
+    "MEX"
+  ],
+  "AHMEDABAD": [
+    "India",
+    "IND"
+  ],
+  "AIN ELSOKHNA-SUIZ": [
+    "Egypt",
+    "EGY"
+  ],
+  "AIX-EN-PROVENCE": [
+    "France",
+    "FRA"
+  ],
+  "AJACCIO": [
+    "France",
+    "FRA"
+  ],
+  "AKISHIMA": [
+    "Japan",
+    "JPN"
+  ],
+  "AKKO": [
+    "Israel",
+    "ISR"
+  ],
+  "AKTOBE": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "AL ZAHRA": [
+    "Libya",
+    "LBA"
+  ],
+  "ALAMINOS": [
+    "Spain",
+    "ESP"
+  ],
+  "ALAMINOS-LARNACA": [
+    "Cyprus",
+    "CYP"
+  ],
+  "ALBENA": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "ALBUFEIRA": [
+    "Portugal",
+    "POR"
+  ],
+  "ALBUQUERQUE, NM": [
+    "United States",
+    "USA"
+  ],
+  "ALBURY": [
+    "Australia",
+    "AUS"
+  ],
+  "ALCALA DE HENARES": [
+    "Spain",
+    "ESP"
+  ],
+  "ALCAL\u00c1 DE HENARES": [
+    "Spain",
+    "ESP"
+  ],
+  "ALDERSHOT": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "ALESSANDRIA": [
+    "Italy",
+    "ITA"
+  ],
+  "ALGER": [
+    "Algeria",
+    "ALG"
+  ],
+  "ALGERIA F1 FUTURES": [
+    "Algeria",
+    "ALG"
+  ],
+  "ALGERIA F2 FUTURES": [
+    "Algeria",
+    "ALG"
+  ],
+  "ALGERIA F3 FUTURES": [
+    "Algeria",
+    "ALG"
+  ],
+  "ALGIERS": [
+    "Algeria",
+    "ALG"
+  ],
+  "ALKMAAR": [
+    "Netherlands",
+    "NED"
+  ],
+  "ALLERSHAUSEN": [
+    "Germany",
+    "GER"
+  ],
+  "ALMADA": [
+    "Portugal",
+    "POR"
+  ],
+  "ALMATY": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "ALMORADI": [
+    "Spain",
+    "ESP"
+  ],
+  "ALPHEN": [
+    "Netherlands",
+    "NED"
+  ],
+  "ALPHEN A/D RIJN": [
+    "Netherlands",
+    "NED"
+  ],
+  "ALTENKIRCHEN": [
+    "Germany",
+    "GER"
+  ],
+  "AMARANTE": [
+    "Portugal",
+    "POR"
+  ],
+  "AMBATO": [
+    "Ecuador",
+    "ECU"
+  ],
+  "AMELIA ISLAND, FL": [
+    "United States",
+    "USA"
+  ],
+  "AMERSFOORT": [
+    "Netherlands",
+    "NED"
+  ],
+  "AMIENS": [
+    "France",
+    "FRA"
+  ],
+  "AMSTELVEEN": [
+    "Netherlands",
+    "NED"
+  ],
+  "AMSTETTEN": [
+    "Austria",
+    "AUT"
+  ],
+  "ANAPOIMA": [
+    "Colombia",
+    "COL"
+  ],
+  "ANDIJAN": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "ANDONG": [
+    "China",
+    "CHN"
+  ],
+  "ANDREZIEUX-BOUTHEON": [
+    "France",
+    "FRA"
+  ],
+  "ANDRIA": [
+    "Italy",
+    "ITA"
+  ],
+  "ANDR\u00c9ZIEUX-BOUTH\u00c9ON": [
+    "France",
+    "FRA"
+  ],
+  "ANGERS": [
+    "France",
+    "FRA"
+  ],
+  "ANIF": [
+    "Austria",
+    "AUT"
+  ],
+  "ANING": [
+    "Norway",
+    "NOR"
+  ],
+  "ANKARA": [
+    "Turkey",
+    "TUR"
+  ],
+  "ANN ARBOR": [
+    "United States",
+    "USA"
+  ],
+  "ANN ARBOR, MI": [
+    "United States",
+    "USA"
+  ],
+  "ANNENHEIM": [
+    "Austria",
+    "AUT"
+  ],
+  "ANNING": [
+    "China",
+    "CHN"
+  ],
+  "ANSEONG": [
+    "South Korea",
+    "KOR"
+  ],
+  "ANTALYA": [
+    "Turkey",
+    "TUR"
+  ],
+  "ANTALYA-ALI BEY MANAVGAT": [
+    "Turkey",
+    "TUR"
+  ],
+  "ANTALYA-BELCONTI": [
+    "Turkey",
+    "TUR"
+  ],
+  "ANTALYA-KAYA BELEK": [
+    "Turkey",
+    "TUR"
+  ],
+  "ANTALYA-KAYA-BELEK": [
+    "Turkey",
+    "TUR"
+  ],
+  "ANTANANARIVO": [
+    "Madagascar",
+    "MAD"
+  ],
+  "ANTOFAGASTA": [
+    "Chile",
+    "CHI"
+  ],
+  "ANTWERP": [
+    "Belgium",
+    "BEL"
+  ],
+  "APARECIDA DE GOIANIA": [
+    "Brazil",
+    "BRA"
+  ],
+  "APPIANO": [
+    "Italy",
+    "ITA"
+  ],
+  "APRILIA": [
+    "India",
+    "IND"
+  ],
+  "APTOS": [
+    "United States",
+    "USA"
+  ],
+  "ARAD": [
+    "Romania",
+    "ROU"
+  ],
+  "ARCADIA, CA": [
+    "United States",
+    "USA"
+  ],
+  "AREQUIPA": [
+    "Peru",
+    "PER"
+  ],
+  "ARGENTINA F1 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F10 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F11 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F12 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F13 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F14 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F15 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F16 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F17 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F18 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F19 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F2 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F20 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F3 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F4 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F5 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F6 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F7 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F8 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARGENTINA F9 FUTURES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ARLON": [
+    "Belgium",
+    "BEL"
+  ],
+  "ARMENIA F1 FUTURES": [
+    "Armenia",
+    "ARM"
+  ],
+  "ARMENIA F2 FUTURES": [
+    "Armenia",
+    "ARM"
+  ],
+  "ARTVIN": [
+    "Turkey",
+    "TUR"
+  ],
+  "ASCHAFFENBURG": [
+    "Germany",
+    "GER"
+  ],
+  "ASHKELON": [
+    "Israel",
+    "ISR"
+  ],
+  "ASHLAND, KY": [
+    "United States",
+    "USA"
+  ],
+  "ASTANA": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "ASUNCION": [
+    "Paraguay",
+    "PAR"
+  ],
+  "ATHENS": [
+    "Greece",
+    "GRE"
+  ],
+  "ATLANTA": [
+    "United States",
+    "USA"
+  ],
+  "ATLANTA, GA": [
+    "United States",
+    "USA"
+  ],
+  "ATP CHALLENGER TOUR FINALS": [
+    null,
+    null
+  ],
+  "AUBURN, AL": [
+    "United States",
+    "USA"
+  ],
+  "AUCKLAND": [
+    "New Zealand",
+    "NZL"
+  ],
+  "AUGSBURG": [
+    "Germany",
+    "GER"
+  ],
+  "AURANGABAD": [
+    "India",
+    "IND"
+  ],
+  "AUSTIN, TX": [
+    "United States",
+    "USA"
+  ],
+  "AUSTRALIA F1 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F10 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F11 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F2 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F3 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F4 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F5 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F6 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F7 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F8 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRALIA F9 FUTURES": [
+    "Australia",
+    "AUS"
+  ],
+  "AUSTRIA F1 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AUSTRIA F10 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AUSTRIA F2 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AUSTRIA F3 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AUSTRIA F4 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AUSTRIA F5 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AUSTRIA F6 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AUSTRIA F7 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AUSTRIA F8 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AUSTRIA F9 FUTURES": [
+    "Austria",
+    "AUT"
+  ],
+  "AZAY-LE-RIDEAU": [
+    "France",
+    "FRA"
+  ],
+  "AZERBAIJAN F1 FUTURES": [
+    "Azerbaijan",
+    "AZE"
+  ],
+  "AZERBAIJAN F2 FUTURES": [
+    "Azerbaijan",
+    "AZE"
+  ],
+  "AZERBAIJAN F3 FUTURES": [
+    "Azerbaijan",
+    "AZE"
+  ],
+  "AZERBAIJAN F4 FUTURES": [
+    "Azerbaijan",
+    "AZE"
+  ],
+  "AZERBAIJAN F5 FUTURES": [
+    "Azerbaijan",
+    "AZE"
+  ],
+  "AZERBAIJAN F6 FUTURES": [
+    "Azerbaijan",
+    "AZE"
+  ],
+  "AZUL": [
+    "Argentina",
+    "ARG"
+  ],
+  "BACAU": [
+    "Romania",
+    "ROU"
+  ],
+  "BAD SALZDETFURTH": [
+    "Germany",
+    "GER"
+  ],
+  "BAD SAULGAU": [
+    "Germany",
+    "GER"
+  ],
+  "BAD SCHUSSENRIED": [
+    "Germany",
+    "GER"
+  ],
+  "BAD WALTERSDORF": [
+    "Austria",
+    "AUT"
+  ],
+  "BAD WALTERSDORG": [
+    "Austria",
+    "AUT"
+  ],
+  "BADALONA": [
+    "Spain",
+    "ESP"
+  ],
+  "BADENWEILER": [
+    "France",
+    "FRA"
+  ],
+  "BAGNATICA": [
+    "Italy",
+    "ITA"
+  ],
+  "BAGNERES-DE-BIGORRE": [
+    "France",
+    "FRA"
+  ],
+  "BAGNOLES DE L'ORNE": [
+    "France",
+    "FRA"
+  ],
+  "BAGNOLES-DE-L'ORNE": [
+    "France",
+    "FRA"
+  ],
+  "BAGN\u00c8RES-DE-BIGORRE": [
+    "France",
+    "FRA"
+  ],
+  "BAHRAIN F1 FUTURES": [
+    "Bahrain",
+    "BRN"
+  ],
+  "BAHRAIN F2 FUTURES": [
+    "Bahrain",
+    "BRN"
+  ],
+  "BAJA": [
+    "Hungary",
+    "HUN"
+  ],
+  "BAKERSFIELD, CA": [
+    "United States",
+    "USA"
+  ],
+  "BAKIO": [
+    "Spain",
+    "ESP"
+  ],
+  "BAKU": [
+    "Azerbaijan",
+    "AZE"
+  ],
+  "BAKU CUP": [
+    "Azerbaijan",
+    "AZE"
+  ],
+  "BALATONALMADI": [
+    "Hungary",
+    "HUN"
+  ],
+  "BALATONBOGLAR": [
+    "Hungary",
+    "HUN"
+  ],
+  "BALI": [
+    "Indonesia",
+    "INA"
+  ],
+  "BALIKESIR": [
+    "Turkey",
+    "TUR"
+  ],
+  "BALIKPAPAN": [
+    "Indonesia",
+    "INA"
+  ],
+  "BANGALORE": [
+    "India",
+    "IND"
+  ],
+  "BANGKOK": [
+    "Thailand",
+    "THA"
+  ],
+  "BANJA LUKA": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "BAOTOU": [
+    "China",
+    "CHN"
+  ],
+  "BARCELONA": [
+    "Spain",
+    "ESP"
+  ],
+  "BARI": [
+    "Italy",
+    "ITA"
+  ],
+  "BARLETTA": [
+    "Italy",
+    "ITA"
+  ],
+  "BARNSTAPLE": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "BARRANQUILLA": [
+    "Colombia",
+    "COL"
+  ],
+  "BARUERI": [
+    "Brazil",
+    "BRA"
+  ],
+  "BASEL": [
+    "Switzerland",
+    "SUI"
+  ],
+  "BASTAD": [
+    "Sweden",
+    "SWE"
+  ],
+  "BASTIA-LUCCIANA": [
+    "France",
+    "FRA"
+  ],
+  "BATH": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "BATMAN": [
+    "Turkey",
+    "TUR"
+  ],
+  "BATON ROUGE, LA": [
+    "United States",
+    "USA"
+  ],
+  "BATUMI": [
+    "Georgia",
+    "GEO"
+  ],
+  "BAURU": [
+    "Brazil",
+    "BRA"
+  ],
+  "BAZA": [
+    "Spain",
+    "ESP"
+  ],
+  "BEIJING": [
+    "China",
+    "CHN"
+  ],
+  "BEINASCO": [
+    "Italy",
+    "ITA"
+  ],
+  "BELARUS F1 FUTURES": [
+    "Belarus",
+    "BLR"
+  ],
+  "BELARUS F2 FUTURES": [
+    "Belarus",
+    "BLR"
+  ],
+  "BELARUS F3 FUTURES": [
+    "Belarus",
+    "BLR"
+  ],
+  "BELARUS F4 FUTURES": [
+    "Belarus",
+    "BLR"
+  ],
+  "BELEM": [
+    "Brazil",
+    "BRA"
+  ],
+  "BELFORT": [
+    "France",
+    "FRA"
+  ],
+  "BELGIUM F1 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F10 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F11 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F12 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F13 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F14 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F15 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F2 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F3 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F4 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F5 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F6 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F6 FUTURES (MOVED FROM 06 JULY)": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F7 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F8 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGIUM F9 FUTURES": [
+    "Belgium",
+    "BEL"
+  ],
+  "BELGRADE": [
+    "Serbia",
+    "SRB"
+  ],
+  "BELLINZONA": [
+    "Switzerland",
+    "SUI"
+  ],
+  "BELO HORIZONTE": [
+    "Brazil",
+    "BRA"
+  ],
+  "BEL\u00c9M": [
+    "Brazil",
+    "BRA"
+  ],
+  "BENAVIDES": [
+    "Spain",
+    "ESP"
+  ],
+  "BENDIGO": [
+    "Australia",
+    "AUS"
+  ],
+  "BENGALURU": [
+    "India",
+    "IND"
+  ],
+  "BENI MELLAL": [
+    "Morocco",
+    "MAR"
+  ],
+  "BENICARLO": [
+    "Spain",
+    "ESP"
+  ],
+  "BERCUIT": [
+    "Belgium",
+    "BEL"
+  ],
+  "BERGAMO": [
+    "Italy",
+    "ITA"
+  ],
+  "BERKELEY, CA": [
+    "United States",
+    "USA"
+  ],
+  "BERLIN": [
+    "Germany",
+    "GER"
+  ],
+  "BERN": [
+    "Switzerland",
+    "SUI"
+  ],
+  "BERTIOGA": [
+    "Brazil",
+    "BRA"
+  ],
+  "BETHANY BEACH": [
+    "United States",
+    "USA"
+  ],
+  "BETHANY BEACH, DE": [
+    "United States",
+    "USA"
+  ],
+  "BHILAI": [
+    "India",
+    "IND"
+  ],
+  "BHOPAL": [
+    "India",
+    "IND"
+  ],
+  "BHUBANESWAR": [
+    "India",
+    "IND"
+  ],
+  "BIARRITZ": [
+    "France",
+    "FRA"
+  ],
+  "BIBERACH": [
+    "Germany",
+    "GER"
+  ],
+  "BIEL": [
+    "Switzerland",
+    "SUI"
+  ],
+  "BIELLA": [
+    "Italy",
+    "ITA"
+  ],
+  "BIELSKO BIALA": [
+    "Poland",
+    "POL"
+  ],
+  "BINGHAMTON": [
+    "United States",
+    "USA"
+  ],
+  "BIRMINGHAM": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "BISSY-CHAMB\u00c9RY": [
+    "France",
+    "FRA"
+  ],
+  "BISTRITA": [
+    "Romania",
+    "ROU"
+  ],
+  "BLOIS": [
+    "France",
+    "FRA"
+  ],
+  "BLOOMFIELD HILLS": [
+    "United States",
+    "USA"
+  ],
+  "BLUMENAU-GASPAR": [
+    "Brazil",
+    "BRA"
+  ],
+  "BOCA RATON": [
+    "United States",
+    "USA"
+  ],
+  "BOCA RATON, FL": [
+    "United States",
+    "USA"
+  ],
+  "BODRUM": [
+    "Turkey",
+    "TUR"
+  ],
+  "BOGOTA": [
+    "Colombia",
+    "COL"
+  ],
+  "BOL": [
+    "Croatia",
+    "CRO"
+  ],
+  "BOLIVIA F1 FUTURES": [
+    "Bolivia",
+    "BOL"
+  ],
+  "BOLIVIA F2 FUTURES": [
+    "Bolivia",
+    "BOL"
+  ],
+  "BOLIVIA F3 FUTURES": [
+    "Bolivia",
+    "BOL"
+  ],
+  "BOLIVIA F4 FUTURES": [
+    "Bolivia",
+    "BOL"
+  ],
+  "BOLIVIA F5 FUTURES": [
+    "Bolivia",
+    "BOL"
+  ],
+  "BOLOGNA": [
+    "Italy",
+    "ITA"
+  ],
+  "BOLSZEWO": [
+    "Poland",
+    "POL"
+  ],
+  "BOLTON": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "BOLZANO": [
+    "Italy",
+    "ITA"
+  ],
+  "BONITA SPRINGS": [
+    "United States",
+    "USA"
+  ],
+  "BONITA SPRINGS, FL": [
+    "United States",
+    "USA"
+  ],
+  "BONN": [
+    "Germany",
+    "GER"
+  ],
+  "BORDEAUX": [
+    "France",
+    "FRA"
+  ],
+  "BORRIOL": [
+    "Spain",
+    "ESP"
+  ],
+  "BOSNIA & HERZEGOVINA F1 FUTURES": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "BOSNIA & HERZEGOVINA F2 FUTURES": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "BOSNIA & HERZEGOVINA F3 FUTURES": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "BOSNIA & HERZEGOVINA F4 FUTURES": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "BOSNIA & HERZEGOVINA F5 FUTURES": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "BOURG-EN-BRESSE": [
+    "France",
+    "FRA"
+  ],
+  "BOURNEMOUTH": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "BRADENTON, FL": [
+    "United States",
+    "USA"
+  ],
+  "BRAGA": [
+    "Portugal",
+    "POR"
+  ],
+  "BRAGADO": [
+    "Argentina",
+    "ARG"
+  ],
+  "BRASILIA": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRASOV": [
+    "Romania",
+    "ROU"
+  ],
+  "BRATISLAVA": [
+    "Slovakia",
+    "SVK"
+  ],
+  "BRAUNSCHWEIG": [
+    "Germany",
+    "GER"
+  ],
+  "BRAZIL F1 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F10 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F11 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F12 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F13 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F14 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F15 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F16 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F18 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F19 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F2 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F20 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F21 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F3 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F4 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F5 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F6 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F7 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F8 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZIL F9 FUTURES": [
+    "Brazil",
+    "BRA"
+  ],
+  "BRAZZAVILLE": [
+    "Congo",
+    "CGO"
+  ],
+  "BRCKO": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "BREDA": [
+    "Netherlands",
+    "NED"
+  ],
+  "BRESCIA": [
+    "Italy",
+    "ITA"
+  ],
+  "BRESSUIRE": [
+    "France",
+    "FRA"
+  ],
+  "BREST": [
+    "France",
+    "FRA"
+  ],
+  "BREZICE": [
+    "Slovenia",
+    "SLO"
+  ],
+  "BRISBANE": [
+    "Australia",
+    "AUS"
+  ],
+  "BRNO": [
+    "Czechia",
+    "CZE"
+  ],
+  "BRON": [
+    "France",
+    "FRA"
+  ],
+  "BRONX, NY": [
+    "United States",
+    "USA"
+  ],
+  "BROSSARD": [
+    "Canada",
+    "CAN"
+  ],
+  "BRUSSELS": [
+    "Belgium",
+    "BEL"
+  ],
+  "BUCA IZMIR": [
+    "Turkey",
+    "TUR"
+  ],
+  "BUCARAMANGA": [
+    "Colombia",
+    "COL"
+  ],
+  "BUCHA": [
+    "Germany",
+    "GER"
+  ],
+  "BUCHAREST": [
+    "Romania",
+    "ROU"
+  ],
+  "BUCHEN": [
+    "Germany",
+    "GER"
+  ],
+  "BUDAPEST": [
+    "Hungary",
+    "HUN"
+  ],
+  "BUDVA": [
+    "Montenegro",
+    "MNE"
+  ],
+  "BUENOS AIRES": [
+    "Argentina",
+    "ARG"
+  ],
+  "BUFFALO, NY": [
+    "United States",
+    "USA"
+  ],
+  "BUJUMBURA": [
+    "Burundi",
+    "BDI"
+  ],
+  "BUKFURDO": [
+    "Hungary",
+    "HUN"
+  ],
+  "BUKHARA": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "BULGARIA F1 FUTURES": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "BULGARIA F2 FUTURES": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "BULGARIA F3 FUTURES": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "BULGARIA F4 FUTURES": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "BULGARIA F5 FUTURES": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "BULGARIA F6 FUTURES": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "BULGARIA F7 FUTURES": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "BUNDABERG": [
+    "Australia",
+    "AUS"
+  ],
+  "BUNSCHOTEN": [
+    "Netherlands",
+    "NED"
+  ],
+  "BURGAS": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "BURNIE": [
+    "Australia",
+    "AUS"
+  ],
+  "BURSA": [
+    "Turkey",
+    "TUR"
+  ],
+  "BURUNDI F1 FUTURES": [
+    "Burundi",
+    "BDI"
+  ],
+  "BUSAN": [
+    "South Korea",
+    "KOR"
+  ],
+  "BUSCHHAUSEN": [
+    "Germany",
+    "GER"
+  ],
+  "BUZAU": [
+    "Romania",
+    "ROU"
+  ],
+  "BYDGOSZCZ": [
+    "Poland",
+    "POL"
+  ],
+  "BYTOM": [
+    "Poland",
+    "POL"
+  ],
+  "B\u00c5STAD": [
+    "Sweden",
+    "SWE"
+  ],
+  "CADOLZBURG": [
+    "Germany",
+    "GER"
+  ],
+  "CAGLIARI": [
+    "Italy",
+    "ITA"
+  ],
+  "CAGNES-SUR-MER": [
+    "France",
+    "FRA"
+  ],
+  "CAIRNS": [
+    "Australia",
+    "AUS"
+  ],
+  "CAIRO": [
+    "Egypt",
+    "EGY"
+  ],
+  "CAKOVEC": [
+    "Croatia",
+    "CRO"
+  ],
+  "CALABASAS": [
+    "United States",
+    "USA"
+  ],
+  "CALABASAS, CA": [
+    "United States",
+    "USA"
+  ],
+  "CALDAS DA RAINHA": [
+    "Portugal",
+    "POR"
+  ],
+  "CALGARY": [
+    "Canada",
+    "CAN"
+  ],
+  "CALI": [
+    "Colombia",
+    "COL"
+  ],
+  "CALOUNDRA": [
+    "Australia",
+    "AUS"
+  ],
+  "CALTANISSETTA": [
+    "Italy",
+    "ITA"
+  ],
+  "CALVI": [
+    "France",
+    "FRA"
+  ],
+  "CAMBODIA F1 FUTURES": [
+    "Cambodia",
+    "CAM"
+  ],
+  "CAMBODIA F2 FUTURES": [
+    "Cambodia",
+    "CAM"
+  ],
+  "CAMBODIA F3 FUTURES": [
+    "Cambodia",
+    "CAM"
+  ],
+  "CAMEROON F1 FUTURES": [
+    "Cameroon",
+    "CMR"
+  ],
+  "CAMEROON F2 FUTURES": [
+    "Cameroon",
+    "CMR"
+  ],
+  "CAMPINA": [
+    "Brazil",
+    "BRA"
+  ],
+  "CAMPINAS": [
+    "Brazil",
+    "BRA"
+  ],
+  "CAMPOS DO JORDAO": [
+    "Brazil",
+    "BRA"
+  ],
+  "CAMPULUNG": [
+    "Romania",
+    "ROU"
+  ],
+  "CANADA F1 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F10 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F11 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F2 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F3 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F4 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F5 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F6 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F7 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F8 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANADA F9 FUTURES": [
+    "Canada",
+    "CAN"
+  ],
+  "CANBERRA": [
+    "Australia",
+    "AUS"
+  ],
+  "CANCUN": [
+    "Mexico",
+    "MEX"
+  ],
+  "CANTANHEDE": [
+    "Portugal",
+    "POR"
+  ],
+  "CAP CANA": [
+    "Dominican Republic",
+    "DOM"
+  ],
+  "CAP D'AGDE": [
+    "France",
+    "FRA"
+  ],
+  "CAPTIVA ISLAND, FL": [
+    "United States",
+    "USA"
+  ],
+  "CARACAS": [
+    "Venezuela",
+    "VEN"
+  ],
+  "CARNAC": [
+    "France",
+    "FRA"
+  ],
+  "CARRARA": [
+    "Italy",
+    "ITA"
+  ],
+  "CARSON": [
+    "United States",
+    "USA"
+  ],
+  "CARSON, CA": [
+    "United States",
+    "USA"
+  ],
+  "CARY": [
+    "United States",
+    "USA"
+  ],
+  "CARY, NC": [
+    "United States",
+    "USA"
+  ],
+  "CASABLANCA": [
+    "Morocco",
+    "MAR"
+  ],
+  "CASALE MONFERRATO": [
+    "Italy",
+    "ITA"
+  ],
+  "CASERTA": [
+    "Italy",
+    "ITA"
+  ],
+  "CASINALBO": [
+    "Italy",
+    "ITA"
+  ],
+  "CASLANO": [
+    "Switzerland",
+    "SUI"
+  ],
+  "CASSIS": [
+    "France",
+    "FRA"
+  ],
+  "CASTELLON": [
+    "Spain",
+    "ESP"
+  ],
+  "CASTELLON - VALL D\u2019UXO": [
+    "Spain",
+    "ESP"
+  ],
+  "CASTELO BRANCO": [
+    "Portugal",
+    "POR"
+  ],
+  "CATANDUVA": [
+    "Brazil",
+    "BRA"
+  ],
+  "CATEZ OB SAVI": [
+    "Slovenia",
+    "SLO"
+  ],
+  "CATTOLICA": [
+    "Italy",
+    "ITA"
+  ],
+  "CAYENNE": [
+    "France",
+    "FRA"
+  ],
+  "CELJE": [
+    "Slovenia",
+    "SLO"
+  ],
+  "CERVIA": [
+    "Italy",
+    "ITA"
+  ],
+  "CESENATICO": [
+    "Italy",
+    "ITA"
+  ],
+  "CESKA LIPA": [
+    "Czechia",
+    "CZE"
+  ],
+  "CEUTA": [
+    "Spain",
+    "ESP"
+  ],
+  "CHACA CHALLENGER METEPEC OPEN": [
+    "Mexico",
+    "MEX"
+  ],
+  "CHACABUCO": [
+    "Argentina",
+    "ARG"
+  ],
+  "CHAMPAIGN": [
+    "United States",
+    "USA"
+  ],
+  "CHAMPAIGN, IL": [
+    "United States",
+    "USA"
+  ],
+  "CHANDIGARH": [
+    "India",
+    "IND"
+  ],
+  "CHANGSHA": [
+    "China",
+    "CHN"
+  ],
+  "CHANGWON": [
+    "South Korea",
+    "KOR"
+  ],
+  "CHARLESTON": [
+    "United States",
+    "USA"
+  ],
+  "CHARLESTON, SC": [
+    "United States",
+    "USA"
+  ],
+  "CHARLOTTE, NC": [
+    "United States",
+    "USA"
+  ],
+  "CHARLOTTESVILLE": [
+    "United States",
+    "USA"
+  ],
+  "CHARLOTTESVILLE, VA": [
+    "United States",
+    "USA"
+  ],
+  "CHENGDU": [
+    "China",
+    "CHN"
+  ],
+  "CHENNAI": [
+    "India",
+    "IND"
+  ],
+  "CHENZHOU": [
+    "China",
+    "CHN"
+  ],
+  "CHERBOUG-EN-COTENTIN": [
+    "France",
+    "FRA"
+  ],
+  "CHERBOURG": [
+    "France",
+    "FRA"
+  ],
+  "CHERBOURG EN COTENTIN": [
+    "France",
+    "FRA"
+  ],
+  "CHERBOURG-EN-COTENTIN": [
+    "France",
+    "FRA"
+  ],
+  "CHIANG RAI": [
+    "Thailand",
+    "THA"
+  ],
+  "CHIASSO": [
+    "Switzerland",
+    "SUI"
+  ],
+  "CHICAGO": [
+    "United States",
+    "USA"
+  ],
+  "CHIETI": [
+    "Italy",
+    "ITA"
+  ],
+  "CHIHUAHUA": [
+    "Mexico",
+    "MEX"
+  ],
+  "CHILE F1 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F10 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F11 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F12 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F2 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F3 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F4 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F5 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F6 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F7 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F8 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHILE F9 FUTURES": [
+    "Chile",
+    "CHI"
+  ],
+  "CHINA F1 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F10 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F11 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F12 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F13 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F14 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F2 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F3 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F4 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F5 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F6 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F7 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F8 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINA F9 FUTURES": [
+    "China",
+    "CHN"
+  ],
+  "CHINESE TAIPEI F1 FUTURES": [
+    "Chinese Taipei",
+    "TPE"
+  ],
+  "CHINESE TAIPEI F2 FUTURES": [
+    "Chinese Taipei",
+    "TPE"
+  ],
+  "CHINESE TAIPEI F3 FUTURES": [
+    "Chinese Taipei",
+    "TPE"
+  ],
+  "CHISINAU": [
+    "Moldova",
+    "MDA"
+  ],
+  "CHISWICK": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "CHITILA": [
+    "Romania",
+    "ROU"
+  ],
+  "CHITRE": [
+    "Panama",
+    "PAN"
+  ],
+  "CHORNOMORSK": [
+    "Ukraine",
+    "UKR"
+  ],
+  "CINCINNATI": [
+    "United States",
+    "USA"
+  ],
+  "CIVITAVECCHIA": [
+    "Italy",
+    "ITA"
+  ],
+  "CLARE": [
+    "United States",
+    "USA"
+  ],
+  "CLAREMONT, CA": [
+    "United States",
+    "USA"
+  ],
+  "CLEARWATER, FL": [
+    "United States",
+    "USA"
+  ],
+  "CLEMSON, SC": [
+    "United States",
+    "USA"
+  ],
+  "CLERMONT-FERRAND": [
+    "France",
+    "FRA"
+  ],
+  "CLEVELAND": [
+    "United States",
+    "USA"
+  ],
+  "CLUJ NAPOCA": [
+    "Romania",
+    "ROU"
+  ],
+  "COATZACOALCOS": [
+    "Mexico",
+    "MEX"
+  ],
+  "COCHABAMBA": [
+    "Bolivia",
+    "BOL"
+  ],
+  "COIMBRA": [
+    "Portugal",
+    "POR"
+  ],
+  "COLINA": [
+    "Brazil",
+    "BRA"
+  ],
+  "COLLONGE-BELLERIVE": [
+    "Switzerland",
+    "SUI"
+  ],
+  "COLOGNE": [
+    "Germany",
+    "GER"
+  ],
+  "COLOMBIA F1 FUTURES": [
+    "Colombia",
+    "COL"
+  ],
+  "COLOMBIA F2 FUTURES": [
+    "Colombia",
+    "COL"
+  ],
+  "COLOMBIA F3 FUTURES": [
+    "Colombia",
+    "COL"
+  ],
+  "COLOMBIA F4 FUTURES": [
+    "Colombia",
+    "COL"
+  ],
+  "COLOMBIA F5 FUTURES": [
+    "Colombia",
+    "COL"
+  ],
+  "COLOMBIA F6 FUTURES": [
+    "Colombia",
+    "COL"
+  ],
+  "COLOMBIA F7 FUTURES": [
+    "Colombia",
+    "COL"
+  ],
+  "COLOMBIA F8 FUTURES": [
+    "Colombia",
+    "COL"
+  ],
+  "COLOMBIA F9 FUTURES": [
+    "Colombia",
+    "COL"
+  ],
+  "COLOMBO": [
+    "Sri Lanka",
+    "SRI"
+  ],
+  "COLORADO SPRINGS": [
+    "United States",
+    "USA"
+  ],
+  "COLORADO SPRINGS, CO": [
+    "United States",
+    "USA"
+  ],
+  "COLUMBUS": [
+    "United States",
+    "USA"
+  ],
+  "COLUMBUS, OH": [
+    "United States",
+    "USA"
+  ],
+  "COMO": [
+    "Italy",
+    "ITA"
+  ],
+  "CONCEPCION": [
+    "Chile",
+    "CHI"
+  ],
+  "CONCORD, MA": [
+    "United States",
+    "USA"
+  ],
+  "CONSTANTA": [
+    "Romania",
+    "ROU"
+  ],
+  "CONTREXEVILLE": [
+    "France",
+    "FRA"
+  ],
+  "COPENHAGEN": [
+    "Denmark",
+    "DEN"
+  ],
+  "COQUIMBO": [
+    "Chile",
+    "CHI"
+  ],
+  "CORDENONS": [
+    "Italy",
+    "ITA"
+  ],
+  "CORDOBA": [
+    "Argentina",
+    "ARG"
+  ],
+  "CORNELL\u00c0 DE LLOBREGAT": [
+    "Spain",
+    "ESP"
+  ],
+  "CORRIENTES": [
+    "Argentina",
+    "ARG"
+  ],
+  "CORROIOS-SEIXAL": [
+    "Portugal",
+    "POR"
+  ],
+  "CORTINA": [
+    "Spain",
+    "ESP"
+  ],
+  "COSTA DO SAUIPE": [
+    "Brazil",
+    "BRA"
+  ],
+  "COSTA RICA F1 FUTURES": [
+    "Costa Rica",
+    "CRC"
+  ],
+  "COURMAYEUR": [
+    "Italy",
+    "ITA"
+  ],
+  "CRAIOVA": [
+    "Romania",
+    "ROU"
+  ],
+  "CREMONA": [
+    "Italy",
+    "ITA"
+  ],
+  "CRETEIL": [
+    "France",
+    "FRA"
+  ],
+  "CRICIUMA": [
+    "Brazil",
+    "BRA"
+  ],
+  "CROATIA F1 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F10 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F11 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F12 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F13 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F14 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F15 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F16 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F17 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F18 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F19 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F2 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F20 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F3 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F4 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F5 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F6 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F7 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F8 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROATIA F9 FUTURES": [
+    "Croatia",
+    "CRO"
+  ],
+  "CROISSY-BEAUBOURG": [
+    "France",
+    "FRA"
+  ],
+  "CUCUTA": [
+    "Romania",
+    "ROU"
+  ],
+  "CUERNAVACA": [
+    "Mexico",
+    "MEX"
+  ],
+  "CUIABA": [
+    "Brazil",
+    "BRA"
+  ],
+  "CUNDINAMARCA": [
+    "Colombia",
+    "COL"
+  ],
+  "CUNEO": [
+    "Italy",
+    "ITA"
+  ],
+  "CURITIBA": [
+    "Brazil",
+    "BRA"
+  ],
+  "CURTEA DE ARGES": [
+    "Romania",
+    "ROU"
+  ],
+  "CYPRUS F1 FUTURES": [
+    "Cyprus",
+    "CYP"
+  ],
+  "CYPRUS F2 FUTURES": [
+    "Cyprus",
+    "CYP"
+  ],
+  "CYPRUS F3 FUTURES": [
+    "Cyprus",
+    "CYP"
+  ],
+  "CZECH REPUBLIC F1 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F10 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F11 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F12 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F2 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F3 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F4 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F5 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F6 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F7 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F8 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "CZECH REPUBLIC F9 FUTURES": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "C\u00d3RDOBA": [
+    "Spain",
+    "ESP"
+  ],
+  "DA NANG": [
+    "Vietnam",
+    "VIE"
+  ],
+  "DAEGU": [
+    "South Korea",
+    "KOR"
+  ],
+  "DAKAR": [
+    "Senegal",
+    "SEN"
+  ],
+  "DALLAS": [
+    "United States",
+    "USA"
+  ],
+  "DALLAS, TX": [
+    "United States",
+    "USA"
+  ],
+  "DANDERYD": [
+    "Sweden",
+    "SWE"
+  ],
+  "DARMSTADT": [
+    "Germany",
+    "GER"
+  ],
+  "DARWIN": [
+    "Australia",
+    "AUS"
+  ],
+  "DAVANGERE": [
+    "India",
+    "IND"
+  ],
+  "DAVIS CUP FINALS": [
+    null,
+    null
+  ],
+  "DAVIS CUP FINALS GROUP STAGE": [
+    null,
+    null
+  ],
+  "DAVIS CUP QUALIFIERS": [
+    null,
+    null
+  ],
+  "DAVIS CUP WORLD GROUP I": [
+    null,
+    null
+  ],
+  "DAVIS CUP WORLD GROUP II": [
+    null,
+    null
+  ],
+  "DAYTONA BEACH, FL": [
+    "United States",
+    "USA"
+  ],
+  "DE HAAN": [
+    "Belgium",
+    "BEL"
+  ],
+  "DEAUVILLE": [
+    "France",
+    "FRA"
+  ],
+  "DECATUR, IL": [
+    "United States",
+    "USA"
+  ],
+  "DEHRA DUN": [
+    "India",
+    "IND"
+  ],
+  "DELRAY BEACH": [
+    "United States",
+    "USA"
+  ],
+  "DEN HAAG": [
+    "Netherlands",
+    "NED"
+  ],
+  "DENAIN": [
+    "France",
+    "FRA"
+  ],
+  "DENIA": [
+    "Spain",
+    "ESP"
+  ],
+  "DENMARK F1 FUTURES": [
+    "Denmark",
+    "DEN"
+  ],
+  "DENMARK F2 FUTURES": [
+    "Denmark",
+    "DEN"
+  ],
+  "DENMARK F3 FUTURES": [
+    "Denmark",
+    "DEN"
+  ],
+  "DENVER, CO": [
+    "United States",
+    "USA"
+  ],
+  "DHARWAD": [
+    "India",
+    "IND"
+  ],
+  "DIJON": [
+    "France",
+    "FRA"
+  ],
+  "DINARD": [
+    "France",
+    "FRA"
+  ],
+  "DJIBOUTI": [
+    "Djibouti",
+    "DJI"
+  ],
+  "DOBOJ": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "DOBRICH": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "DOHA": [
+    "Qatar",
+    "QAT"
+  ],
+  "DOKSY - STARE SPLAVY": [
+    "Czechia",
+    "CZE"
+  ],
+  "DOMINICAN REPUBLIC F1 FUTURES": [
+    "Dominican Republic",
+    "DOM"
+  ],
+  "DOMINICAN REPUBLIC F2 FUTURES": [
+    "Dominican Republic",
+    "DOM"
+  ],
+  "DOMINICAN REPUBLIC F3 FUTURES": [
+    "Dominican Republic",
+    "DOM"
+  ],
+  "DOMINICAN REPUBLIC F4 FUTURES": [
+    "Dominican Republic",
+    "DOM"
+  ],
+  "DON BENITO": [
+    "Spain",
+    "ESP"
+  ],
+  "DONETSK": [
+    "Ukraine",
+    "UKR"
+  ],
+  "DONOSTIA-SAN-SEBASTIAN": [
+    "Spain",
+    "ESP"
+  ],
+  "DORTMUND": [
+    "Germany",
+    "GER"
+  ],
+  "DOTHAN, AL": [
+    "United States",
+    "USA"
+  ],
+  "DRUMMONDVILLE": [
+    "Canada",
+    "CAN"
+  ],
+  "DUBAI": [
+    "UAE",
+    "UAE"
+  ],
+  "DUBLIN": [
+    "Ireland",
+    "IRL"
+  ],
+  "DUBROVNIK": [
+    "Croatia",
+    "CRO"
+  ],
+  "DUBROVNIK OPEN": [
+    "Croatia",
+    "CRO"
+  ],
+  "DUFFEL": [
+    "Belgium",
+    "BEL"
+  ],
+  "DUINO AURISINA": [
+    "Italy",
+    "ITA"
+  ],
+  "DUNAKESZI": [
+    "Hungary",
+    "HUN"
+  ],
+  "DUSSELDORF": [
+    "Germany",
+    "GER"
+  ],
+  "EAST LANSING, MI": [
+    "United States",
+    "USA"
+  ],
+  "EASTBOURNE": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "ECKENTAL": [
+    "Germany",
+    "GER"
+  ],
+  "ECUADOR F1 FUTURES": [
+    "Ecuador",
+    "ECU"
+  ],
+  "ECUADOR F2 FUTURES": [
+    "Ecuador",
+    "ECU"
+  ],
+  "ECUADOR F3 FUTURES": [
+    "Ecuador",
+    "ECU"
+  ],
+  "ECUADOR F4 FUTURES": [
+    "Ecuador",
+    "ECU"
+  ],
+  "ECUADOR F5 FUTURES": [
+    "Ecuador",
+    "ECU"
+  ],
+  "ECUADOR F6 FUTURES": [
+    "Ecuador",
+    "ECU"
+  ],
+  "EDGBASTON": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "EDINBURGH": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "EDMOND": [
+    "United States",
+    "USA"
+  ],
+  "EDMOND, OK": [
+    "United States",
+    "USA"
+  ],
+  "EDMONTON": [
+    "Canada",
+    "CAN"
+  ],
+  "EDWARDSVILLE, IL": [
+    "United States",
+    "USA"
+  ],
+  "EGYPT  F4 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F1 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F10 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F11 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F12 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F13 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F14 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F15 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F16 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F17 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F18 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F19 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F2 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F20 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F21 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F22 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F23 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F24 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F25 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F26 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F27 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F28 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F29 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F3 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F30 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F31 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F32 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F33 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F34 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F35 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F36 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F37 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F38 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F39 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F4 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F40 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F41 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F42 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F43 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F5 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F6 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F7 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F8 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EGYPT F9 FUTURES": [
+    "Egypt",
+    "EGY"
+  ],
+  "EILAT": [
+    "Israel",
+    "ISR"
+  ],
+  "EINDHOVEN": [
+    "Netherlands",
+    "NED"
+  ],
+  "EL ESPINAR": [
+    "Spain",
+    "ESP"
+  ],
+  "EL ESPINAR/SEGOVIA": [
+    "Spain",
+    "ESP"
+  ],
+  "EL KANTAOUI": [
+    "Tunisia",
+    "TUN"
+  ],
+  "EL PASO, TX": [
+    "United States",
+    "USA"
+  ],
+  "EL SALVADOR F1 FUTURES": [
+    "El Salvador",
+    "ESA"
+  ],
+  "EL SALVADOR F2 FUTURES": [
+    "El Salvador",
+    "ESA"
+  ],
+  "EL TREBOL": [
+    "Argentina",
+    "ARG"
+  ],
+  "ELDORADO, MISIONES": [
+    "Argentina",
+    "ARG"
+  ],
+  "ELVAS": [
+    "Portugal",
+    "POR"
+  ],
+  "ENCARNACION": [
+    "Paraguay",
+    "PAR"
+  ],
+  "ENGIS": [
+    "Belgium",
+    "BEL"
+  ],
+  "ENSCHEDE": [
+    "Netherlands",
+    "NED"
+  ],
+  "EQUERDREVILLE": [
+    "France",
+    "FRA"
+  ],
+  "EQUEURDREVILLE": [
+    "France",
+    "FRA"
+  ],
+  "ERWITTE": [
+    "Germany",
+    "GER"
+  ],
+  "ESCH/ALZETTE": [
+    "Luxembourg",
+    "LUX"
+  ],
+  "ESKISEHIR": [
+    "Turkey",
+    "TUR"
+  ],
+  "ESSEN": [
+    "Germany",
+    "GER"
+  ],
+  "ESTEPONA": [
+    "Spain",
+    "ESP"
+  ],
+  "ESTONIA F1 FUTURES": [
+    "Estonia",
+    "EST"
+  ],
+  "ESTONIA F2 FUTURES": [
+    "Estonia",
+    "EST"
+  ],
+  "ESTONIA F3 FUTURES": [
+    "Estonia",
+    "EST"
+  ],
+  "ESTONIA F4 FUTURES": [
+    "Estonia",
+    "EST"
+  ],
+  "ESTONIA F5 FUTURES": [
+    "Estonia",
+    "EST"
+  ],
+  "ESTORIL": [
+    "Portugal",
+    "POR"
+  ],
+  "EUPEN": [
+    "Belgium",
+    "BEL"
+  ],
+  "EVANSVILLE": [
+    "United States",
+    "USA"
+  ],
+  "EVANSVILLE, IN": [
+    "United States",
+    "USA"
+  ],
+  "EVORA": [
+    "Portugal",
+    "POR"
+  ],
+  "FAIRFIELD": [
+    "United States",
+    "USA"
+  ],
+  "FALLANDEN": [
+    "Switzerland",
+    "SUI"
+  ],
+  "FALUN": [
+    "Sweden",
+    "SWE"
+  ],
+  "FANO": [
+    "Italy",
+    "ITA"
+  ],
+  "FARO": [
+    "Portugal",
+    "POR"
+  ],
+  "FAYETTEVILLE, AR": [
+    "United States",
+    "USA"
+  ],
+  "FEIRA DE SANTANA": [
+    "Brazil",
+    "BRA"
+  ],
+  "FELD AM SEE": [
+    "Austria",
+    "AUT"
+  ],
+  "FERGANA": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "FES": [
+    "Morocco",
+    "MAR"
+  ],
+  "FIANO ROMANO": [
+    "Italy",
+    "ITA"
+  ],
+  "FIGUEIRA DA FOZ": [
+    "Portugal",
+    "POR"
+  ],
+  "FINLAND F1 FUTURES": [
+    "Finland",
+    "FIN"
+  ],
+  "FINLAND F2 FUTURES": [
+    "Finland",
+    "FIN"
+  ],
+  "FINLAND F3 FUTURES": [
+    "Finland",
+    "FIN"
+  ],
+  "FINLAND F4 FUTURES": [
+    "Finland",
+    "FIN"
+  ],
+  "FLEURUS": [
+    "Belgium",
+    "BEL"
+  ],
+  "FLEURUS (NEAR CHARLEROI).": [
+    "Belgium",
+    "BEL"
+  ],
+  "FLORENCE": [
+    "Italy",
+    "ITA"
+  ],
+  "FLORENCE, SC": [
+    "United States",
+    "USA"
+  ],
+  "FLORIANOPOLIS": [
+    "Brazil",
+    "BRA"
+  ],
+  "FLORIAN\u00d3POLIS": [
+    "Brazil",
+    "BRA"
+  ],
+  "FLORIDABLANCA": [
+    "Colombia",
+    "COL"
+  ],
+  "FOCSANI": [
+    "Romania",
+    "ROU"
+  ],
+  "FOGGIA": [
+    "Italy",
+    "ITA"
+  ],
+  "FORBACH": [
+    "France",
+    "FRA"
+  ],
+  "FORLI": [
+    "Italy",
+    "ITA"
+  ],
+  "FORT WALTON BEACH, FL": [
+    "United States",
+    "USA"
+  ],
+  "FORT WORTH, TX": [
+    "United States",
+    "USA"
+  ],
+  "FORT-DE-FRANCE": [
+    "France",
+    "FRA"
+  ],
+  "FOUNTAIN VALLEY, CA": [
+    "United States",
+    "USA"
+  ],
+  "FOXHILLS": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "FRANCAVILLA AL MARE": [
+    "Italy",
+    "ITA"
+  ],
+  "FRANCE F1 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F10 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F11 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F12 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F13 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F14 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F15 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F16 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F17 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F18 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F19 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F2 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F20 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F21 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F22 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F23 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F24 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F3 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F4 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F5 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F6 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F7 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F8 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANCE F9 FUTURES": [
+    "France",
+    "FRA"
+  ],
+  "FRANKFURT": [
+    "Germany",
+    "GER"
+  ],
+  "FRANKFURT AM MAIN": [
+    "Germany",
+    "GER"
+  ],
+  "FRASCATI": [
+    "Italy",
+    "ITA"
+  ],
+  "FRAUENFELD": [
+    "Switzerland",
+    "SUI"
+  ],
+  "FREDERICTON": [
+    "Canada",
+    "CAN"
+  ],
+  "FREDERIKSBERG": [
+    "Denmark",
+    "DEN"
+  ],
+  "FRYDEK MISTEK": [
+    "Czechia",
+    "CZE"
+  ],
+  "FUJAIRAH": [
+    "United Arab Emirates",
+    "UAE"
+  ],
+  "FUJAIRAH OPEN": [
+    "United Arab Emirates",
+    "UAE"
+  ],
+  "FUKUI": [
+    "Japan",
+    "JPN"
+  ],
+  "FUKUOKA": [
+    "Japan",
+    "JPN"
+  ],
+  "FUNCHAL": [
+    "Portugal",
+    "POR"
+  ],
+  "FURTH": [
+    "Germany",
+    "GER"
+  ],
+  "FUZHOU": [
+    "China",
+    "CHN"
+  ],
+  "GABON F1 FUTURES": [
+    "Gabon",
+    "GAB"
+  ],
+  "GABON F2 FUTURES": [
+    "Gabon",
+    "GAB"
+  ],
+  "GAIBA": [
+    "Italy",
+    "ITA"
+  ],
+  "GAINESVILLE, FL": [
+    "United States",
+    "USA"
+  ],
+  "GALATI": [
+    "Romania",
+    "ROU"
+  ],
+  "GANDIA": [
+    "Spain",
+    "ESP"
+  ],
+  "GATINEAU": [
+    "Canada",
+    "CAN"
+  ],
+  "GAZIANTEP": [
+    "Turkey",
+    "TUR"
+  ],
+  "GDANSK": [
+    "Poland",
+    "POL"
+  ],
+  "GDYNIA": [
+    "Poland",
+    "POL"
+  ],
+  "GEELONG": [
+    "Australia",
+    "AUS"
+  ],
+  "GENEVA": [
+    "Switzerland",
+    "SUI"
+  ],
+  "GENOA": [
+    "Italy",
+    "ITA"
+  ],
+  "GENOVA": [
+    "Italy",
+    "ITA"
+  ],
+  "GENTOFTE": [
+    "Denmark",
+    "DEN"
+  ],
+  "GEOGIA F1 FUTURES": [
+    "Georgia",
+    "GEO"
+  ],
+  "GEORGIA F1 FUTURES": [
+    "Georgia",
+    "GEO"
+  ],
+  "GEORGIA F2 FUTURES": [
+    "Georgia",
+    "GEO"
+  ],
+  "GEORGIA F3 FUTURES": [
+    "Georgia",
+    "GEO"
+  ],
+  "GEORGIA F4 FUTURES": [
+    "Georgia",
+    "GEO"
+  ],
+  "GEORGIA F5 FUTURES": [
+    "Georgia",
+    "GEO"
+  ],
+  "GERMANY F1 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F10 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F11 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F12 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F13 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F14 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F15 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F16 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F17 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F18 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F19 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F2 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F20 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F3 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F4 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F5 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F6 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F7 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F8 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GERMANY F9 FUTURES": [
+    "Germany",
+    "GER"
+  ],
+  "GETAFE MADRID": [
+    "Spain",
+    "ESP"
+  ],
+  "GETXO": [
+    "Spain",
+    "ESP"
+  ],
+  "GIFU": [
+    "Japan",
+    "JPN"
+  ],
+  "GIJON": [
+    "Spain",
+    "ESP"
+  ],
+  "GIJ\u00d3N": [
+    "Spain",
+    "ESP"
+  ],
+  "GIMCHEON": [
+    "South Korea",
+    "KOR"
+  ],
+  "GIMHAE": [
+    "South Korea",
+    "KOR"
+  ],
+  "GIRONA": [
+    "Spain",
+    "ESP"
+  ],
+  "GIZA": [
+    "Egypt",
+    "EGY"
+  ],
+  "GLASGOW": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "GLEN IRIS": [
+    "Australia",
+    "AUS"
+  ],
+  "GLOUCESTER": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "GOLD COAST": [
+    "Australia",
+    "AUS"
+  ],
+  "GONESSE": [
+    "France",
+    "FRA"
+  ],
+  "GOSIER": [
+    "France",
+    "FRA"
+  ],
+  "GOTHENBURG": [
+    "Sweden",
+    "SWE"
+  ],
+  "GOYANG": [
+    "South Korea",
+    "KOR"
+  ],
+  "GRADO": [
+    "Italy",
+    "ITA"
+  ],
+  "GRAN CANARIA": [
+    "Spain",
+    "ESP"
+  ],
+  "GRAN CANARIA-MASPALOMAS": [
+    "Spain",
+    "ESP"
+  ],
+  "GRANBY": [
+    "Canada",
+    "CAN"
+  ],
+  "GRAND BAIE LA CROISETTE": [
+    "Mauritius",
+    "MRI"
+  ],
+  "GRASSE": [
+    "France",
+    "FRA"
+  ],
+  "GRAZ": [
+    "Austria",
+    "AUT"
+  ],
+  "GREAT BRITAIN F1 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F10 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F11 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F12 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F13 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F14 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F15 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F16 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F17 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F18 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F19 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F2 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F20 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F21 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F22 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F23 FUTURE": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "GREAT BRITAIN F3 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F4 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F5 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F6 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F7 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F8 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREAT BRITAIN F9 FUTURES": [
+    "Great Britain",
+    "GBR"
+  ],
+  "GREECE F1 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F10 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F11 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F12 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F13 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F14 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F15 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F16 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F17 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F18 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F19 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F2 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F20 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F3 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F4 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F5 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F6 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F7 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F8 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GREECE F9 FUTURES": [
+    "Greece",
+    "GRE"
+  ],
+  "GRENOBLE": [
+    "France",
+    "FRA"
+  ],
+  "GRODZISK MAZOWIECKI": [
+    "Poland",
+    "POL"
+  ],
+  "GSTAAD": [
+    "Switzerland",
+    "SUI"
+  ],
+  "GUADALAJARA": [
+    "Mexico",
+    "MEX"
+  ],
+  "GUAM": [
+    "United States",
+    "USA"
+  ],
+  "GUAM F1 FUTURES": [
+    "Guam",
+    "GUM"
+  ],
+  "GUANGZHOU": [
+    "China",
+    "CHN"
+  ],
+  "GUARUJA": [
+    "Brazil",
+    "BRA"
+  ],
+  "GUATEMALA": [
+    "Guatemala",
+    "GUA"
+  ],
+  "GUATEMALA F1 FUTURES": [
+    "Guatemala",
+    "GUA"
+  ],
+  "GUATEMALA F2 FUTURES": [
+    "Guatemala",
+    "GUA"
+  ],
+  "GUAYAQUIL": [
+    "Ecuador",
+    "ECU"
+  ],
+  "GUBBIO": [
+    "Italy",
+    "ITA"
+  ],
+  "GUIMARAES": [
+    "Portugal",
+    "POR"
+  ],
+  "GUIYANG": [
+    "China",
+    "CHN"
+  ],
+  "GULBARGA": [
+    "India",
+    "IND"
+  ],
+  "GURB": [
+    "Spain",
+    "ESP"
+  ],
+  "GURUGRAM": [
+    "India",
+    "IND"
+  ],
+  "GWALIOR": [
+    "India",
+    "IND"
+  ],
+  "GWANGJU": [
+    "South Korea",
+    "KOR"
+  ],
+  "GYEONGSAN": [
+    "South Korea",
+    "KOR"
+  ],
+  "GYOR": [
+    "Hungary",
+    "HUN"
+  ],
+  "GYULA": [
+    "Hungary",
+    "HUN"
+  ],
+  "HAABNEEME": [
+    "Estonia",
+    "EST"
+  ],
+  "HAGEN": [
+    "Germany",
+    "GER"
+  ],
+  "HAGETMAU": [
+    "France",
+    "FRA"
+  ],
+  "HALLE": [
+    "Germany",
+    "GER"
+  ],
+  "HAMAMATSU": [
+    "Japan",
+    "JPN"
+  ],
+  "HAMBURG": [
+    "Germany",
+    "GER"
+  ],
+  "HAMEENLINNA": [
+    "Finland",
+    "FIN"
+  ],
+  "HAMILTON": [
+    "Canada",
+    "CAN"
+  ],
+  "HAMMAMET": [
+    "Tunisia",
+    "TUN"
+  ],
+  "HAMMOND, LA": [
+    "United States",
+    "USA"
+  ],
+  "HANGZHOU": [
+    "China",
+    "CHN"
+  ],
+  "HAPPY VALLEY": [
+    "Australia",
+    "AUS"
+  ],
+  "HARARE": [
+    "Zimbabwe",
+    "ZIM"
+  ],
+  "HAREN": [
+    "Germany",
+    "GER"
+  ],
+  "HARLINGEN, TX": [
+    "United States",
+    "USA"
+  ],
+  "HARMON": [
+    "United States",
+    "USA"
+  ],
+  "HAZEBROUCK": [
+    "France",
+    "FRA"
+  ],
+  "HECHINGEN": [
+    "Germany",
+    "GER"
+  ],
+  "HEILBRONN": [
+    "Germany",
+    "GER"
+  ],
+  "HEILBRONN - BAD RAPPENAU": [
+    "Germany",
+    "GER"
+  ],
+  "HEILBRONN II": [
+    "Germany",
+    "GER"
+  ],
+  "HELSINGBORG": [
+    "Sweden",
+    "SWE"
+  ],
+  "HELSINKI": [
+    "Finland",
+    "FIN"
+  ],
+  "HENGYANG": [
+    "China",
+    "CHN"
+  ],
+  "HERAKLION": [
+    "Egypt",
+    "EGY"
+  ],
+  "HERRENSCHWANDEN": [
+    "Switzerland",
+    "SUI"
+  ],
+  "HERSONISSOS": [
+    "Greece",
+    "GRE"
+  ],
+  "HERZLIA": [
+    "Israel",
+    "ISR"
+  ],
+  "HILLCREST": [
+    "United States",
+    "USA"
+  ],
+  "HILTON HEAD ISLAND, SC": [
+    "United States",
+    "USA"
+  ],
+  "HILTON HEAD, SC": [
+    "United States",
+    "USA"
+  ],
+  "HINODE": [
+    "Japan",
+    "JPN"
+  ],
+  "HLUBOKA NAD VLTAVOU": [
+    "Czechia",
+    "CZE"
+  ],
+  "HO CHI MINH CITY": [
+    "Vietnam",
+    "VIE"
+  ],
+  "HODMEZOVASARHELY": [
+    "Hungary",
+    "HUN"
+  ],
+  "HONDURAS F1 FUTURES": [
+    "Honduras",
+    "HON"
+  ],
+  "HONG KONG": [
+    "China",
+    "CHN"
+  ],
+  "HONG KONG F1 FUTURES": [
+    "Hong Kong",
+    "HKG"
+  ],
+  "HONG KONG F2 FUTURES": [
+    "Hong Kong",
+    "HKG"
+  ],
+  "HONG KONG F3 FUTURES": [
+    "Hong Kong",
+    "HKG"
+  ],
+  "HONG KONG F4 FUTURES": [
+    "Hong Kong",
+    "HKG"
+  ],
+  "HONG KONG F5 FUTURES": [
+    "Hong Kong",
+    "HKG"
+  ],
+  "HONG KONG F6 FUTURES": [
+    "Hong Kong",
+    "HKG"
+  ],
+  "HONOLULU": [
+    "United States",
+    "USA"
+  ],
+  "HONOLULU, HI": [
+    "United States",
+    "USA"
+  ],
+  "HORB": [
+    "Germany",
+    "GER"
+  ],
+  "HORGEN": [
+    "Switzerland",
+    "SUI"
+  ],
+  "HOUSTON": [
+    "United States",
+    "USA"
+  ],
+  "HOUSTON,TX": [
+    "United States",
+    "USA"
+  ],
+  "HRADEC KRALOVE": [
+    "Czechia",
+    "CZE"
+  ],
+  "HRASTNIK": [
+    "Slovenia",
+    "SLO"
+  ],
+  "HUA HIN": [
+    "Thailand",
+    "THA"
+  ],
+  "HUAMANTLA": [
+    "Mexico",
+    "MEX"
+  ],
+  "HUANGSHAN": [
+    "China",
+    "CHN"
+  ],
+  "HUELVA": [
+    "Spain",
+    "ESP"
+  ],
+  "HUNGARY F1 FUTURES": [
+    "Hungary",
+    "HUN"
+  ],
+  "HUNGARY F2 FUTURES": [
+    "Hungary",
+    "HUN"
+  ],
+  "HUNGARY F3 FUTURES": [
+    "Hungary",
+    "HUN"
+  ],
+  "HUNGARY F4 FUTURES": [
+    "Hungary",
+    "HUN"
+  ],
+  "HUNGARY F5 FUTURES": [
+    "Hungary",
+    "HUN"
+  ],
+  "HUNGARY F6 FUTURES": [
+    "Hungary",
+    "HUN"
+  ],
+  "HUNGARY F7 FUTURES": [
+    "Hungary",
+    "HUN"
+  ],
+  "HUNGARY F8 FUTURES": [
+    "Hungary",
+    "HUN"
+  ],
+  "HUNTSVILLE, AL": [
+    "United States",
+    "USA"
+  ],
+  "HURGHADA": [
+    "Egypt",
+    "EGY"
+  ],
+  "HURLINGHAM": [
+    "Argentina",
+    "ARG"
+  ],
+  "HUY": [
+    "Belgium",
+    "BEL"
+  ],
+  "HUZHOU": [
+    "China",
+    "CHN"
+  ],
+  "HVAR": [
+    "Croatia",
+    "CRO"
+  ],
+  "HYDERABAD": [
+    "India",
+    "IND"
+  ],
+  "HYVINKAA": [
+    "Finland",
+    "FIN"
+  ],
+  "IASI": [
+    "Romania",
+    "ROU"
+  ],
+  "IBAGUE": [
+    "Colombia",
+    "COL"
+  ],
+  "IDANHA-A-NOVA": [
+    "Portugal",
+    "POR"
+  ],
+  "IIZUKA": [
+    "Japan",
+    "JPN"
+  ],
+  "ILKLEY": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "IMOLA": [
+    "Italy",
+    "ITA"
+  ],
+  "INCHEON": [
+    "South Korea",
+    "KOR"
+  ],
+  "INDIA F1 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F10 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F11 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F12 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F13 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F14 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F15 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F16 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F17 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F18 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F19 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F2 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F3 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F4 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F5 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F6 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F7 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F8 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIA F9 FUTURES": [
+    "India",
+    "IND"
+  ],
+  "INDIAN HARBOUR BEACH, FL": [
+    "United States",
+    "USA"
+  ],
+  "INDIAN WELLS": [
+    "United States",
+    "USA"
+  ],
+  "INDIANAPOLIS": [
+    "United States",
+    "USA"
+  ],
+  "INDONESIA F1 FUTURES": [
+    "Indonesia",
+    "INA"
+  ],
+  "INDONESIA F2 FUTURES": [
+    "Indonesia",
+    "INA"
+  ],
+  "INDONESIA F3 FUTURES": [
+    "Indonesia",
+    "INA"
+  ],
+  "INDONESIA F4 FUTURES": [
+    "Indonesia",
+    "INA"
+  ],
+  "INDONESIA F5 FUTURES": [
+    "Indonesia",
+    "INA"
+  ],
+  "INDONESIA F6 FUTURES": [
+    "Indonesia",
+    "INA"
+  ],
+  "INDONESIA F7 FUTURES": [
+    "Indonesia",
+    "INA"
+  ],
+  "INDONESIA F8 FUTURES": [
+    "Indonesia",
+    "INA"
+  ],
+  "INDORE": [
+    "India",
+    "IND"
+  ],
+  "INNISBROOK, FL": [
+    "United States",
+    "USA"
+  ],
+  "INNSBRUCK": [
+    "Austria",
+    "AUT"
+  ],
+  "IOWA CITY, IA": [
+    "United States",
+    "USA"
+  ],
+  "IPOH": [
+    "Malaysia",
+    "MAS"
+  ],
+  "IPOH PERAK": [
+    "Malaysia",
+    "MAS"
+  ],
+  "IPSWICH": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "IRAN F1 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F10 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F11 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F12 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F13 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F2 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F3 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F4 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F5 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F6 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F7 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F8 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAN F9 FUTURES": [
+    "Iran",
+    "IRI"
+  ],
+  "IRAPUATO": [
+    "Mexico",
+    "MEX"
+  ],
+  "IRELAND F1 FUTURES": [
+    "Ireland",
+    "IRL"
+  ],
+  "IRELAND F2 FUTURES": [
+    "Ireland",
+    "IRL"
+  ],
+  "IRPIN": [
+    "Ukraine",
+    "UKR"
+  ],
+  "IRVINE": [
+    "United States",
+    "USA"
+  ],
+  "IRVINE, CA": [
+    "United States",
+    "USA"
+  ],
+  "ISLAMABAD": [
+    "Pakistan",
+    "PAK"
+  ],
+  "ISMANING": [
+    "Germany",
+    "GER"
+  ],
+  "ISRAEL F1 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F10 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F11 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F12 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F13 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F14 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F15 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F16 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F17 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F18 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F2 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F3 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F4 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F5 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F6 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F7 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F8 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISRAEL F9 FUTURES": [
+    "Israel",
+    "ISR"
+  ],
+  "ISTANBUL": [
+    "Turkey",
+    "TUR"
+  ],
+  "ITAJAI": [
+    "Brazil",
+    "BRA"
+  ],
+  "ITALY F1 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F10 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F11 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F12 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F13 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F14 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F15 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F16 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F17 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F18 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F19 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F2 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F20 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F21 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F22 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F23 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F24 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F25 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F26 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F27 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F28 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F29 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F3 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F30 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F31 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F32 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F33 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F34 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F35 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F36 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F37 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F38 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F39 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F4 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F5 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F6 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F7 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F8 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITALY F9 FUTURES": [
+    "Italy",
+    "ITA"
+  ],
+  "ITHACA, NY": [
+    "United States",
+    "USA"
+  ],
+  "IVANO-FRANKIVSK": [
+    "Ukraine",
+    "UKR"
+  ],
+  "IZMIR": [
+    "Turkey",
+    "TUR"
+  ],
+  "JABLONEC NAD NISOU": [
+    "Czechia",
+    "CZE"
+  ],
+  "JACKSON, MS": [
+    "United States",
+    "USA"
+  ],
+  "JACKSON, TN": [
+    "United States",
+    "USA"
+  ],
+  "JAKARTA": [
+    "Indonesia",
+    "INA"
+  ],
+  "JAPAN F1 FUTURES": [
+    "Japan",
+    "JPN"
+  ],
+  "JAPAN F2 FUTURES": [
+    "Japan",
+    "JPN"
+  ],
+  "JAPAN F3 FUTURES": [
+    "Japan",
+    "JPN"
+  ],
+  "JAPAN F4 FUTURES": [
+    "Japan",
+    "JPN"
+  ],
+  "JAPAN F5 FUTURES": [
+    "Japan",
+    "JPN"
+  ],
+  "JAPAN F6 FUTURES": [
+    "Japan",
+    "JPN"
+  ],
+  "JAPAN F7 FUTURES": [
+    "Japan",
+    "JPN"
+  ],
+  "JAPAN F8 FUTURES": [
+    "Japan",
+    "JPN"
+  ],
+  "JAVEA": [
+    "Spain",
+    "ESP"
+  ],
+  "JEDDAH": [
+    "Saudi Arabia",
+    "KSA"
+  ],
+  "JERSEY": [
+    "United States",
+    "USA"
+  ],
+  "JERUSALEM": [
+    "Israel",
+    "ISR"
+  ],
+  "JHAJJAR": [
+    "India",
+    "IND"
+  ],
+  "JIANGMEN": [
+    "China",
+    "CHN"
+  ],
+  "JINAN": [
+    "China",
+    "CHN"
+  ],
+  "JINGSHAN": [
+    "China",
+    "CHN"
+  ],
+  "JODHPUR": [
+    "India",
+    "IND"
+  ],
+  "JOHANNESBURG": [
+    "South Africa",
+    "RSA"
+  ],
+  "JOHANNESBURG / ELLISPARK": [
+    "South Africa",
+    "RSA"
+  ],
+  "JOHANNESBURG / MARKSPARK": [
+    "South Africa",
+    "RSA"
+  ],
+  "JOINVILLE": [
+    "France",
+    "FRA"
+  ],
+  "JONKOPING": [
+    "Sweden",
+    "SWE"
+  ],
+  "JOUE LES TOURS": [
+    "France",
+    "FRA"
+  ],
+  "JOUE-LES-TOURS": [
+    "France",
+    "FRA"
+  ],
+  "JOUNIEH": [
+    "Lebanon",
+    "LBN"
+  ],
+  "JUAREZ": [
+    "Mexico",
+    "MEX"
+  ],
+  "JUNIN": [
+    "Peru",
+    "PER"
+  ],
+  "KAARST": [
+    "Germany",
+    "GER"
+  ],
+  "KACHRETI": [
+    "Georgia",
+    "GEO"
+  ],
+  "KALABURAGI": [
+    "India",
+    "IND"
+  ],
+  "KALMAR": [
+    "Sweden",
+    "SWE"
+  ],
+  "KALTENKIRCHEN": [
+    "Germany",
+    "GER"
+  ],
+  "KAMEN": [
+    "Germany",
+    "GER"
+  ],
+  "KAMPALA": [
+    "Uganda",
+    "UGA"
+  ],
+  "KAOHSIUNG": [
+    "Taiwan",
+    "TPE"
+  ],
+  "KAPOSVAR": [
+    "Hungary",
+    "HUN"
+  ],
+  "KARAGANDA": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KARLSKRONA": [
+    "Sweden",
+    "SWE"
+  ],
+  "KARLSRUHE": [
+    "Germany",
+    "GER"
+  ],
+  "KARSHI": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "KARUIZAWA": [
+    "Japan",
+    "JPN"
+  ],
+  "KASHIWA": [
+    "Japan",
+    "JPN"
+  ],
+  "KASSEL": [
+    "Germany",
+    "GER"
+  ],
+  "KAWAGUCHI": [
+    "Japan",
+    "JPN"
+  ],
+  "KAYSERI": [
+    "Turkey",
+    "TUR"
+  ],
+  "KAZAKHSTAN F1 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F10 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F11 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F12 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F13 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F14 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F2 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F3 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F4 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F5 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F6 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F7 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F8 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAKHSTAN F9 FUTURES": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "KAZAN": [
+    "Russia",
+    "RUS"
+  ],
+  "KENITRA": [
+    "Morocco",
+    "MAR"
+  ],
+  "KFAR SABA": [
+    "Israel",
+    "ISR"
+  ],
+  "KHANTY-MANSIYSK": [
+    "Russia",
+    "RUS"
+  ],
+  "KHARKIV": [
+    "Ukraine",
+    "UKR"
+  ],
+  "KHIMKI": [
+    "Russia",
+    "RUS"
+  ],
+  "KIEV": [
+    "Ukraine",
+    "UKR"
+  ],
+  "KIGALI": [
+    "Rwanda",
+    "RWA"
+  ],
+  "KINGSTON": [
+    "Jamaica",
+    "JAM"
+  ],
+  "KIRIYAT GAT": [
+    "Israel",
+    "ISR"
+  ],
+  "KIRKLAND, WA": [
+    "United States",
+    "USA"
+  ],
+  "KIRYAT GAT": [
+    "Israel",
+    "ISR"
+  ],
+  "KIRYAT MOTZKIN": [
+    "Israel",
+    "ISR"
+  ],
+  "KIRYAT SHMONA": [
+    "Israel",
+    "ISR"
+  ],
+  "KISELJAK": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "KISH ISLAND": [
+    "Iran",
+    "IRI"
+  ],
+  "KITZBUHEL": [
+    "Austria",
+    "AUT"
+  ],
+  "KLAGENFURT": [
+    "Austria",
+    "AUT"
+  ],
+  "KLOSTERS": [
+    "Switzerland",
+    "SUI"
+  ],
+  "KNOKKE": [
+    "Belgium",
+    "BEL"
+  ],
+  "KNOKKE-HEIST": [
+    "Belgium",
+    "BEL"
+  ],
+  "KNOXVILLE": [
+    "United States",
+    "USA"
+  ],
+  "KOBE": [
+    "Japan",
+    "JPN"
+  ],
+  "KOBLENZ": [
+    "Germany",
+    "GER"
+  ],
+  "KOCEVJE": [
+    "Slovenia",
+    "SLO"
+  ],
+  "KOFU": [
+    "Japan",
+    "JPN"
+  ],
+  "KOGE": [
+    "Japan",
+    "JPN"
+  ],
+  "KOKSIJDE": [
+    "Belgium",
+    "BEL"
+  ],
+  "KOLKATA": [
+    "India",
+    "IND"
+  ],
+  "KONYA": [
+    "Turkey",
+    "TUR"
+  ],
+  "KOPER": [
+    "Slovenia",
+    "SLO"
+  ],
+  "KOREA F1 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F10 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F11 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F12 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F2 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F3 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F4 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F5 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F6 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F7 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOREA F8 FUTURES": [
+    "South Korea",
+    "KOR"
+  ],
+  "KOSICE": [
+    "Czechia",
+    "CZE"
+  ],
+  "KOSZALIN": [
+    "Poland",
+    "POL"
+  ],
+  "KOTKA": [
+    "Finland",
+    "FIN"
+  ],
+  "KOTTINGBRUNN": [
+    "Austria",
+    "AUT"
+  ],
+  "KOUVOLA": [
+    "Finland",
+    "FIN"
+  ],
+  "KRAKOW": [
+    "Poland",
+    "POL"
+  ],
+  "KRAMSACH": [
+    "Austria",
+    "AUT"
+  ],
+  "KRANJSKA GORA": [
+    "Slovenia",
+    "SLO"
+  ],
+  "KREUZLINGEN": [
+    "Switzerland",
+    "SUI"
+  ],
+  "KRISTINEHAMN": [
+    "Sweden",
+    "SWE"
+  ],
+  "KRSKO": [
+    "Slovenia",
+    "SLO"
+  ],
+  "KUALA LUMPUR": [
+    "Malaysia",
+    "MAS"
+  ],
+  "KUCHING": [
+    "Malaysia",
+    "MAS"
+  ],
+  "KUN-MING": [
+    "China",
+    "CHN"
+  ],
+  "KUNMING": [
+    "China",
+    "CHN"
+  ],
+  "KUNSHAN": [
+    "China",
+    "CHN"
+  ],
+  "KURSUMLIJSKA BANJA": [
+    "Serbia",
+    "SRB"
+  ],
+  "KURUME": [
+    "Japan",
+    "JPN"
+  ],
+  "KUWAIT F1 FUTURES": [
+    "Kuwait",
+    "KUW"
+  ],
+  "KUWAIT F2 FUTURES": [
+    "Kuwait",
+    "KUW"
+  ],
+  "KUWAIT F3 FUTURES": [
+    "Kuwait",
+    "KUW"
+  ],
+  "KYIV": [
+    "Ukraine",
+    "UKR"
+  ],
+  "KYOTO": [
+    "Japan",
+    "JPN"
+  ],
+  "K\u00d8GE": [
+    "Denmark",
+    "DEN"
+  ],
+  "L'AQUILA": [
+    "Italy",
+    "ITA"
+  ],
+  "LA BISBAL": [
+    "Spain",
+    "ESP"
+  ],
+  "LA BISBAL D'EMPORDA": [
+    "Spain",
+    "ESP"
+  ],
+  "LA MARSA": [
+    "Tunisia",
+    "TUN"
+  ],
+  "LA NUCIA": [
+    "Spain",
+    "ESP"
+  ],
+  "LA PAZ": [
+    "Bolivia",
+    "BOL"
+  ],
+  "LA PLATA": [
+    "Argentina",
+    "ARG"
+  ],
+  "LA POSSESSION": [
+    "France",
+    "FRA"
+  ],
+  "LA REUNION": [
+    "France",
+    "FRA"
+  ],
+  "LAGOS": [
+    "Nigeria",
+    "NGR"
+  ],
+  "LAGUNA NIGEL, CA": [
+    "United States",
+    "USA"
+  ],
+  "LAJEADO": [
+    "Brazil",
+    "BRA"
+  ],
+  "LAKEWOOD, CA": [
+    "United States",
+    "USA"
+  ],
+  "LAMBARE": [
+    "Paraguay",
+    "PAR"
+  ],
+  "LAMBERMONT": [
+    "Belgium",
+    "BEL"
+  ],
+  "LANDISVILLE": [
+    "United States",
+    "USA"
+  ],
+  "LANDISVILLE, PA": [
+    "United States",
+    "USA"
+  ],
+  "LANNION": [
+    "France",
+    "FRA"
+  ],
+  "LAS PALMAS DE GRAN CANARIA": [
+    "Spain",
+    "ESP"
+  ],
+  "LAS VEGAS": [
+    "United States",
+    "USA"
+  ],
+  "LAS VEGAS, NV": [
+    "United States",
+    "USA"
+  ],
+  "LASNE": [
+    "Belgium",
+    "BEL"
+  ],
+  "LATVIA F1 FUTURES": [
+    "Latvia",
+    "LAT"
+  ],
+  "LAUNCESTON": [
+    "Australia",
+    "AUS"
+  ],
+  "LAUSANNE": [
+    "Switzerland",
+    "SUI"
+  ],
+  "LAVAL": [
+    "France",
+    "FRA"
+  ],
+  "LAVER CUP": [
+    null,
+    null
+  ],
+  "LAWRENCE, KS": [
+    "United States",
+    "USA"
+  ],
+  "LE GOSIER": [
+    "France",
+    "FRA"
+  ],
+  "LE HAVRE": [
+    "France",
+    "FRA"
+  ],
+  "LE LAMENTIN": [
+    "France",
+    "FRA"
+  ],
+  "LE NEUBOURG": [
+    "France",
+    "FRA"
+  ],
+  "LEBANON F1 FUTURES": [
+    "Lebanon",
+    "LBN"
+  ],
+  "LEBANON F2 FUTURES": [
+    "Lebanon",
+    "LBN"
+  ],
+  "LEIMEN": [
+    "France",
+    "FRA"
+  ],
+  "LEIPZIG": [
+    "Germany",
+    "GER"
+  ],
+  "LEIRIA": [
+    "Portugal",
+    "POR"
+  ],
+  "LEME": [
+    "Brazil",
+    "BRA"
+  ],
+  "LENZERHEIDE": [
+    "Switzerland",
+    "SUI"
+  ],
+  "LEON": [
+    "United States",
+    "USA"
+  ],
+  "LERMONTOV": [
+    "Russia",
+    "RUS"
+  ],
+  "LES CONTAMINES-MONTJOIE": [
+    "France",
+    "FRA"
+  ],
+  "LES FRANQUESES DEL VALLES": [
+    "Spain",
+    "ESP"
+  ],
+  "LES FRANQUESES DEL VALL\u00c8S": [
+    "Spain",
+    "ESP"
+  ],
+  "LESA": [
+    "Italy",
+    "ITA"
+  ],
+  "LESZNO": [
+    "Poland",
+    "POL"
+  ],
+  "LEXINGTON": [
+    "United States",
+    "USA"
+  ],
+  "LEXINGTON, KY": [
+    "United States",
+    "USA"
+  ],
+  "LIBEREC": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "LIEPAJA": [
+    "Latvia",
+    "LAT"
+  ],
+  "LILLE": [
+    "France",
+    "FRA"
+  ],
+  "LIMA": [
+    "Peru",
+    "PER"
+  ],
+  "LIMASSOL": [
+    "Cyprus",
+    "CYP"
+  ],
+  "LIMOGES": [
+    "France",
+    "FRA"
+  ],
+  "LINCOLN": [
+    "United States",
+    "USA"
+  ],
+  "LINKOPING": [
+    "Sweden",
+    "SWE"
+  ],
+  "LINS": [
+    "Austria",
+    "AUT"
+  ],
+  "LISBOA": [
+    "Portugal",
+    "POR"
+  ],
+  "LISBON": [
+    "Portugal",
+    "POR"
+  ],
+  "LITHUANIA F1 FUTURES": [
+    "Lithuania",
+    "LTU"
+  ],
+  "LITIJA": [
+    "Slovenia",
+    "SLO"
+  ],
+  "LITTLE ROCK": [
+    "United States",
+    "USA"
+  ],
+  "LIUZHOU": [
+    "China",
+    "CHN"
+  ],
+  "LJUBLJANA": [
+    "Slovenia",
+    "SLO"
+  ],
+  "LLEIDA": [
+    "Spain",
+    "ESP"
+  ],
+  "LOCRI": [
+    "Italy",
+    "ITA"
+  ],
+  "LODZ": [
+    "Poland",
+    "POL"
+  ],
+  "LOGRONO": [
+    "Spain",
+    "ESP"
+  ],
+  "LONDON": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "LONDRINA": [
+    "Brazil",
+    "BRA"
+  ],
+  "LONS-LE-SAUNIER": [
+    "France",
+    "FRA"
+  ],
+  "LOPOTA": [
+    "Czechia",
+    "CZE"
+  ],
+  "LOS ANGELES": [
+    "United States",
+    "USA"
+  ],
+  "LOS ANGELES, CA": [
+    "United States",
+    "USA"
+  ],
+  "LOS CABOS": [
+    "Mexico",
+    "MEX"
+  ],
+  "LOSINJ": [
+    "Croatia",
+    "CRO"
+  ],
+  "LOUGHBOROUGH": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "LOUISVILLE": [
+    "United States",
+    "USA"
+  ],
+  "LOUISVILLE, KY": [
+    "United States",
+    "USA"
+  ],
+  "LOULE": [
+    "Portugal",
+    "POR"
+  ],
+  "LOUSADA": [
+    "Portugal",
+    "POR"
+  ],
+  "LUAN": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "LUANDA": [
+    "Angola",
+    "ANG"
+  ],
+  "LUBBOCK, TX": [
+    "United States",
+    "USA"
+  ],
+  "LUCKNOW": [
+    "India",
+    "IND"
+  ],
+  "LUDWIGSHAFEN": [
+    "Germany",
+    "GER"
+  ],
+  "LUEDENSCHEID": [
+    "Germany",
+    "GER"
+  ],
+  "LUGANO": [
+    "Switzerland",
+    "SUI"
+  ],
+  "LUJAN": [
+    "Italy",
+    "ITA"
+  ],
+  "LUJ\u00c1N": [
+    "Argentina",
+    "ARG"
+  ],
+  "LUND": [
+    "Sweden",
+    "SWE"
+  ],
+  "LUQUE": [
+    "Paraguay",
+    "PAR"
+  ],
+  "LUTZ, FL": [
+    "United States",
+    "USA"
+  ],
+  "LUZHOU": [
+    "China",
+    "CHN"
+  ],
+  "LYON": [
+    "France",
+    "FRA"
+  ],
+  "M25+H ABUJA": [
+    "Nigeria",
+    "NGR"
+  ],
+  "M25+H AJACCIO": [
+    "France",
+    "FRA"
+  ],
+  "M25+H ARLON": [
+    "Belgium",
+    "BEL"
+  ],
+  "M25+H BACAU": [
+    "Romania",
+    "ROU"
+  ],
+  "M25+H BYDGOSZCZ": [
+    "Poland",
+    "POL"
+  ],
+  "M25+H KASSEL": [
+    "Germany",
+    "GER"
+  ],
+  "M25+H LAGOS": [
+    "Panama",
+    "PAN"
+  ],
+  "M25+H LAJEADO": [
+    "Brazil",
+    "BRA"
+  ],
+  "M25+H MOST": [
+    "Czechia",
+    "CZE"
+  ],
+  "M25+H MULHOUSE": [
+    "France",
+    "FRA"
+  ],
+  "M25+H PALMA DEL RIO": [
+    "Brazil",
+    "BRA"
+  ],
+  "M25+H PLAISIR": [
+    "France",
+    "FRA"
+  ],
+  "MAANSHAN": [
+    "China",
+    "CHN"
+  ],
+  "MAASEIK": [
+    "Belgium",
+    "BEL"
+  ],
+  "MACEDONIA F1 FUTURES": [
+    "North Macedonia",
+    "MKD"
+  ],
+  "MACEDONIA F2 FUTURES": [
+    "North Macedonia",
+    "MKD"
+  ],
+  "MACEDONIA F3 FUTURES": [
+    "North Macedonia",
+    "MKD"
+  ],
+  "MACEIO": [
+    "Brazil",
+    "BRA"
+  ],
+  "MACHALA": [
+    "Ecuador",
+    "ECU"
+  ],
+  "MACON": [
+    "United States",
+    "USA"
+  ],
+  "MACON, GA": [
+    "United States",
+    "USA"
+  ],
+  "MADRID": [
+    "Spain",
+    "ESP"
+  ],
+  "MAIA": [
+    "Portugal",
+    "POR"
+  ],
+  "MAJADAHONDA": [
+    "Spain",
+    "ESP"
+  ],
+  "MAKINOHARA": [
+    "Japan",
+    "JPN"
+  ],
+  "MALAGA": [
+    "Spain",
+    "ESP"
+  ],
+  "MALAYSIA F1 FUTURES": [
+    "Malaysia",
+    "MAS"
+  ],
+  "MALAYSIA F2 FUTURES": [
+    "Malaysia",
+    "MAS"
+  ],
+  "MALAYSIA F3 FUTURES": [
+    "Malaysia",
+    "MAS"
+  ],
+  "MALDONADO": [
+    "Uruguay",
+    "URU"
+  ],
+  "MALIBU, CA": [
+    "United States",
+    "USA"
+  ],
+  "MALLORCA": [
+    "Spain",
+    "ESP"
+  ],
+  "MALMO": [
+    "Sweden",
+    "SWE"
+  ],
+  "MALTA": [
+    "Malta",
+    "MLT"
+  ],
+  "MAMAIA": [
+    "Romania",
+    "ROU"
+  ],
+  "MANACOR": [
+    "Spain",
+    "ESP"
+  ],
+  "MANAMA": [
+    "Bahrain",
+    "BRN"
+  ],
+  "MANCHESTER": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "MANDYA": [
+    "India",
+    "IND"
+  ],
+  "MANERBIO": [
+    "Italy",
+    "ITA"
+  ],
+  "MANILA": [
+    "Philippines",
+    "PHI"
+  ],
+  "MANISA": [
+    "Turkey",
+    "TUR"
+  ],
+  "MANIZALES": [
+    "Colombia",
+    "COL"
+  ],
+  "MANTA": [
+    "Italy",
+    "ITA"
+  ],
+  "MANZANILLO": [
+    "Mexico",
+    "MEX"
+  ],
+  "MAPUTO": [
+    "Mozambique",
+    "MOZ"
+  ],
+  "MAR DEL PLATA": [
+    "Argentina",
+    "ARG"
+  ],
+  "MARATHON - ATHENS": [
+    "United States",
+    "USA"
+  ],
+  "MARBELLA": [
+    "Spain",
+    "ESP"
+  ],
+  "MARBURG": [
+    "Germany",
+    "GER"
+  ],
+  "MARCOS JUAREZ": [
+    "Argentina",
+    "ARG"
+  ],
+  "MARGARET RIVER": [
+    "Australia",
+    "AUS"
+  ],
+  "MARIBOR": [
+    "Slovenia",
+    "SLO"
+  ],
+  "MARINGA": [
+    "Brazil",
+    "BRA"
+  ],
+  "MARRAKECH": [
+    "Morocco",
+    "MAR"
+  ],
+  "MARSEILLE": [
+    "France",
+    "FRA"
+  ],
+  "MARTOS": [
+    "Spain",
+    "ESP"
+  ],
+  "MASPALOMAS": [
+    "Spain",
+    "ESP"
+  ],
+  "MASPALOMAS GRAN CANARIA": [
+    "Spain",
+    "ESP"
+  ],
+  "MATA DE SAO JOAO": [
+    "Brazil",
+    "BRA"
+  ],
+  "MATARO": [
+    "Spain",
+    "ESP"
+  ],
+  "MATSUYAMA": [
+    "Japan",
+    "JPN"
+  ],
+  "MAUI": [
+    "United States",
+    "USA"
+  ],
+  "MAUI, HI": [
+    "United States",
+    "USA"
+  ],
+  "MAUTHAUSEN": [
+    "Austria",
+    "AUT"
+  ],
+  "MEDELLIN": [
+    "Colombia",
+    "COL"
+  ],
+  "MEERBUSCH": [
+    "Germany",
+    "GER"
+  ],
+  "MEITAR": [
+    "Israel",
+    "ISR"
+  ],
+  "MEKNES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MELBOURNE": [
+    "Australia",
+    "AUS"
+  ],
+  "MELILLA": [
+    "Spain",
+    "ESP"
+  ],
+  "MEMPHIS": [
+    "United States",
+    "USA"
+  ],
+  "MEMPHIS, TN": [
+    "United States",
+    "USA"
+  ],
+  "MENDOZA": [
+    "Argentina",
+    "ARG"
+  ],
+  "MENORCA": [
+    "Spain",
+    "ESP"
+  ],
+  "MERIDA": [
+    "Mexico",
+    "MEX"
+  ],
+  "MERSIN": [
+    "Turkey",
+    "TUR"
+  ],
+  "MERZIG": [
+    "Germany",
+    "GER"
+  ],
+  "MESHREF": [
+    "Jordan",
+    "JOR"
+  ],
+  "MESSINA": [
+    "Italy",
+    "ITA"
+  ],
+  "MESTRE": [
+    "Italy",
+    "ITA"
+  ],
+  "METEPEC": [
+    "Mexico",
+    "MEX"
+  ],
+  "METZ": [
+    "France",
+    "FRA"
+  ],
+  "METZINGEN": [
+    "France",
+    "FRA"
+  ],
+  "MEXICO CITY": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F1 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F10 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F11 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F12 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F13 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F14 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F15 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F16 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F17 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F18 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F19 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F2 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F20 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F3 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F4 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F5 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F6 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F7 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F8 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MEXICO F9 FUTURES": [
+    "Mexico",
+    "MEX"
+  ],
+  "MIAMI": [
+    "United States",
+    "USA"
+  ],
+  "MIAMI OPEN PRESENTED BY ITA\u00da": [
+    "United States",
+    "USA"
+  ],
+  "MIAMI, FL": [
+    "United States",
+    "USA"
+  ],
+  "MICHALOVCE": [
+    "Slovakia",
+    "SVK"
+  ],
+  "MIDDELBURG": [
+    "Netherlands",
+    "NED"
+  ],
+  "MIDDELKERKE": [
+    "Belgium",
+    "BEL"
+  ],
+  "MIDLAND, MI": [
+    "United States",
+    "USA"
+  ],
+  "MIE": [
+    "Japan",
+    "JPN"
+  ],
+  "MILAN": [
+    "Italy",
+    "ITA"
+  ],
+  "MILDURA": [
+    "Australia",
+    "AUS"
+  ],
+  "MILOVICE": [
+    "Czechia",
+    "CZE"
+  ],
+  "MINSK": [
+    "Belarus",
+    "BLR"
+  ],
+  "MISTELBACH": [
+    "Austria",
+    "AUT"
+  ],
+  "MIYAZAKI": [
+    "Japan",
+    "JPN"
+  ],
+  "MODENA": [
+    "Italy",
+    "ITA"
+  ],
+  "MOGI DAS CRUZES": [
+    "Brazil",
+    "BRA"
+  ],
+  "MOGYOROD": [
+    "Hungary",
+    "HUN"
+  ],
+  "MOHAMMEDIA": [
+    "Morocco",
+    "MAR"
+  ],
+  "MONASTIR": [
+    "Tunisia",
+    "TUN"
+  ],
+  "MONS": [
+    "Belgium",
+    "BEL"
+  ],
+  "MONT-DE-MARSAN": [
+    "France",
+    "FRA"
+  ],
+  "MONTAUBAN": [
+    "France",
+    "FRA"
+  ],
+  "MONTE-CARLO": [
+    "Monaco",
+    "MON"
+  ],
+  "MONTEMAR": [
+    "Chile",
+    "CHI"
+  ],
+  "MONTEMAR ENE CONSTRUCCION": [
+    "Chile",
+    "CHI"
+  ],
+  "MONTEMOR-O-NOVO": [
+    "Portugal",
+    "POR"
+  ],
+  "MONTERREY": [
+    "Mexico",
+    "MEX"
+  ],
+  "MONTESILVANO": [
+    "Italy",
+    "ITA"
+  ],
+  "MONTEVIDEO": [
+    "Uruguay",
+    "URU"
+  ],
+  "MONTPELLIER": [
+    "France",
+    "FRA"
+  ],
+  "MONTREAL": [
+    "Canada",
+    "CAN"
+  ],
+  "MONTREUX": [
+    "Switzerland",
+    "SUI"
+  ],
+  "MONZA": [
+    "Italy",
+    "ITA"
+  ],
+  "MONZON": [
+    "Spain",
+    "ESP"
+  ],
+  "MORELIA": [
+    "Mexico",
+    "MEX"
+  ],
+  "MORELOS": [
+    "Mexico",
+    "MEX"
+  ],
+  "MORNINGTON": [
+    "Australia",
+    "AUS"
+  ],
+  "MOROCCO F1 FUTURES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MOROCCO F2 FUTURES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MOROCCO F3 FUTURES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MOROCCO F4 FUTURES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MOROCCO F5 FUTURES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MOROCCO F6 FUTURES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MOROCCO F7 FUTURES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MOROCCO F8 FUTURES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MOROCCO F9 FUTURES": [
+    "Morocco",
+    "MAR"
+  ],
+  "MOSCOW": [
+    "Russia",
+    "RUS"
+  ],
+  "MOSQUERA": [
+    "Colombia",
+    "COL"
+  ],
+  "MOST": [
+    "Czechia",
+    "CZE"
+  ],
+  "MOUILLERON LE CAPTIF": [
+    "France",
+    "FRA"
+  ],
+  "MOZAMBIQUE F1 FUTURES": [
+    "Mozambique",
+    "MOZ"
+  ],
+  "MOZAMBIQUE F2 FUTURES": [
+    "Mozambique",
+    "MOZ"
+  ],
+  "MRAGOWO": [
+    "Poland",
+    "POL"
+  ],
+  "MULHOUSE": [
+    "France",
+    "FRA"
+  ],
+  "MUMBAI": [
+    "India",
+    "IND"
+  ],
+  "MUNGIA": [
+    "Spain",
+    "ESP"
+  ],
+  "MUNGIA-LAUKARIZ": [
+    "Spain",
+    "ESP"
+  ],
+  "MUNICH": [
+    "Germany",
+    "GER"
+  ],
+  "MURCIA": [
+    "Spain",
+    "ESP"
+  ],
+  "MURSKA SOBOTA": [
+    "Slovenia",
+    "SLO"
+  ],
+  "MUTTENZ": [
+    "Switzerland",
+    "SUI"
+  ],
+  "MUZAFFARNAGAR": [
+    "India",
+    "IND"
+  ],
+  "MYSURU": [
+    "India",
+    "IND"
+  ],
+  "MYTILENE": [
+    "Greece",
+    "GRE"
+  ],
+  "MYTILINI": [
+    "Greece",
+    "GRE"
+  ],
+  "NAGPUR": [
+    "India",
+    "IND"
+  ],
+  "NAIMAN": [
+    "China",
+    "CHN"
+  ],
+  "NAIROBI": [
+    "Kenya",
+    "KEN"
+  ],
+  "NAKHON PATHOM": [
+    "Thailand",
+    "THA"
+  ],
+  "NAKHON SI THAMMARAT": [
+    "Thailand",
+    "THA"
+  ],
+  "NAMANGAN": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "NANAO": [
+    "Japan",
+    "JPN"
+  ],
+  "NANCHANG": [
+    "China",
+    "CHN"
+  ],
+  "NANJING": [
+    "China",
+    "CHN"
+  ],
+  "NANNING": [
+    "China",
+    "CHN"
+  ],
+  "NANTES": [
+    "France",
+    "FRA"
+  ],
+  "NAPA": [
+    "United States",
+    "USA"
+  ],
+  "NAPLES": [
+    "Italy",
+    "ITA"
+  ],
+  "NAPLES, FL": [
+    "United States",
+    "USA"
+  ],
+  "NAPOLI": [
+    "Italy",
+    "ITA"
+  ],
+  "NASBYPARK": [
+    "Sweden",
+    "SWE"
+  ],
+  "NASHIK": [
+    "India",
+    "IND"
+  ],
+  "NASHVILLE, TN": [
+    "United States",
+    "USA"
+  ],
+  "NASSAU": [
+    "Bahamas",
+    "BAH"
+  ],
+  "NAVI MUMBAI": [
+    "India",
+    "IND"
+  ],
+  "NETANYA": [
+    "Israel",
+    "ISR"
+  ],
+  "NETHERLANDS F1 FUTURES": [
+    "Netherlands",
+    "NED"
+  ],
+  "NETHERLANDS F2 FUTURES": [
+    "Netherlands",
+    "NED"
+  ],
+  "NETHERLANDS F3 FUTURES": [
+    "Netherlands",
+    "NED"
+  ],
+  "NETHERLANDS F4 FUTURES": [
+    "Netherlands",
+    "NED"
+  ],
+  "NETHERLANDS F5 FUTURES": [
+    "Netherlands",
+    "NED"
+  ],
+  "NETHERLANDS F6 FUTURES": [
+    "Netherlands",
+    "NED"
+  ],
+  "NETHERLANDS F7 FUTURES": [
+    "Netherlands",
+    "NED"
+  ],
+  "NEUQUEN": [
+    "Argentina",
+    "ARG"
+  ],
+  "NEUQU\u00c9N": [
+    "Argentina",
+    "ARG"
+  ],
+  "NEVERS": [
+    "France",
+    "FRA"
+  ],
+  "NEW BRAUNFELS, TX": [
+    "United States",
+    "USA"
+  ],
+  "NEW DELHI": [
+    "India",
+    "IND"
+  ],
+  "NEW HAVEN": [
+    "United States",
+    "USA"
+  ],
+  "NEW YORK": [
+    "United States",
+    "USA"
+  ],
+  "NEWPORT": [
+    "United States",
+    "USA"
+  ],
+  "NEWPORT BEACH": [
+    "United States",
+    "USA"
+  ],
+  "NEWPORT BEACH, CA": [
+    "United States",
+    "USA"
+  ],
+  "NICARAGUA F1 FUTURES": [
+    "Nicaragua",
+    "NCA"
+  ],
+  "NICE": [
+    "France",
+    "FRA"
+  ],
+  "NICHOLASVILLE, KY": [
+    "United States",
+    "USA"
+  ],
+  "NIEUWPOORT": [
+    "Belgium",
+    "BEL"
+  ],
+  "NIGERIA F1 FUTURES": [
+    "Nigeria",
+    "NGR"
+  ],
+  "NIGERIA F2 FUTURES": [
+    "Nigeria",
+    "NGR"
+  ],
+  "NIGERIA F3 FUTURES": [
+    "Nigeria",
+    "NGR"
+  ],
+  "NIGERIA F4 FUTURES": [
+    "Nigeria",
+    "NGR"
+  ],
+  "NIGERIA F5 FUTURES": [
+    "Nigeria",
+    "NGR"
+  ],
+  "NIGERIA F6 FUTURES": [
+    "Nigeria",
+    "NGR"
+  ],
+  "NINGBO": [
+    "China",
+    "CHN"
+  ],
+  "NIS": [
+    "France",
+    "FRA"
+  ],
+  "NISHI-TAMA": [
+    "Serbia",
+    "SRB"
+  ],
+  "NISHI-TOKYO": [
+    "Japan",
+    "JPN"
+  ],
+  "NOGENT-SUR-MARNE": [
+    "France",
+    "FRA"
+  ],
+  "NONTHABURI": [
+    "Thailand",
+    "THA"
+  ],
+  "NORGES-LA-VILLE": [
+    "France",
+    "FRA"
+  ],
+  "NORMAN": [
+    "United States",
+    "USA"
+  ],
+  "NORMAN, OK": [
+    "United States",
+    "USA"
+  ],
+  "NORRKOPING": [
+    "Sweden",
+    "SWE"
+  ],
+  "NORWAY F1 FUTURES": [
+    "Norway",
+    "NOR"
+  ],
+  "NORWAY F2 FUTURES": [
+    "Norway",
+    "NOR"
+  ],
+  "NORWAY F3 FUTURES": [
+    "Norway",
+    "NOR"
+  ],
+  "NORWICH": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "NOTO": [
+    "Italy",
+    "ITA"
+  ],
+  "NOTTINGHAM": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "NOUMEA": [
+    "France",
+    "FRA"
+  ],
+  "NOVA GORICA": [
+    "Slovenia",
+    "SLO"
+  ],
+  "NOVI SAD": [
+    "Serbia",
+    "SRB"
+  ],
+  "NOVOMOSKOVSK": [
+    "Russia",
+    "RUS"
+  ],
+  "NUERNBERG": [
+    "Germany",
+    "GER"
+  ],
+  "NULES": [
+    "Spain",
+    "ESP"
+  ],
+  "NUR-SULTAN": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "NUSSLOCH": [
+    "Germany",
+    "GER"
+  ],
+  "NYIREGYHAZA": [
+    "Hungary",
+    "HUN"
+  ],
+  "NYIREGYH\u00c1ZA": [
+    "Hungary",
+    "HUN"
+  ],
+  "OBERENTFELDEN": [
+    "Switzerland",
+    "SUI"
+  ],
+  "OBERHACHING": [
+    "Germany",
+    "GER"
+  ],
+  "OBERPULLENDORF": [
+    "Austria",
+    "AUT"
+  ],
+  "OBERSTAUFEN": [
+    "Germany",
+    "GER"
+  ],
+  "OBIDOS": [
+    "Portugal",
+    "POR"
+  ],
+  "OBREGON": [
+    "Colombia",
+    "COL"
+  ],
+  "OEGSTGEEST": [
+    "Netherlands",
+    "NED"
+  ],
+  "OEIRAS": [
+    "Portugal",
+    "POR"
+  ],
+  "OFAKIM": [
+    "Israel",
+    "ISR"
+  ],
+  "OFFENBACH": [
+    "Germany",
+    "GER"
+  ],
+  "OJAI": [
+    "United States",
+    "USA"
+  ],
+  "OLAVARRIA": [
+    "Argentina",
+    "ARG"
+  ],
+  "OLBIA": [
+    "Italy",
+    "ITA"
+  ],
+  "OLDENZAAL": [
+    "Netherlands",
+    "NED"
+  ],
+  "OLIMPIA": [
+    "Greece",
+    "GRE"
+  ],
+  "OLIVEIRA DE AZEMEIS": [
+    "Portugal",
+    "POR"
+  ],
+  "OLLERSBACH": [
+    "Austria",
+    "AUT"
+  ],
+  "OLOMOUC": [
+    "Czechia",
+    "CZE"
+  ],
+  "OPATIJA": [
+    "Croatia",
+    "CRO"
+  ],
+  "OPAVA": [
+    "Czechia",
+    "CZE"
+  ],
+  "ORADEA": [
+    "Romania",
+    "ROU"
+  ],
+  "ORAN": [
+    "Algeria",
+    "ALG"
+  ],
+  "ORANGE PARK, FL": [
+    "United States",
+    "USA"
+  ],
+  "ORBETELLO": [
+    "Italy",
+    "ITA"
+  ],
+  "ORLANDO": [
+    "United States",
+    "USA"
+  ],
+  "ORLANDO, FL": [
+    "United States",
+    "USA"
+  ],
+  "ORLEANS": [
+    "France",
+    "FRA"
+  ],
+  "ORTISEI": [
+    "Italy",
+    "ITA"
+  ],
+  "OSAKA": [
+    "Japan",
+    "JPN"
+  ],
+  "OSIJEK": [
+    "Croatia",
+    "CRO"
+  ],
+  "OSLO": [
+    "Norway",
+    "NOR"
+  ],
+  "OSPREY, FL": [
+    "United States",
+    "USA"
+  ],
+  "OSTRAVA": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "OTOCEC": [
+    "Slovenia",
+    "SLO"
+  ],
+  "OTOPENI": [
+    "Romania",
+    "ROU"
+  ],
+  "OTTIGNIES-LOUVAIN-LA-NEUVE": [
+    "Belgium",
+    "BEL"
+  ],
+  "OUJDA": [
+    "Morocco",
+    "MAR"
+  ],
+  "OURENSE": [
+    "Spain",
+    "ESP"
+  ],
+  "OVIEDO": [
+    "Spain",
+    "ESP"
+  ],
+  "PACHUCA": [
+    "Mexico",
+    "MEX"
+  ],
+  "PADOVA": [
+    "Italy",
+    "ITA"
+  ],
+  "PAGUERA": [
+    "United States",
+    "USA"
+  ],
+  "PAJULAHTI": [
+    "Finland",
+    "FIN"
+  ],
+  "PAKISTAN F1 FUTURES": [
+    "Pakistan",
+    "PAK"
+  ],
+  "PAKISTAN F2 FUTURES": [
+    "Pakistan",
+    "PAK"
+  ],
+  "PAKISTAN F3 FUTURES": [
+    "Pakistan",
+    "PAK"
+  ],
+  "PALERMO": [
+    "Italy",
+    "ITA"
+  ],
+  "PALIC": [
+    "Serbia",
+    "SRB"
+  ],
+  "PALM COAST, FL": [
+    "United States",
+    "USA"
+  ],
+  "PALM HARBOR, FL": [
+    "United States",
+    "USA"
+  ],
+  "PALMA DEL RIO": [
+    "Spain",
+    "ESP"
+  ],
+  "PALMA DEL R\u00cdO": [
+    "Spain",
+    "ESP"
+  ],
+  "PALMANOVA": [
+    "Italy",
+    "ITA"
+  ],
+  "PALMAS DEL MAR": [
+    "Puerto Rico",
+    "PUR"
+  ],
+  "PALMELA": [
+    "Portugal",
+    "POR"
+  ],
+  "PANAMA CITY": [
+    "United States",
+    "USA"
+  ],
+  "PANAMA F1 FUTURES": [
+    "Panama",
+    "PAN"
+  ],
+  "PANAMA F4 FUTURES": [
+    "Panama",
+    "PAN"
+  ],
+  "PAPAMOA": [
+    "New Zealand",
+    "NZL"
+  ],
+  "PARDUBICE": [
+    "Czechia",
+    "CZE"
+  ],
+  "PARIS": [
+    "France",
+    "FRA"
+  ],
+  "PARMA": [
+    "Italy",
+    "ITA"
+  ],
+  "PARNU": [
+    "Estonia",
+    "EST"
+  ],
+  "PAU": [
+    "France",
+    "FRA"
+  ],
+  "PAZARDZHIK": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "PELHAM": [
+    "United States",
+    "USA"
+  ],
+  "PELHAM, AL": [
+    "United States",
+    "USA"
+  ],
+  "PENRITH": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "PENSACOLA, FL": [
+    "United States",
+    "USA"
+  ],
+  "PENZA": [
+    "Russia",
+    "RUS"
+  ],
+  "PEREIRA": [
+    "Colombia",
+    "COL"
+  ],
+  "PERGAMINO": [
+    "Argentina",
+    "ARG"
+  ],
+  "PERIGUEUX": [
+    "France",
+    "FRA"
+  ],
+  "PERTH": [
+    "Australia",
+    "AUS"
+  ],
+  "PERTH-SYDNEY": [
+    "Australia",
+    "AUS"
+  ],
+  "PERU F1 FUTURES": [
+    "Peru",
+    "PER"
+  ],
+  "PERU F2 FUTURES": [
+    "Peru",
+    "PER"
+  ],
+  "PERU F3 FUTURES": [
+    "Peru",
+    "PER"
+  ],
+  "PERU F4 FUTURES": [
+    "Peru",
+    "PER"
+  ],
+  "PERU F5 FUTURES": [
+    "Peru",
+    "PER"
+  ],
+  "PERU F6 FUTURES": [
+    "Peru",
+    "PER"
+  ],
+  "PERU F7 FUTURES": [
+    "Peru",
+    "PER"
+  ],
+  "PERU F8 FUTURES": [
+    "Peru",
+    "PER"
+  ],
+  "PERU F9 FUTURES": [
+    "Peru",
+    "PER"
+  ],
+  "PERUGIA": [
+    "Italy",
+    "ITA"
+  ],
+  "PESCARA": [
+    "Italy",
+    "ITA"
+  ],
+  "PETANGE": [
+    "Luxembourg",
+    "LUX"
+  ],
+  "PETIT BOURG": [
+    "France",
+    "FRA"
+  ],
+  "PETIT-BOURG": [
+    "France",
+    "FRA"
+  ],
+  "PHAN THIET": [
+    "Vietnam",
+    "VIE"
+  ],
+  "PHILIPPINES F1 FUTURES": [
+    "Philippines",
+    "PHI"
+  ],
+  "PHILIPPINES F2 FUTURES": [
+    "Philippines",
+    "PHI"
+  ],
+  "PHOENIX": [
+    "United States",
+    "USA"
+  ],
+  "PHUKET": [
+    "Thailand",
+    "THA"
+  ],
+  "PIESTANY": [
+    "Slovakia",
+    "SVK"
+  ],
+  "PILAR": [
+    "Argentina",
+    "ARG"
+  ],
+  "PINAMAR": [
+    "Argentina",
+    "ARG"
+  ],
+  "PINGGUO": [
+    "China",
+    "CHN"
+  ],
+  "PIOMBINO": [
+    "Italy",
+    "ITA"
+  ],
+  "PIRACICABA": [
+    "Brazil",
+    "BRA"
+  ],
+  "PIROT": [
+    "Serbia",
+    "SRB"
+  ],
+  "PITESTI": [
+    "Romania",
+    "ROU"
+  ],
+  "PITTSBURGH, PA": [
+    "United States",
+    "USA"
+  ],
+  "PLAISIR": [
+    "France",
+    "FRA"
+  ],
+  "PLANTATION, FL": [
+    "United States",
+    "USA"
+  ],
+  "PLATJA D'ARO": [
+    "Spain",
+    "ESP"
+  ],
+  "PLAYFORD": [
+    "Australia",
+    "AUS"
+  ],
+  "PLOVDIV": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "PLZEN": [
+    "Czechia",
+    "CZE"
+  ],
+  "PODGORICA": [
+    "Montenegro",
+    "MNE"
+  ],
+  "POERTSCHACH": [
+    "Austria",
+    "AUT"
+  ],
+  "POITIERS": [
+    "France",
+    "FRA"
+  ],
+  "POLAND F1 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F10 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F11 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F2 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F3 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F4 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F5 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F6 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F7 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F8 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POLAND F9 FUTURES": [
+    "Poland",
+    "POL"
+  ],
+  "POMEZIA": [
+    "Italy",
+    "ITA"
+  ],
+  "PONTA DELGADA": [
+    "Portugal",
+    "POR"
+  ],
+  "PONTA DELGADA, AZORES": [
+    "Portugal",
+    "POR"
+  ],
+  "PONTEDERA": [
+    "Italy",
+    "ITA"
+  ],
+  "PONTEVEDRA": [
+    "Spain",
+    "ESP"
+  ],
+  "POPRAD": [
+    "Slovakia",
+    "SVK"
+  ],
+  "POREC": [
+    "Croatia",
+    "CRO"
+  ],
+  "PORT PIRIE": [
+    "Australia",
+    "AUS"
+  ],
+  "PORT ST. LUCIE, FL": [
+    "United States",
+    "USA"
+  ],
+  "PORTIMAO": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTO": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTO ALEGRE": [
+    "Brazil",
+    "BRA"
+  ],
+  "PORTOROZ": [
+    "Slovenia",
+    "SLO"
+  ],
+  "PORTOVIEJO": [
+    "Ecuador",
+    "ECU"
+  ],
+  "PORTSCHACH": [
+    "Austria",
+    "AUT"
+  ],
+  "PORTUGAL F1 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F10 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F11 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F12 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F13 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F14 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F15 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F16 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F17 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F18 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F19 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F2 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F20 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F21 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F22 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F3 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F4 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F5 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F6 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F7 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F8 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "PORTUGAL F9 FUTURES": [
+    "Portugal",
+    "POR"
+  ],
+  "POTCHEFSTROOM": [
+    "South Africa",
+    "RSA"
+  ],
+  "POZA RICA": [
+    "Mexico",
+    "MEX"
+  ],
+  "POZNAN": [
+    "Poland",
+    "POL"
+  ],
+  "POZOBLANCO": [
+    "Spain",
+    "ESP"
+  ],
+  "POZZUOLI": [
+    "Italy",
+    "ITA"
+  ],
+  "PRAGUE": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "PREROV": [
+    "Czechia",
+    "CZE"
+  ],
+  "PRESTON": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "PRETORIA": [
+    "South Africa",
+    "RSA"
+  ],
+  "PRIJEDOR": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "PROKUPLJE": [
+    "Serbia",
+    "SRB"
+  ],
+  "PROSTEJOV": [
+    "Czech Republic",
+    "CZE"
+  ],
+  "PSZCZYNA": [
+    "Poland",
+    "POL"
+  ],
+  "PUEBLA": [
+    "Mexico",
+    "MEX"
+  ],
+  "PUERTO RICO F1 FUTURES": [
+    "Puerto Rico",
+    "PUR"
+  ],
+  "PUERTO VALLARTA": [
+    "Mexico",
+    "MEX"
+  ],
+  "PULLACH": [
+    "Germany",
+    "GER"
+  ],
+  "PUNE": [
+    "India",
+    "IND"
+  ],
+  "PUNTA CANA": [
+    "Dominican Republic",
+    "DOM"
+  ],
+  "PUNTA DEL ESTE": [
+    "Uruguay",
+    "URU"
+  ],
+  "PUSZCZYKOWO": [
+    "Poland",
+    "POL"
+  ],
+  "P\u00c9RIGUEUX": [
+    "France",
+    "FRA"
+  ],
+  "QATAR F1 FUTURES": [
+    "Qatar",
+    "QAT"
+  ],
+  "QATAR F2 FUTURES": [
+    "Qatar",
+    "QAT"
+  ],
+  "QATAR F3 FUTURES": [
+    "Qatar",
+    "QAT"
+  ],
+  "QATAR F4 FUTURES": [
+    "Qatar",
+    "QAT"
+  ],
+  "QATAR F5 FUTURES": [
+    "Qatar",
+    "QAT"
+  ],
+  "QATAR F6 FUTURES": [
+    "Qatar",
+    "QAT"
+  ],
+  "QIAN DAOHU": [
+    "China",
+    "CHN"
+  ],
+  "QINGDAO": [
+    "China",
+    "CHN"
+  ],
+  "QUANZHOU": [
+    "China",
+    "CHN"
+  ],
+  "QUEBEC CITY": [
+    "Canada",
+    "CAN"
+  ],
+  "QUILLOTA": [
+    "Chile",
+    "CHI"
+  ],
+  "QUIMPER": [
+    "France",
+    "FRA"
+  ],
+  "QUINTA DO LAGO": [
+    "Portugal",
+    "POR"
+  ],
+  "QUINTANA ROO": [
+    "Mexico",
+    "MEX"
+  ],
+  "QUITO": [
+    "Ecuador",
+    "ECU"
+  ],
+  "QUJING": [
+    "China",
+    "CHN"
+  ],
+  "RAANANA": [
+    "Israel",
+    "ISR"
+  ],
+  "RABAT": [
+    "Morocco",
+    "MAR"
+  ],
+  "RADOM": [
+    "Poland",
+    "POL"
+  ],
+  "RADOMLJE": [
+    "Slovenia",
+    "SLO"
+  ],
+  "RAIPUR": [
+    "India",
+    "IND"
+  ],
+  "RALEIGH, NC": [
+    "United States",
+    "USA"
+  ],
+  "RAMAT HASHARON": [
+    "Israel",
+    "ISR"
+  ],
+  "RAMLE": [
+    "Norway",
+    "NOR"
+  ],
+  "RANCAGUA": [
+    "Chile",
+    "CHI"
+  ],
+  "RANCHO MIRAGE, CA": [
+    "United States",
+    "USA"
+  ],
+  "RANCHO SANTA FE, CA": [
+    "United States",
+    "USA"
+  ],
+  "RATINGEN": [
+    "Germany",
+    "GER"
+  ],
+  "REBECQ": [
+    "Belgium",
+    "BEL"
+  ],
+  "RECANATI": [
+    "Italy",
+    "ITA"
+  ],
+  "RECIFE": [
+    "Brazil",
+    "BRA"
+  ],
+  "REDDING, CA": [
+    "United States",
+    "USA"
+  ],
+  "REGGIO EMILIA": [
+    "Italy",
+    "ITA"
+  ],
+  "REIMS": [
+    "France",
+    "FRA"
+  ],
+  "RENNES": [
+    "France",
+    "FRA"
+  ],
+  "RETHYMNO": [
+    "Greece",
+    "GRE"
+  ],
+  "REUNION ISLAND": [
+    "France",
+    "FRA"
+  ],
+  "REUS": [
+    "Spain",
+    "ESP"
+  ],
+  "RHODES": [
+    "France",
+    "FRA"
+  ],
+  "RIBA - ROJA DE TURIA": [
+    "Spain",
+    "ESP"
+  ],
+  "RIBEIRAO PRETO": [
+    "Brazil",
+    "BRA"
+  ],
+  "RICANY": [
+    "Czechia",
+    "CZE"
+  ],
+  "RIJEKA": [
+    "Croatia",
+    "CRO"
+  ],
+  "RIMINI": [
+    "Italy",
+    "ITA"
+  ],
+  "RIMOUSKI": [
+    "Canada",
+    "CAN"
+  ],
+  "RIO CLARO": [
+    "Brazil",
+    "BRA"
+  ],
+  "RIO CUARTO": [
+    "Argentina",
+    "ARG"
+  ],
+  "RIO DE JANEIRO": [
+    "Brazil",
+    "BRA"
+  ],
+  "RIO DO SUL": [
+    "Brazil",
+    "BRA"
+  ],
+  "RIO QUENTE": [
+    "Brazil",
+    "BRA"
+  ],
+  "RISSKOV/AARHUS": [
+    "Denmark",
+    "DEN"
+  ],
+  "RIVIERA DE SAO LOURENCO": [
+    "Brazil",
+    "BRA"
+  ],
+  "ROANNE": [
+    "France",
+    "FRA"
+  ],
+  "ROCHESTER, NY": [
+    "United States",
+    "USA"
+  ],
+  "ROCK HILL, SC": [
+    "United States",
+    "USA"
+  ],
+  "RODA DE BARA": [
+    "Spain",
+    "ESP"
+  ],
+  "RODEZ": [
+    "France",
+    "FRA"
+  ],
+  "ROEHAMPTON": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "ROGASKA SLATINA": [
+    "Slovenia",
+    "SLO"
+  ],
+  "ROGNAC": [
+    "France",
+    "FRA"
+  ],
+  "ROMANIA F1 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F10 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F11 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F12 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F13 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F14 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F15 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F16 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F2 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F3 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F4 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F5 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F6 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F7 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F8 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROMANIA F9 FUTURES": [
+    "Romania",
+    "ROU"
+  ],
+  "ROME": [
+    "Italy",
+    "ITA"
+  ],
+  "ROME, GA": [
+    "United States",
+    "USA"
+  ],
+  "ROSARIO": [
+    "Argentina",
+    "ARG"
+  ],
+  "ROSARIO, SANTA FE": [
+    "Argentina",
+    "ARG"
+  ],
+  "ROSARIO-SANTA FE": [
+    "Argentina",
+    "ARG"
+  ],
+  "ROSARITO": [
+    "Mexico",
+    "MEX"
+  ],
+  "ROSETO DEGLI ABRUZZI": [
+    "Italy",
+    "ITA"
+  ],
+  "ROTTERDAM": [
+    "Netherlands",
+    "NED"
+  ],
+  "ROVERETO": [
+    "Italy",
+    "ITA"
+  ],
+  "ROVINJ": [
+    "Croatia",
+    "CRO"
+  ],
+  "ROYAN": [
+    "France",
+    "FRA"
+  ],
+  "RUSE": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "RUSSIA F1 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F10 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F11 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F12 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F13 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F2 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F3 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F4 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F5 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F6 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F7 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F8 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RUSSIA F9 FUTURES": [
+    "Russia",
+    "RUS"
+  ],
+  "RWANDA F1 FUTURES": [
+    "Rwanda",
+    "RWA"
+  ],
+  "SAARLOUIS": [
+    "Germany",
+    "GER"
+  ],
+  "SABADELL": [
+    "Spain",
+    "ESP"
+  ],
+  "SACRAMENTO, CA": [
+    "United States",
+    "USA"
+  ],
+  "SAGUENAY": [
+    "Canada",
+    "CAN"
+  ],
+  "SAINT DIZIER": [
+    "France",
+    "FRA"
+  ],
+  "SAINT ETIENNE": [
+    "France",
+    "FRA"
+  ],
+  "SAINT MALO": [
+    "France",
+    "FRA"
+  ],
+  "SAINT MARTIN": [
+    "France",
+    "FRA"
+  ],
+  "SAINT PALAIS SUR MER": [
+    "France",
+    "FRA"
+  ],
+  "SAINT PETERSBURG": [
+    "Russia",
+    "RUS"
+  ],
+  "SAINT-AUGUSTIN": [
+    "France",
+    "FRA"
+  ],
+  "SAINT-AUGUSTIN-DE-DESMAURES": [
+    "Canada",
+    "CAN"
+  ],
+  "SAINT-DIZIER": [
+    "France",
+    "FRA"
+  ],
+  "SAINT-GAUDENS": [
+    "France",
+    "FRA"
+  ],
+  "SAINT-GERVAIS": [
+    "France",
+    "FRA"
+  ],
+  "SAINT-MALO": [
+    "France",
+    "FRA"
+  ],
+  "SAINT-MARTIN": [
+    "France",
+    "FRA"
+  ],
+  "SAINT-PALAIS-SUR-MER": [
+    "France",
+    "FRA"
+  ],
+  "SAINT-PETERSBURG": [
+    "Russia",
+    "RUS"
+  ],
+  "SAINT-TROPEZ": [
+    "France",
+    "FRA"
+  ],
+  "SAJUR": [
+    "Israel",
+    "ISR"
+  ],
+  "SAKARYA": [
+    "Turkey",
+    "TUR"
+  ],
+  "SALERNO": [
+    "Italy",
+    "ITA"
+  ],
+  "SALINAS": [
+    "United States",
+    "USA"
+  ],
+  "SALISBURY": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "SALTA": [
+    "Argentina",
+    "ARG"
+  ],
+  "SALVADOR": [
+    "El Salvador",
+    "ESA"
+  ],
+  "SALVADOR DE BAHIA": [
+    "Brazil",
+    "BRA"
+  ],
+  "SALZBURG": [
+    "Austria",
+    "AUT"
+  ],
+  "SAMARKAND": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "SAN BARTOLOME": [
+    "France",
+    "FRA"
+  ],
+  "SAN BARTOLOME DE TIRAJANA": [
+    "Spain",
+    "ESP"
+  ],
+  "SAN BENEDETTO DEL TRONTO": [
+    "Italy",
+    "ITA"
+  ],
+  "SAN CARLOS": [
+    "United States",
+    "USA"
+  ],
+  "SAN DIEGO": [
+    "United States",
+    "USA"
+  ],
+  "SAN DIEGO,": [
+    "United States",
+    "USA"
+  ],
+  "SAN DIEGO, CA": [
+    "United States",
+    "USA"
+  ],
+  "SAN FRANCISCO": [
+    "United States",
+    "USA"
+  ],
+  "SAN GREGORIO": [
+    "Italy",
+    "ITA"
+  ],
+  "SAN GREGORIO DI CATANIA": [
+    "Italy",
+    "ITA"
+  ],
+  "SAN JOSE": [
+    "United States",
+    "USA"
+  ],
+  "SAN JUAN": [
+    "United States",
+    "USA"
+  ],
+  "SAN LUIS POTOSI": [
+    "Mexico",
+    "MEX"
+  ],
+  "SAN MARINO": [
+    "San Marino",
+    "SMR"
+  ],
+  "SAN MIGUEL DE TUCUMAN": [
+    "Argentina",
+    "ARG"
+  ],
+  "SAN RAFAEL": [
+    "United States",
+    "USA"
+  ],
+  "SAN RAFAEL, CA": [
+    "United States",
+    "USA"
+  ],
+  "SAN REMO": [
+    "Italy",
+    "ITA"
+  ],
+  "SAN SALVADOR DE JUJUY": [
+    "Argentina",
+    "ARG"
+  ],
+  "SAN SEBASTIAN": [
+    "Spain",
+    "ESP"
+  ],
+  "SAN SEVERO": [
+    "Italy",
+    "ITA"
+  ],
+  "SANDELFJORD": [
+    "Norway",
+    "NOR"
+  ],
+  "SANGJU": [
+    "South Korea",
+    "KOR"
+  ],
+  "SANREMO": [
+    "Italy",
+    "ITA"
+  ],
+  "SANT CUGAT": [
+    "Spain",
+    "ESP"
+  ],
+  "SANT JORDI": [
+    "Spain",
+    "ESP"
+  ],
+  "SANT VICEN\u00c7 DE TORELLO": [
+    "Spain",
+    "ESP"
+  ],
+  "SANTA CRISTINA VAL GARDENA": [
+    "Italy",
+    "ITA"
+  ],
+  "SANTA CRUZ": [
+    "Bolivia",
+    "BOL"
+  ],
+  "SANTA CRUZ DE LA SIERRA": [
+    "Bolivia",
+    "BOL"
+  ],
+  "SANTA CRUZ DO SUL": [
+    "Brazil",
+    "BRA"
+  ],
+  "SANTA FE": [
+    "Argentina",
+    "ARG"
+  ],
+  "SANTA MARGARITA DE MONTBUI": [
+    "Spain",
+    "ESP"
+  ],
+  "SANTA MARGHERITA DI PULA": [
+    "Italy",
+    "ITA"
+  ],
+  "SANTA MARTA": [
+    "Colombia",
+    "COL"
+  ],
+  "SANTA TECLA": [
+    "El Salvador",
+    "ESA"
+  ],
+  "SANTANDER": [
+    "Spain",
+    "ESP"
+  ],
+  "SANTAREM": [
+    "Portugal",
+    "POR"
+  ],
+  "SANTAR\u00c9M": [
+    "Portugal",
+    "POR"
+  ],
+  "SANTIAGO": [
+    "Chile",
+    "CHI"
+  ],
+  "SANTO DOMINGO": [
+    "Dominican Republic",
+    "DOM"
+  ],
+  "SANTO DOMINGO DE LOS TSACHILAS": [
+    "Ecuador",
+    "ECU"
+  ],
+  "SANTOS": [
+    "Brazil",
+    "BRA"
+  ],
+  "SANXENXO": [
+    "Spain",
+    "ESP"
+  ],
+  "SANYA": [
+    "France",
+    "FRA"
+  ],
+  "SAO BRAS ALPORTEL": [
+    "Portugal",
+    "POR"
+  ],
+  "SAO JOAO DA BOA VISTA": [
+    "Brazil",
+    "BRA"
+  ],
+  "SAO JOSE DO RIO PRETO": [
+    "Brazil",
+    "BRA"
+  ],
+  "SAO JOSE DOS CAMPOS": [
+    "Brazil",
+    "BRA"
+  ],
+  "SAO JO\u00c3O DA BOA VISTA": [
+    "Brazil",
+    "BRA"
+  ],
+  "SAO LEOPOLDO": [
+    "Brazil",
+    "BRA"
+  ],
+  "SAO LUIS": [
+    "Brazil",
+    "BRA"
+  ],
+  "SAO PAULO": [
+    "Brazil",
+    "BRA"
+  ],
+  "SAO PAULO1": [
+    "Brazil",
+    "BRA"
+  ],
+  "SAPPORO": [
+    "Japan",
+    "JPN"
+  ],
+  "SARAJEVO": [
+    "Bosnia and Herzegovina",
+    "BIH"
+  ],
+  "SARANSK": [
+    "Russia",
+    "RUS"
+  ],
+  "SARASOTA": [
+    "United States",
+    "USA"
+  ],
+  "SARASOTA, FL": [
+    "United States",
+    "USA"
+  ],
+  "SARDINIA": [
+    "Italy",
+    "ITA"
+  ],
+  "SARREGUEMINES": [
+    "France",
+    "FRA"
+  ],
+  "SASKATOON": [
+    "Canada",
+    "CAN"
+  ],
+  "SASSUOLO": [
+    "Italy",
+    "ITA"
+  ],
+  "SATU MARE": [
+    "Romania",
+    "ROU"
+  ],
+  "SAVANNAH": [
+    "United States",
+    "USA"
+  ],
+  "SAVITAIPALE": [
+    "Finland",
+    "FIN"
+  ],
+  "SCHEVENINGEN": [
+    "Netherlands",
+    "NED"
+  ],
+  "SCHIO": [
+    "Italy",
+    "ITA"
+  ],
+  "SCHLIEREN": [
+    "Switzerland",
+    "SUI"
+  ],
+  "SCHOONHOVEN": [
+    "Netherlands",
+    "NED"
+  ],
+  "SCOTTSDALE, AZ": [
+    "United States",
+    "USA"
+  ],
+  "SEGOVIA": [
+    "Spain",
+    "ESP"
+  ],
+  "SEGRATE": [
+    "Italy",
+    "ITA"
+  ],
+  "SELVA GARDENA": [
+    "Italy",
+    "ITA"
+  ],
+  "SENEGAL F1 FUTURES": [
+    "Senegal",
+    "SEN"
+  ],
+  "SENEGAL F2 FUTURES": [
+    "Senegal",
+    "SEN"
+  ],
+  "SEOUL": [
+    "South Korea",
+    "KOR"
+  ],
+  "SERBIA F1 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F10 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F11 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F12 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F13 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F14 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F2 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F3 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F4 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F5 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F6 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F7 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F8 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SERBIA F9 FUTURES": [
+    "Serbia",
+    "SRB"
+  ],
+  "SEREMBAN": [
+    "Malaysia",
+    "MAS"
+  ],
+  "SETUBAL": [
+    "Portugal",
+    "POR"
+  ],
+  "SEVILLE": [
+    "Spain",
+    "ESP"
+  ],
+  "SEZZE": [
+    "Italy",
+    "ITA"
+  ],
+  "SHANGHAI": [
+    "China",
+    "CHN"
+  ],
+  "SHARM EL SHEIKH": [
+    "Egypt",
+    "EGY"
+  ],
+  "SHARM ELSHEIKH": [
+    "Egypt",
+    "EGY"
+  ],
+  "SHEFFIELD": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "SHENYANG": [
+    "China",
+    "CHN"
+  ],
+  "SHENZHEN": [
+    "China",
+    "CHN"
+  ],
+  "SHERBROOKE": [
+    "Canada",
+    "CAN"
+  ],
+  "SHREVEPORT, LA": [
+    "United States",
+    "USA"
+  ],
+  "SHREWSBURY": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "SHYMKENT": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "SIBENIK": [
+    "Croatia",
+    "CRO"
+  ],
+  "SIBIU": [
+    "Romania",
+    "ROU"
+  ],
+  "SIERRE": [
+    "Switzerland",
+    "SUI"
+  ],
+  "SINGAPORE": [
+    "Singapore",
+    "SGP"
+  ],
+  "SINGAPORE F1 FUTURES": [
+    "Singapore",
+    "SGP"
+  ],
+  "SINGAPORE F2 FUTURES": [
+    "Singapore",
+    "SGP"
+  ],
+  "SINGAPORE F3 FUTURES": [
+    "Singapore",
+    "SGP"
+  ],
+  "SINTRA": [
+    "Portugal",
+    "POR"
+  ],
+  "SIOFOK": [
+    "Hungary",
+    "HUN"
+  ],
+  "SION": [
+    "Switzerland",
+    "SUI"
+  ],
+  "SIOUX FALLS": [
+    "United States",
+    "USA"
+  ],
+  "SKOPJE": [
+    "North Macedonia",
+    "MKD"
+  ],
+  "SLOBOZIA": [
+    "Romania",
+    "ROU"
+  ],
+  "SLOVAK REPUBLIC F1 FUTURES": [
+    "Slovakia",
+    "SVK"
+  ],
+  "SLOVAK REPUBLIC F2 FUTURES": [
+    "Slovakia",
+    "SVK"
+  ],
+  "SLOVAK REPUBLIC F3 FUTURES": [
+    "Slovakia",
+    "SVK"
+  ],
+  "SLOVAK REPUBLIC F4 FUTURES": [
+    "Slovakia",
+    "SVK"
+  ],
+  "SLOVAKIA F1 FUTURES": [
+    "Slovakia",
+    "SVK"
+  ],
+  "SLOVAKIA F2 FUTURES": [
+    "Slovakia",
+    "SVK"
+  ],
+  "SLOVAKIA F3 FUTURES": [
+    "Slovakia",
+    "SVK"
+  ],
+  "SLOVAKIA F4 FUTURES": [
+    "Slovakia",
+    "SVK"
+  ],
+  "SLOVENIA F1 FUTURES": [
+    "Slovenia",
+    "SLO"
+  ],
+  "SLOVENIA F2 FUTURES": [
+    "Slovenia",
+    "SLO"
+  ],
+  "SLOVENIA F3 FUTURES": [
+    "Slovenia",
+    "SLO"
+  ],
+  "SLOVENJ GRADEC": [
+    "Slovenia",
+    "SLO"
+  ],
+  "SLOVENSKA BISTRICA": [
+    "Slovenia",
+    "SLO"
+  ],
+  "SLOVENSKA LUPCA": [
+    "Slovakia",
+    "SVK"
+  ],
+  "SLOVENSKE KONJICE": [
+    "Slovenia",
+    "SLO"
+  ],
+  "SOBOTA / ROKIETNICA": [
+    "Poland",
+    "POL"
+  ],
+  "SOBOTA/ROKIETNICA": [
+    "Poland",
+    "POL"
+  ],
+  "SOFIA": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "SOLAPUR": [
+    "India",
+    "IND"
+  ],
+  "SOLARINO": [
+    "Italy",
+    "ITA"
+  ],
+  "SOLIN": [
+    "Croatia",
+    "CRO"
+  ],
+  "SOLO": [
+    "Indonesia",
+    "INA"
+  ],
+  "SOMA BAY": [
+    "Egypt",
+    "EGY"
+  ],
+  "SOPHIA ANTIPOLIS": [
+    "France",
+    "FRA"
+  ],
+  "SOPO": [
+    "Portugal",
+    "POR"
+  ],
+  "SOPOT": [
+    "Poland",
+    "POL"
+  ],
+  "SOUSSE": [
+    "Tunisia",
+    "TUN"
+  ],
+  "SOUTH AFRICA F1 FUTURES": [
+    "South Africa",
+    "RSA"
+  ],
+  "SOUTH AFRICA F2 FUTURES": [
+    "South Africa",
+    "RSA"
+  ],
+  "SOUTH AFRICA F3 FUTURES": [
+    "South Africa",
+    "RSA"
+  ],
+  "SOUTH BEND": [
+    "United States",
+    "USA"
+  ],
+  "SOUTH BEND, IN": [
+    "United States",
+    "USA"
+  ],
+  "SOUTHAVEN, MS": [
+    "United States",
+    "USA"
+  ],
+  "SOUTHSEA": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "SOZOPOL": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "SPAIN F1 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F10 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F11 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F12 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F13 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F14 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F15 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F16 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F17 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F18 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F19 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F2 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F20 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F21 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F22 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F23 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F24 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F25 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F26 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F27 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F28 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F29 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F3 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F30 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F31 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F32 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F33 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F34 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F35 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F36 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F37 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F38 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F38 FUTURES (TENERIFE)": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F39 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F39 FUTURES (TENERIFE)": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F4 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F40 FUTURES (TENERIFE)": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F41 FUTURES (LANZAROTE)": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F42 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F5 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F6 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F7 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F8 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPAIN F9 FUTURES": [
+    "Spain",
+    "ESP"
+  ],
+  "SPLIT": [
+    "Croatia",
+    "CRO"
+  ],
+  "SPRING, TX": [
+    "United States",
+    "USA"
+  ],
+  "SRI LANKA F1 FUTURES": [
+    "Sri Lanka",
+    "SRI"
+  ],
+  "SRI LANKA F2 FUTURES": [
+    "Sri Lanka",
+    "SRI"
+  ],
+  "SRI LANKA F3 FUTURES": [
+    "Sri Lanka",
+    "SRI"
+  ],
+  "ST. BRIEUC": [
+    "France",
+    "FRA"
+  ],
+  "ST. ETIENNE": [
+    "France",
+    "FRA"
+  ],
+  "ST. PETERSBURG": [
+    "Russia",
+    "RUS"
+  ],
+  "ST. POELTEN": [
+    "Austria",
+    "AUT"
+  ],
+  "ST. REMY": [
+    "France",
+    "FRA"
+  ],
+  "ST.PETERSBURG": [
+    "Russia",
+    "RUS"
+  ],
+  "ST.POELTEN": [
+    "Austria",
+    "AUT"
+  ],
+  "STANFORD, CA": [
+    "United States",
+    "USA"
+  ],
+  "STARE SPLAVY": [
+    "Czechia",
+    "CZE"
+  ],
+  "STELLENBOSCH": [
+    "South Africa",
+    "RSA"
+  ],
+  "STEVE CARTER BATON ROUGE CHALLENGER": [
+    "United States",
+    "USA"
+  ],
+  "STILLWATER, OK": [
+    "United States",
+    "USA"
+  ],
+  "STOCKHOLM": [
+    "Sweden",
+    "SWE"
+  ],
+  "STOCKTON": [
+    "United States",
+    "USA"
+  ],
+  "STOCKTON, CA": [
+    "United States",
+    "USA"
+  ],
+  "STORE": [
+    "Slovenia",
+    "SLO"
+  ],
+  "STUTTGART": [
+    "Germany",
+    "GER"
+  ],
+  "STUTTGART-STAMMHEIM": [
+    "Germany",
+    "GER"
+  ],
+  "STUTTGART-VAIHINGEN": [
+    "Germany",
+    "GER"
+  ],
+  "SUMTER": [
+    "United States",
+    "USA"
+  ],
+  "SUMTER, SC": [
+    "United States",
+    "USA"
+  ],
+  "SUN CITY": [
+    "United States",
+    "USA"
+  ],
+  "SUNDERLAND": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "SUNRISE": [
+    "United States",
+    "USA"
+  ],
+  "SUNRISE, FL": [
+    "United States",
+    "USA"
+  ],
+  "SURBITON": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "SURPRISE, AZ": [
+    "United States",
+    "USA"
+  ],
+  "SUTTON": [
+    "United States",
+    "USA"
+  ],
+  "SUZHOU": [
+    "China",
+    "CHN"
+  ],
+  "SWAN HILL": [
+    "Australia",
+    "AUS"
+  ],
+  "SWEDEN F1 FUTURES": [
+    "Sweden",
+    "SWE"
+  ],
+  "SWEDEN F2 FUTURES": [
+    "Sweden",
+    "SWE"
+  ],
+  "SWEDEN F3 FUTURES": [
+    "Sweden",
+    "SWE"
+  ],
+  "SWEDEN F4 FUTURES": [
+    "Sweden",
+    "SWE"
+  ],
+  "SWEDEN F5 FUTURES": [
+    "Sweden",
+    "SWE"
+  ],
+  "SWEDEN F6 FUTURES": [
+    "Sweden",
+    "SWE"
+  ],
+  "SWEDEN F7 FUTURES": [
+    "Sweden",
+    "SWE"
+  ],
+  "SWITZERLAND F1 FUTURES": [
+    "Switzerland",
+    "SUI"
+  ],
+  "SWITZERLAND F2 FUTURES": [
+    "Switzerland",
+    "SUI"
+  ],
+  "SWITZERLAND F3 FUTURES": [
+    "Switzerland",
+    "SUI"
+  ],
+  "SWITZERLAND F4 FUTURES": [
+    "Switzerland",
+    "SUI"
+  ],
+  "SWITZERLAND F5 FUTURES": [
+    "Switzerland",
+    "SUI"
+  ],
+  "SWITZERLAND F6 FUTURES": [
+    "Switzerland",
+    "SUI"
+  ],
+  "SYDNEY": [
+    "Australia",
+    "AUS"
+  ],
+  "SZABOLCSVERESMART": [
+    "Hungary",
+    "HUN"
+  ],
+  "SZCZAWNO": [
+    "Poland",
+    "POL"
+  ],
+  "SZCZAWNO-ZDROJ": [
+    "Poland",
+    "POL"
+  ],
+  "SZCZECIN": [
+    "Poland",
+    "POL"
+  ],
+  "SZEGED": [
+    "Hungary",
+    "HUN"
+  ],
+  "SZEKESFEHERVAR": [
+    "Hungary",
+    "HUN"
+  ],
+  "SZEKESFEHEVAR": [
+    "Hungary",
+    "HUN"
+  ],
+  "SZENTENDRE": [
+    "Hungary",
+    "HUN"
+  ],
+  "S\u00c3O PAULO": [
+    "Brazil",
+    "BRA"
+  ],
+  "TABARKA": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TABASCO": [
+    "Mexico",
+    "MEX"
+  ],
+  "TABY": [
+    "Sweden",
+    "SWE"
+  ],
+  "TACARIGUA": [
+    "Venezuela",
+    "VEN"
+  ],
+  "TAINAN": [
+    "Taiwan",
+    "TPE"
+  ],
+  "TAIPEI": [
+    "Taiwan",
+    "TPE"
+  ],
+  "TAIZHOU": [
+    "China",
+    "CHN"
+  ],
+  "TAKASAKI": [
+    "Japan",
+    "JPN"
+  ],
+  "TALLAHASSEE": [
+    "United States",
+    "USA"
+  ],
+  "TALLAHASSEE, FL": [
+    "United States",
+    "USA"
+  ],
+  "TALLINN": [
+    "Estonia",
+    "EST"
+  ],
+  "TAMPA, FL": [
+    "United States",
+    "USA"
+  ],
+  "TAMPERE": [
+    "Finland",
+    "FIN"
+  ],
+  "TAMPICO": [
+    "United States",
+    "USA"
+  ],
+  "TAMWORTH": [
+    "Australia",
+    "AUS"
+  ],
+  "TANAGURA": [
+    "Japan",
+    "JPN"
+  ],
+  "TANGER": [
+    "Morocco",
+    "MAR"
+  ],
+  "TARAKAN": [
+    "Indonesia",
+    "INA"
+  ],
+  "TARGU JIU": [
+    "Romania",
+    "ROU"
+  ],
+  "TARGU MURES": [
+    "Romania",
+    "ROU"
+  ],
+  "TARRAGONA": [
+    "Spain",
+    "ESP"
+  ],
+  "TARSUS": [
+    "Turkey",
+    "TUR"
+  ],
+  "TARVISIO": [
+    "Italy",
+    "ITA"
+  ],
+  "TASHKENT": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "TAURANGA": [
+    "New Zealand",
+    "NZL"
+  ],
+  "TAUSTE": [
+    "Spain",
+    "ESP"
+  ],
+  "TAUSTE-ZARAGOZA": [
+    "Spain",
+    "ESP"
+  ],
+  "TAVIRA": [
+    "Portugal",
+    "POR"
+  ],
+  "TAY NINH": [
+    "Vietnam",
+    "VIE"
+  ],
+  "TBILISI": [
+    "Georgia",
+    "GEO"
+  ],
+  "TE ANAU": [
+    "New Zealand",
+    "NZL"
+  ],
+  "TEHRAN": [
+    "Iran",
+    "IRI"
+  ],
+  "TEL AVIV": [
+    "Israel",
+    "ISR"
+  ],
+  "TEL AVIV-RAMAT GAN": [
+    "Israel",
+    "ISR"
+  ],
+  "TELAVI": [
+    "Georgia",
+    "GEO"
+  ],
+  "TELDE": [
+    "Spain",
+    "ESP"
+  ],
+  "TELDE - L.P DE GRAN CANARIA": [
+    "Spain",
+    "ESP"
+  ],
+  "TELFS": [
+    "Austria",
+    "AUT"
+  ],
+  "TEMPE": [
+    "United States",
+    "USA"
+  ],
+  "TEMPLETON, CA": [
+    "United States",
+    "USA"
+  ],
+  "TEMUCO": [
+    "Chile",
+    "CHI"
+  ],
+  "TENERIFE": [
+    "Spain",
+    "ESP"
+  ],
+  "TERRASSA": [
+    "Spain",
+    "ESP"
+  ],
+  "TESSENDERLO": [
+    "Belgium",
+    "BEL"
+  ],
+  "THAILAND F1 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F10 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F11 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F12 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F2 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F3 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F4 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F5 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F6 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F7 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F8 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THAILAND F9 FUTURES": [
+    "Thailand",
+    "THA"
+  ],
+  "THE HAGUE": [
+    "Netherlands",
+    "NED"
+  ],
+  "THIONVILLE": [
+    "France",
+    "FRA"
+  ],
+  "TIANJIN": [
+    "China",
+    "CHN"
+  ],
+  "TIBERIAS": [
+    "Israel",
+    "ISR"
+  ],
+  "TIBURON": [
+    "United States",
+    "USA"
+  ],
+  "TIMARU": [
+    "New Zealand",
+    "NZL"
+  ],
+  "TIMISOARA": [
+    "Romania",
+    "ROU"
+  ],
+  "TINAJO": [
+    "Spain",
+    "ESP"
+  ],
+  "TLEMCEN": [
+    "Algeria",
+    "ALG"
+  ],
+  "TODI": [
+    "Italy",
+    "ITA"
+  ],
+  "TOGO F1 FUTURES": [
+    "Togo",
+    "TOG"
+  ],
+  "TOGO F2 FUTURES": [
+    "Togo",
+    "TOG"
+  ],
+  "TOKYO": [
+    "Japan",
+    "JPN"
+  ],
+  "TOKYO-ARIAKE": [
+    "Japan",
+    "JPN"
+  ],
+  "TOOWOOMBA": [
+    "Australia",
+    "AUS"
+  ],
+  "TORELLO": [
+    "Italy",
+    "ITA"
+  ],
+  "TORELL\u00d3": [
+    "Spain",
+    "ESP"
+  ],
+  "TORHOUT": [
+    "Belgium",
+    "BEL"
+  ],
+  "TORINO": [
+    "Italy",
+    "ITA"
+  ],
+  "TORONTO": [
+    "Canada",
+    "CAN"
+  ],
+  "TORRENT": [
+    "Spain",
+    "ESP"
+  ],
+  "TORUN": [
+    "Poland",
+    "POL"
+  ],
+  "TOSSA DE MAR": [
+    "Spain",
+    "ESP"
+  ],
+  "TOULOUSE": [
+    "France",
+    "FRA"
+  ],
+  "TOULOUSE-BALMA": [
+    "France",
+    "FRA"
+  ],
+  "TOYAMA": [
+    "Japan",
+    "JPN"
+  ],
+  "TOYOTA": [
+    "Saudi Arabia",
+    "KSA"
+  ],
+  "TRABZON": [
+    "Turkey",
+    "TUR"
+  ],
+  "TRANI": [
+    "Italy",
+    "ITA"
+  ],
+  "TRARALGON": [
+    "Australia",
+    "AUS"
+  ],
+  "TRELEW": [
+    "Argentina",
+    "ARG"
+  ],
+  "TRENTO": [
+    "Italy",
+    "ITA"
+  ],
+  "TRIER": [
+    "Germany",
+    "GER"
+  ],
+  "TRIESTE": [
+    "Italy",
+    "ITA"
+  ],
+  "TRIMBACH": [
+    "France",
+    "FRA"
+  ],
+  "TRNAVA": [
+    "Slovakia",
+    "SVK"
+  ],
+  "TROIS-RIVIERES": [
+    "Canada",
+    "CAN"
+  ],
+  "TROIS-RIVI\u00c8RES": [
+    "Canada",
+    "CAN"
+  ],
+  "TROISDORF": [
+    "Germany",
+    "GER"
+  ],
+  "TROYES": [
+    "France",
+    "FRA"
+  ],
+  "TRUJILLO": [
+    "Peru",
+    "PER"
+  ],
+  "TSAGHKADZOR": [
+    "Armenia",
+    "ARM"
+  ],
+  "TSUKUBA": [
+    "Japan",
+    "JPN"
+  ],
+  "TUCEPI": [
+    "Croatia",
+    "CRO"
+  ],
+  "TUCSON, AZ": [
+    "United States",
+    "USA"
+  ],
+  "TUCUMAN": [
+    "Argentina",
+    "ARG"
+  ],
+  "TULLN": [
+    "Austria",
+    "AUT"
+  ],
+  "TULSA": [
+    "United States",
+    "USA"
+  ],
+  "TULSA, OK": [
+    "United States",
+    "USA"
+  ],
+  "TUNIS": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F1 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F10 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F11 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F12 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F13 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F14 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F15 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F16 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F17 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F18 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F19 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F2 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F20 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F21 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F22 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F23 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F24 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F25 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F26 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F27 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F28 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F29 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F3 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F30 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F31 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F32 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F33 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F34 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F35 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F36 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F37 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F38 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F39 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F4 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F40 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F41 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F42 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F43 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F44 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F45 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F5 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F6 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F7 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F8 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TUNISIA F9 FUTURES": [
+    "Tunisia",
+    "TUN"
+  ],
+  "TURIN": [
+    "Italy",
+    "ITA"
+  ],
+  "TURKEY F1 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F10 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F11 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F12 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F13 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F14 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F15 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F16 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F17 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F18 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F19 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F2 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F20 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F21 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F22 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F23 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F24 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F25 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F26 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F27 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F28 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F29 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F3 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F30 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F31 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F32 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F33 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F34 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F35 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F36 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F37 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F38 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F39 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F4 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F40 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F41 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F42 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F43 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F44 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F45 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F46 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F47 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F48 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F49 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F5 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F50 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F51 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F52 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F6 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F7 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F8 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKEY F9 FUTURES": [
+    "Turkey",
+    "TUR"
+  ],
+  "TURKU": [
+    "Finland",
+    "FIN"
+  ],
+  "TWEED HEADS": [
+    "Australia",
+    "AUS"
+  ],
+  "TYLER": [
+    "United States",
+    "USA"
+  ],
+  "TYLER, TX": [
+    "United States",
+    "USA"
+  ],
+  "TYUMEN": [
+    "Russia",
+    "RUS"
+  ],
+  "T\u00c4BY": [
+    "Sweden",
+    "SWE"
+  ],
+  "UEBERLINGEN": [
+    "Germany",
+    "GER"
+  ],
+  "UGANDA F1 FUTURES": [
+    "Uganda",
+    "UGA"
+  ],
+  "UGANDA F2 FUTURES": [
+    "Uganda",
+    "UGA"
+  ],
+  "UGANDA F3 FUTURES": [
+    "Uganda",
+    "UGA"
+  ],
+  "UGANDA F4 FUTURES": [
+    "Uganda",
+    "UGA"
+  ],
+  "UKRAINE F1 FUTURES": [
+    "Ukraine",
+    "UKR"
+  ],
+  "UKRAINE F2 FUTURES": [
+    "Ukraine",
+    "UKR"
+  ],
+  "UKRAINE F3 FUTURES": [
+    "Ukraine",
+    "UKR"
+  ],
+  "UKRAINE F4 FUTURES": [
+    "Ukraine",
+    "UKR"
+  ],
+  "UKRAINE F5 FUTURES": [
+    "Ukraine",
+    "UKR"
+  ],
+  "UKRAINE F6 FUTURES": [
+    "Ukraine",
+    "UKR"
+  ],
+  "UKRAINE F7 FUTURES": [
+    "Ukraine",
+    "UKR"
+  ],
+  "UKRAINE F8 FUTURES": [
+    "Ukraine",
+    "UKR"
+  ],
+  "UKRAINE F9 FUTURES": [
+    "Ukraine",
+    "UKR"
+  ],
+  "ULANQAB": [
+    "China",
+    "CHN"
+  ],
+  "ULCINJ": [
+    "Montenegro",
+    "MNE"
+  ],
+  "UMAG": [
+    "Croatia",
+    "CRO"
+  ],
+  "UNITED ARAB EMIRATES F1 FUTURES": [
+    "United Arab Emirates",
+    "UAE"
+  ],
+  "URIAGE": [
+    "France",
+    "FRA"
+  ],
+  "URUGUAY F1 FUTURES": [
+    "Uruguay",
+    "URU"
+  ],
+  "URUGUAY F2 FUTURES": [
+    "Uruguay",
+    "URU"
+  ],
+  "URUGUAY F3 FUTURES": [
+    "Uruguay",
+    "URU"
+  ],
+  "USA F1 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F10 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F11 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F12 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F12 FUTURES (TOURNAMENT REMOVED)": [
+    "Usa",
+    "USA"
+  ],
+  "USA F13 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F14 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F15 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F16 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F16A FUTURES": [
+    "United States",
+    "USA"
+  ],
+  "USA F16B FUTURES": [
+    "United States",
+    "USA"
+  ],
+  "USA F17 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F18 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F19 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F19B FUTURES": [
+    "United States",
+    "USA"
+  ],
+  "USA F2 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F20 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F21 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F22 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F23 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F24 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F25 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F26 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F27 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F28 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F28B FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F29 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F3 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F30 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F31 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F32 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F33 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F34 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F35 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F36 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F37 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F38 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F39 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F4 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F40 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F5 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F6 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F7 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F8 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USA F9 FUTURES": [
+    "Usa",
+    "USA"
+  ],
+  "USAK": [
+    "Turkey",
+    "TUR"
+  ],
+  "USLAR": [
+    "Germany",
+    "GER"
+  ],
+  "UST-KAMENOGORSK": [
+    "Kazakhstan",
+    "KAZ"
+  ],
+  "UZBEKISTAN F1 FUTURES": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "UZBEKISTAN F2 FUTURES": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "UZBEKISTAN F3 FUTURES": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "UZBEKISTAN F4 FUTURES": [
+    "Uzbekistan",
+    "UZB"
+  ],
+  "VAASA": [
+    "Finland",
+    "FIN"
+  ],
+  "VACARIA": [
+    "Brazil",
+    "BRA"
+  ],
+  "VALE DO LOBO": [
+    "Brazil",
+    "BRA"
+  ],
+  "VALENCIA": [
+    "Spain",
+    "ESP"
+  ],
+  "VALL DE UXO": [
+    "Spain",
+    "ESP"
+  ],
+  "VALLADOLID": [
+    "Spain",
+    "ESP"
+  ],
+  "VALLDOREIX": [
+    "Spain",
+    "ESP"
+  ],
+  "VALLDUXO": [
+    "Spain",
+    "ESP"
+  ],
+  "VALLEDUPAR": [
+    "Colombia",
+    "COL"
+  ],
+  "VANCOUVER": [
+    "Canada",
+    "CAN"
+  ],
+  "VANCOUVER, BC": [
+    "Canada",
+    "CAN"
+  ],
+  "VARBERG": [
+    "Sweden",
+    "SWE"
+  ],
+  "VARNA": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "VARNAMO": [
+    "Sweden",
+    "SWE"
+  ],
+  "VEIGY-FONCENEX": [
+    "France",
+    "FRA"
+  ],
+  "VEJLE": [
+    "Denmark",
+    "DEN"
+  ],
+  "VELENJE": [
+    "Slovenia",
+    "SLO"
+  ],
+  "VENDRYNE": [
+    "Czechia",
+    "CZE"
+  ],
+  "VENEZUELA F1 FUTURES": [
+    "Venezuela",
+    "VEN"
+  ],
+  "VENEZUELA F2 FUTURES": [
+    "Venezuela",
+    "VEN"
+  ],
+  "VENEZUELA F3 FUTURES": [
+    "Venezuela",
+    "VEN"
+  ],
+  "VENEZUELA F4 FUTURES": [
+    "Venezuela",
+    "VEN"
+  ],
+  "VENEZUELA F5 FUTURES": [
+    "Venezuela",
+    "VEN"
+  ],
+  "VENEZUELA F8 FUTURES": [
+    "Venezuela",
+    "VEN"
+  ],
+  "VENEZUELA F9 FUTURES": [
+    "Venezuela",
+    "VEN"
+  ],
+  "VERACRUZ": [
+    "Mexico",
+    "MEX"
+  ],
+  "VERBIER": [
+    "Switzerland",
+    "SUI"
+  ],
+  "VERCELLI": [
+    "Italy",
+    "ITA"
+  ],
+  "VERO BEACH, FL": [
+    "United States",
+    "USA"
+  ],
+  "VERONA": [
+    "Italy",
+    "ITA"
+  ],
+  "VERSMOLD": [
+    "Germany",
+    "GER"
+  ],
+  "VIC": [
+    "Spain",
+    "ESP"
+  ],
+  "VICENZA": [
+    "Italy",
+    "ITA"
+  ],
+  "VICTORIA": [
+    "Australia",
+    "AUS"
+  ],
+  "VICTORIA, BC": [
+    "Australia",
+    "AUS"
+  ],
+  "VICTORIAVILLE": [
+    "Canada",
+    "CAN"
+  ],
+  "VIENNA": [
+    "Austria",
+    "AUT"
+  ],
+  "VIERUMAKI": [
+    "Finland",
+    "FIN"
+  ],
+  "VIETNAM F1 FUTURES": [
+    "Vietnam",
+    "VIE"
+  ],
+  "VIETNAM F2 FUTURES": [
+    "Vietnam",
+    "VIE"
+  ],
+  "VIETNAM F3 FUTURES": [
+    "Vietnam",
+    "VIE"
+  ],
+  "VIETNAM F4 FUTURES": [
+    "Vietnam",
+    "VIE"
+  ],
+  "VIETNAM F5 FUTURES": [
+    "Vietnam",
+    "VIE"
+  ],
+  "VIETNAM F6 FUTURES": [
+    "Vietnam",
+    "VIE"
+  ],
+  "VIETNAM F7 FUTURES": [
+    "Vietnam",
+    "VIE"
+  ],
+  "VIETNAM F8 FUTURES": [
+    "Vietnam",
+    "VIE"
+  ],
+  "VIETNAM F9 FUTURES": [
+    "Vietnam",
+    "VIE"
+  ],
+  "VIGO": [
+    "Spain",
+    "ESP"
+  ],
+  "VILA REAL DE SANTO ANTONIO": [
+    "Portugal",
+    "POR"
+  ],
+  "VILA REAL DE SANTO ANT\u00d3NIO": [
+    "Portugal",
+    "POR"
+  ],
+  "VILLA ALLENDE": [
+    "Argentina",
+    "ARG"
+  ],
+  "VILLA CARLOS PAZ": [
+    "Argentina",
+    "ARG"
+  ],
+  "VILLA DEL DIQUE": [
+    "Argentina",
+    "ARG"
+  ],
+  "VILLA DOLORES": [
+    "Argentina",
+    "ARG"
+  ],
+  "VILLA MARIA": [
+    "Argentina",
+    "ARG"
+  ],
+  "VILLACH": [
+    "Austria",
+    "AUT"
+  ],
+  "VILLAHERMOSA": [
+    "Mexico",
+    "MEX"
+  ],
+  "VILLAVICENCIO": [
+    "Colombia",
+    "COL"
+  ],
+  "VILLENA": [
+    "Spain",
+    "ESP"
+  ],
+  "VILLENEUVE D'ASCQ": [
+    "France",
+    "FRA"
+  ],
+  "VILLENEUVE-LOUBET": [
+    "France",
+    "FRA"
+  ],
+  "VILLERS LES NANCY": [
+    "France",
+    "FRA"
+  ],
+  "VILLERS-LES-NANCY": [
+    "France",
+    "FRA"
+  ],
+  "VILLERS-L\u00c8S-NANCY": [
+    "France",
+    "FRA"
+  ],
+  "VILNIUS": [
+    "Lithuania",
+    "LTU"
+  ],
+  "VINA DEL MAR": [
+    "Chile",
+    "CHI"
+  ],
+  "VINAROS": [
+    "Spain",
+    "ESP"
+  ],
+  "VINAROZ": [
+    "Spain",
+    "ESP"
+  ],
+  "VINKOVCI": [
+    "Croatia",
+    "CRO"
+  ],
+  "VISERBA": [
+    "Italy",
+    "ITA"
+  ],
+  "VISERBA DI RIMINI": [
+    "Italy",
+    "ITA"
+  ],
+  "VITORIA - GASTEIZ": [
+    "Spain",
+    "ESP"
+  ],
+  "VITORIA-GASTEIZ": [
+    "Spain",
+    "ESP"
+  ],
+  "VOGAU": [
+    "Austria",
+    "AUT"
+  ],
+  "VRHNIKA": [
+    "Slovenia",
+    "SLO"
+  ],
+  "VRNJACKA BANJA": [
+    "Serbia",
+    "SRB"
+  ],
+  "VYSHKOVO": [
+    "Ukraine",
+    "UKR"
+  ],
+  "V\u00c4RNAMO": [
+    "Sweden",
+    "SWE"
+  ],
+  "V\u00c4XJ\u00d6": [
+    "Sweden",
+    "SWE"
+  ],
+  "W100+H DUBAI": [
+    "United Arab Emirates",
+    "UAE"
+  ],
+  "W100+H LA BISBAL D'EMPORDA": [
+    "Spain",
+    "ESP"
+  ],
+  "W25+H BAD SAULGAU": [
+    "Germany",
+    "GER"
+  ],
+  "W25+H IRAPUATO": [
+    "Mexico",
+    "MEX"
+  ],
+  "W25+H LEIPZIG": [
+    "Germany",
+    "GER"
+  ],
+  "W25+H MONTPELLIER": [
+    "France",
+    "FRA"
+  ],
+  "W25+H PALMA DEL RIO": [
+    "Brazil",
+    "BRA"
+  ],
+  "W25+H PENZA": [
+    "Russia",
+    "RUS"
+  ],
+  "W35+H LEIPZIG": [
+    "Germany",
+    "GER"
+  ],
+  "W50+H KOKSIJDE": [
+    "Belgium",
+    "BEL"
+  ],
+  "W50+H LEIPZIG": [
+    "Germany",
+    "GER"
+  ],
+  "W50+H PALMA DEL R\u00cdO": [
+    "Brazil",
+    "BRA"
+  ],
+  "W50+H PAZARDZHIK": [
+    "Bulgaria",
+    "BUL"
+  ],
+  "W60+H BENDIGO": [
+    "Australia",
+    "AUS"
+  ],
+  "W60+H IRAPUATO": [
+    "Mexico",
+    "MEX"
+  ],
+  "W60+H LA BISBAL D'EMPORDA": [
+    "Spain",
+    "ESP"
+  ],
+  "W60+H SAINT-MALO": [
+    "France",
+    "FRA"
+  ],
+  "W60+H SANTIAGO": [
+    "Cuba",
+    "CUB"
+  ],
+  "W60+H TORUN": [
+    "Poland",
+    "POL"
+  ],
+  "W60+H VALENCIA": [
+    "Peru",
+    "PER"
+  ],
+  "W75+H POITIERS": [
+    "France",
+    "FRA"
+  ],
+  "W75+H PORTO": [
+    "Argentina",
+    "ARG"
+  ],
+  "W75+H SAGUENAY": [
+    "Canada",
+    "CAN"
+  ],
+  "W75+H SAINT-GAUDENS": [
+    "France",
+    "FRA"
+  ],
+  "W75+H VERO BEACH, FL": [
+    "United States",
+    "USA"
+  ],
+  "W80+H VALENCIA": [
+    "Peru",
+    "PER"
+  ],
+  "WACO": [
+    "United States",
+    "USA"
+  ],
+  "WACO, TX": [
+    "United States",
+    "USA"
+  ],
+  "WAGGA WAGGA": [
+    "Australia",
+    "AUS"
+  ],
+  "WANFERCEE-BAULET": [
+    "Belgium",
+    "BEL"
+  ],
+  "WANFERC\u00c9E-BAULET": [
+    "Belgium",
+    "BEL"
+  ],
+  "WARMBAD VILLACH": [
+    "Austria",
+    "AUT"
+  ],
+  "WARMBAD-VILLACH": [
+    "Austria",
+    "AUT"
+  ],
+  "WARSAW": [
+    "Poland",
+    "POL"
+  ],
+  "WASHINGTON": [
+    "United States",
+    "USA"
+  ],
+  "WELLINGTON": [
+    "New Zealand",
+    "NZL"
+  ],
+  "WELS": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "WENSHAN": [
+    "China",
+    "CHN"
+  ],
+  "WESLEY CHAPEL, FL": [
+    "United States",
+    "USA"
+  ],
+  "WESTON, FL": [
+    "United States",
+    "USA"
+  ],
+  "WETZIKON": [
+    "Switzerland",
+    "SUI"
+  ],
+  "WETZLAR": [
+    "Germany",
+    "GER"
+  ],
+  "WICHITA": [
+    "United States",
+    "USA"
+  ],
+  "WICHITA, KS": [
+    "United States",
+    "USA"
+  ],
+  "WIESBADEN": [
+    "Germany",
+    "GER"
+  ],
+  "WILLIAMSBURG, VA": [
+    "United States",
+    "USA"
+  ],
+  "WINNETKA": [
+    "United States",
+    "USA"
+  ],
+  "WINNIPEG": [
+    "Canada",
+    "CAN"
+  ],
+  "WINSTON SALEM": [
+    "United States",
+    "USA"
+  ],
+  "WINSTON-SALEM": [
+    "United States",
+    "USA"
+  ],
+  "WINSTON-SALEM, NC": [
+    "United States",
+    "USA"
+  ],
+  "WIRRAL": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "WODONGA": [
+    "Australia",
+    "AUS"
+  ],
+  "WOKING": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "WOLFSBURG": [
+    "Germany",
+    "GER"
+  ],
+  "WREXHAM": [
+    "United Kingdom",
+    "GBR"
+  ],
+  "WROCLAW": [
+    "Poland",
+    "POL"
+  ],
+  "WUHAI": [
+    "China",
+    "CHN"
+  ],
+  "WUHAN": [
+    "China",
+    "CHN"
+  ],
+  "WUNING": [
+    "China",
+    "CHN"
+  ],
+  "WUXI": [
+    "China",
+    "CHN"
+  ],
+  "XALAPA": [
+    "Mexico",
+    "MEX"
+  ],
+  "XATIVA": [
+    "Spain",
+    "ESP"
+  ],
+  "XI'AN": [
+    "China",
+    "CHN"
+  ],
+  "XIAMEN": [
+    "China",
+    "CHN"
+  ],
+  "XUZHOU": [
+    "China",
+    "CHN"
+  ],
+  "YANAGAWA": [
+    "Japan",
+    "JPN"
+  ],
+  "YANAGAWA CITY": [
+    "Japan",
+    "JPN"
+  ],
+  "YECLA": [
+    "Spain",
+    "ESP"
+  ],
+  "YEONG WOL": [
+    "South Korea",
+    "KOR"
+  ],
+  "YEONGWOL": [
+    "South Korea",
+    "KOR"
+  ],
+  "YERBA BUENA": [
+    "United States",
+    "USA"
+  ],
+  "YINCHUAN": [
+    "China",
+    "CHN"
+  ],
+  "YOKKAICHI": [
+    "Japan",
+    "JPN"
+  ],
+  "YOKOHAMA": [
+    "Japan",
+    "JPN"
+  ],
+  "YSTAD": [
+    "Sweden",
+    "SWE"
+  ],
+  "YUXI": [
+    "China",
+    "CHN"
+  ],
+  "ZADAR": [
+    "Croatia",
+    "CRO"
+  ],
+  "ZAGREB": [
+    "Croatia",
+    "CRO"
+  ],
+  "ZAHRA": [
+    "Iran",
+    "IRI"
+  ],
+  "ZAJECAR": [
+    "Serbia",
+    "SRB"
+  ],
+  "ZAPOPAN": [
+    "Mexico",
+    "MEX"
+  ],
+  "ZARAGOZA": [
+    "Spain",
+    "ESP"
+  ],
+  "ZAWADA": [
+    "Czechia",
+    "CZE"
+  ],
+  "ZEELAND": [
+    "Netherlands",
+    "NED"
+  ],
+  "ZELL AM HARMERSBACH": [
+    "Germany",
+    "GER"
+  ],
+  "ZEPHYRHILLS, FL": [
+    "United States",
+    "USA"
+  ],
+  "ZHANGJIAGANG": [
+    "China",
+    "CHN"
+  ],
+  "ZHENGZHOU": [
+    "China",
+    "CHN"
+  ],
+  "ZHUHAI": [
+    "China",
+    "CHN"
+  ],
+  "ZIELONA GORA": [
+    "Poland",
+    "POL"
+  ],
+  "ZILINA": [
+    "Slovakia",
+    "SVK"
+  ],
+  "ZIMBABWE F1 FUTURES": [
+    "Zimbabwe",
+    "ZIM"
+  ],
+  "ZIMBABWE F2 FUTURES": [
+    "Zimbabwe",
+    "ZIM"
+  ],
+  "ZIMBABWE F3 FUTURES": [
+    "Zimbabwe",
+    "ZIM"
+  ],
+  "ZLATIBOR": [
+    "Serbia",
+    "SRB"
+  ],
+  "ZUG": [
+    "Switzerland",
+    "SUI"
+  ],
+  "\u00dcBERLINGEN": [
+    "Germany",
+    "GER"
+  ]
+}

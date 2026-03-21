@@ -5,8 +5,15 @@ This module provides mappings and helper functions to normalize country names,
 convert cities to countries, and look up IOC (International Olympic Committee)
 country codes. This is essential for standardizing location data from different
 sources (ATP, WTA, ITF, betting sites) which may use different naming conventions.
+
+City→country lookups are backed by scripts/city_country_cache.json, which contains
+~2600 tennis city mappings built via Nominatim geocoding. To add new cities, either:
+  1. Add them manually to the cache JSON file
+  2. Re-run scripts/backfill_tournament_country.py which will geocode unknowns
 """
 
+import json
+from pathlib import Path
 from typing import Optional
 
 # Comprehensive mapping of country names to 3-letter IOC codes.
@@ -15,9 +22,12 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "Albania": "ALB",
     "Algeria": "ALG",
     "Andorra": "AND",
+    "Angola": "ANG",
     "Argentina": "ARG",
+    "Armenia": "ARM",
     "Australia": "AUS",
     "Austria": "AUT",
+    "Azerbaijan": "AZE",
     "Bahamas": "BAH",
     "Bahrain": "BRN",
     "Bangladesh": "BAN",
@@ -32,6 +42,7 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "Britain": "GBR",
     "Bulgaria": "BUL",
     "Burkina Faso": "BUR",
+    "Burundi": "BDI",
     "Cambodia": "CAM",
     "Cameroon": "CMR",
     "Canada": "CAN",
@@ -51,6 +62,7 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "DR Congo": "COD",
     "Democratic Republic of the Congo": "COD",
     "Denmark": "DEN",
+    "Djibouti": "DJI",
     "Dominican Republic": "DOM",
     "Ecuador": "ECU",
     "Egypt": "EGY",
@@ -60,11 +72,13 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "Ethiopia": "ETH",
     "Finland": "FIN",
     "France": "FRA",
+    "Gabon": "GAB",
     "Georgia": "GEO",
     "Germany": "GER",
     "Ghana": "GHA",
     "Great Britain": "GBR",
     "Greece": "GRE",
+    "Guam": "GUM",
     "Guatemala": "GUA",
     "Haiti": "HAI",
     "Honduras": "HON",
@@ -80,6 +94,7 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "Israel": "ISR",
     "Italy": "ITA",
     "Ivory Coast": "CIV",
+    "Côte d'Ivoire": "CIV",
     "Jamaica": "JAM",
     "Japan": "JPN",
     "Jordan": "JOR",
@@ -90,6 +105,7 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "Laos": "LAO",
     "Latvia": "LAT",
     "Lebanon": "LBN",
+    "Libya": "LBA",
     "Liechtenstein": "LIE",
     "Lithuania": "LTU",
     "Luxembourg": "LUX",
@@ -97,6 +113,7 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "Malaysia": "MAS",
     "Mali": "MLI",
     "Malta": "MLT",
+    "Mauritius": "MRI",
     "Mexico": "MEX",
     "Moldova": "MDA",
     "Monaco": "MON",
@@ -107,6 +124,7 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "Myanmar": "MYA",
     "Nepal": "NEP",
     "Netherlands": "NED",
+    "Nicaragua": "NCA",
     "New Zealand": "NZL",
     "Niger": "NIG",
     "Nigeria": "NGR",
@@ -162,282 +180,39 @@ COUNTRY_TO_IOC: dict[str, str] = {
     "Zimbabwe": "ZIM",
 }
 
-# Mapping of tennis tournament cities to their country names.
-# Keys match city names in our database, values must exist in COUNTRY_TO_IOC keys.
-CITY_TO_COUNTRY: dict[str, str] = {
-    "'s-Hertogenbosch": "Netherlands",
-    "Abidjan": "Ivory Coast",
-    "Acapulco": "Mexico",
-    "Adelaide": "Australia",
-    "Aix-en-Provence": "France",
-    "Almaty": "Kazakhstan",
-    "Antofagasta": "Chile",
-    "Astana": "Kazakhstan",
-    "Asuncion": "Paraguay",
-    "Athens": "Greece",
-    "Atlanta": "United States",
-    "Auckland": "New Zealand",
-    "Augsburg": "Germany",
-    "Bad Waltersdorf": "Austria",
-    "Barcelona": "Spain",
-    "Barletta": "Italy",
-    "Barranquilla": "Colombia",
-    "Basel": "Switzerland",
-    "Bastad": "Sweden",
-    "Beijing": "China",
-    "Belgrade": "Serbia",
-    "Bengaluru": "India",
-    "Bergamo": "Italy",
-    "Biella": "Italy",
-    "Birmingham": "United Kingdom",
-    "Blois": "France",
-    "Bloomfield Hills": "United States",
-    "Bogota": "Colombia",
-    "Bologna": "Italy",
-    "Bonn": "Germany",
-    "Bordeaux": "France",
-    "Braga": "Portugal",
-    "Brasov": "Romania",
-    "Bratislava": "Slovakia",
-    "Braunschweig": "Germany",
-    "Brazzaville": "Congo",
-    "Brest": "France",
-    "Brisbane": "Australia",
-    "Brussels": "Belgium",
-    "Bucharest": "Romania",
-    "Buenos Aires": "Argentina",
-    "Bunschoten": "Netherlands",
-    "Burnie": "Australia",
-    "Busan": "South Korea",
-    "Cagliari": "Italy",
-    "Calgary": "Canada",
-    "Cali": "Colombia",
-    "Campinas": "Brazil",
-    "Canberra": "Australia",
-    "Cancun": "Mexico",
-    "Cap Cana": "Dominican Republic",
-    "Cary": "United States",
-    "Cassis": "France",
-    "Cesenatico": "Italy",
-    "Champaign": "United States",
-    "Charleston": "United States",
-    "Charlottesville": "United States",
-    "Chengdu": "China",
-    "Chennai": "India",
-    "Cherbourg": "France",
-    "Chicago": "United States",
-    "Chisinau": "Moldova",
-    "Cincinnati": "United States",
-    "Cleveland": "United States",
-    "Columbus": "United States",
-    "Como": "Italy",
-    "Concepcion": "Chile",
-    "Cordenons": "Italy",
-    "Cordoba": "Argentina",
-    "Costa do Sauipe": "Brazil",
-    "Curitiba": "Brazil",
-    "Dallas": "United States",
-    "Delray Beach": "United States",
-    "Doha": "Qatar",
-    "Drummondville": "Canada",
-    "Dubai": "UAE",
-    "Eastbourne": "United Kingdom",
-    "Estoril": "Portugal",
-    "Fairfield": "United States",
-    "Florianopolis": "Brazil",
-    "Francavilla al Mare": "Italy",
-    "Geneva": "Switzerland",
-    "Genoa": "Italy",
-    "Girona": "Spain",
-    "Glasgow": "United Kingdom",
-    "Granby": "Canada",
-    "Grodzisk Mazowiecki": "Poland",
-    "Gstaad": "Switzerland",
-    "Guangzhou": "China",
-    "Guayaquil": "Ecuador",
-    "Gwangju": "South Korea",
-    "Hagen": "Germany",
-    "Halle": "Germany",
-    "Hamburg": "Germany",
-    "Hangzhou": "China",
-    "Heilbronn - Bad Rappenau": "Germany",
-    "Helsinki": "Finland",
-    "Hersonissos": "Greece",
-    "Hong Kong": "China",
-    "Houston": "United States",
-    "Iasi": "Romania",
-    "Ibague": "Colombia",
-    "Ilkley": "United Kingdom",
-    "Indian Wells": "United States",
-    "Islamabad": "Pakistan",
-    "Istanbul": "Turkey",
-    "Itajai": "Brazil",
-    "Jeddah": "Saudi Arabia",
-    "Jinan": "China",
-    "Jingshan": "China",
-    "Karlsruhe": "Germany",
-    "Kigali": "Rwanda",
-    "Kitzbuhel": "Austria",
-    "Knoxville": "United States",
-    "Kobe": "Japan",
-    "Koblenz": "Germany",
-    "Las Vegas": "United States",
-    "Lexington": "United States",
-    "Liberec": "Czech Republic",
-    "Lille": "France",
-    "Lima": "Peru",
-    "Lincoln": "United States",
-    "Lisbon": "Portugal",
-    "Little Rock": "United States",
-    "London": "United Kingdom",
-    "Los Cabos": "Mexico",
-    "Lugano": "Switzerland",
-    "Lyon": "France",
-    "Madrid": "Spain",
-    "Maia": "Portugal",
-    "Mallorca": "Spain",
-    "Manacor": "Spain",
-    "Manama": "Bahrain",
-    "Manzanillo": "Mexico",
-    "Marrakech": "Morocco",
-    "Marseille": "France",
-    "Matsuyama": "Japan",
-    "Mauthausen": "Austria",
-    "Melbourne": "Australia",
-    "Menorca": "Spain",
-    "Merida": "Mexico",
-    "Metz": "France",
-    "Mexico City": "Mexico",
-    "Miami": "United States",
-    "Milan": "Italy",
-    "Modena": "Italy",
-    "Monastir": "Tunisia",
-    "Monte-Carlo": "Monaco",
-    "Montemar": "Chile",
-    "Montevideo": "Uruguay",
-    "Montpellier": "France",
-    "Montreal": "Canada",
-    "Monza": "Italy",
-    "Morelia": "Mexico",
-    "Morelos": "Mexico",
-    "Mouilleron le Captif": "France",
-    "Munich": "Germany",
-    "Murcia": "Spain",
-    "Naples": "Italy",
-    "New Delhi": "India",
-    "New York": "United States",
-    "Newport": "United States",
-    "Nonthaburi": "Thailand",
-    "Nottingham": "United Kingdom",
-    "Noumea": "France",
-    "Oeiras": "Portugal",
-    "Olbia": "Italy",
-    "Orleans": "France",
-    "Ostrava": "Czech Republic",
-    "Ottignies-Louvain-La-Neuve": "Belgium",
-    "Paris": "France",
-    "Pau": "France",
-    "Perth-Sydney": "Australia",
-    "Perugia": "Italy",
-    "Phan Thiet": "Vietnam",
-    "Phoenix": "United States",
-    "Piracicaba": "Brazil",
-    "Playford": "Australia",
-    "Porto": "Portugal",
-    "Porto Alegre": "Brazil",
-    "Poznan": "Poland",
-    "Pozoblanco": "Spain",
-    "Prague": "Czech Republic",
-    "Prostejov": "Czech Republic",
-    "Puerto Vallarta": "Mexico",
-    "Pune": "India",
-    "Punta del Este": "Uruguay",
-    "Quimper": "France",
-    "Rennes": "France",
-    "Rio de Janeiro": "Brazil",
-    "Roanne": "France",
-    "Rome": "Italy",
-    "Rosario": "Argentina",
-    "Rotterdam": "Netherlands",
-    "Rovereto": "Italy",
-    "Royan": "France",
-    "Saint-Tropez": "France",
-    "Salzburg": "Austria",
-    "San Diego": "United States",
-    "San Luis Potosi": "Mexico",
-    "San Marino": "San Marino",
-    "San Miguel de Tucuman": "Argentina",
-    "Santa Cruz": "Bolivia",
-    "Santa Cruz De La Sierra": "Bolivia",
-    "Santa Fe": "Argentina",
-    "Santiago": "Chile",
-    "Santo Domingo": "Dominican Republic",
-    "Santos": "Brazil",
-    "Sao Leopoldo": "Brazil",
-    "São Paulo": "Brazil",
-    "Sarasota": "United States",
-    "Sassuolo": "Italy",
-    "Savannah": "United States",
-    "Segovia": "Spain",
-    "Seoul": "South Korea",
-    "Seville": "Spain",
-    "Shanghai": "China",
-    "Shenzhen": "China",
-    "Sibiu": "Romania",
-    "Sioux Falls": "United States",
-    "Skopje": "North Macedonia",
-    "Sofia": "Bulgaria",
-    "Soma Bay": "Egypt",
-    "Split": "Croatia",
-    "St. Brieuc": "France",
-    "Stockholm": "Sweden",
-    "Stuttgart": "Germany",
-    "Sumter": "United States",
-    "Surbiton": "United Kingdom",
-    "Suzhou": "China",
-    "Sydney": "Australia",
-    "Szczecin": "Poland",
-    "Szekesfehevar": "Hungary",
-    "Taipei": "Taiwan",
-    "Tallahassee": "United States",
-    "Tampere": "Finland",
-    "Targu Mures": "Romania",
-    "Tbilisi": "Georgia",
-    "Temuco": "Chile",
-    "Tenerife": "Spain",
-    "Thionville": "France",
-    "Tiburon": "United States",
-    "Todi": "Italy",
-    "Tokyo": "Japan",
-    "Trieste": "Italy",
-    "Troyes": "France",
-    "Tulln": "Austria",
-    "Tunis": "Tunisia",
-    "Turin": "Italy",
-    "Tyler": "United States",
-    "Umag": "Croatia",
-    "Valencia": "Spain",
-    "Verona": "Italy",
-    "Vicenza": "Italy",
-    "Vienna": "Austria",
-    "Villa Maria": "Argentina",
-    "Villena": "Spain",
-    "Washington": "United States",
-    "Winnipeg": "Canada",
-    "Winston Salem": "United States",
-    "Winston-Salem": "United States",
-    "Wuxi": "China",
-    "Yokkaichi": "Japan",
-    "Yokohama": "Japan",
-    "Zadar": "Croatia",
-    "Zagreb": "Croatia",
-    "Zhangjiagang": "China",
-    "Zug": "Switzerland",
-}
+# ── Lazy-loaded lookup caches ───────────────────────────────────────────────
 
-# Lookup caches (lazy initialization for case-insensitive matching)
 _LOWER_COUNTRY_TO_IOC: Optional[dict[str, str]] = None
-_LOWER_CITY_TO_COUNTRY: Optional[dict[str, str]] = None
+_CITY_TO_COUNTRY: Optional[dict[str, str]] = None
+
+_CITY_CACHE_PATH = Path(__file__).parent.parent.parent.parent / "scripts" / "city_country_cache.json"
+
+
+def _get_city_lookup() -> dict[str, str]:
+    """
+    Load city→country lookup from the geocoding cache (lazy, once).
+
+    Returns a dict of lowercase city name → country name.
+    Source: scripts/city_country_cache.json (~2600 entries).
+    """
+    global _CITY_TO_COUNTRY
+    if _CITY_TO_COUNTRY is not None:
+        return _CITY_TO_COUNTRY
+
+    _CITY_TO_COUNTRY = {}
+    if _CITY_CACHE_PATH.exists():
+        try:
+            data = json.loads(_CITY_CACHE_PATH.read_text())
+            for city_upper, (country, ioc) in data.items():
+                if country and ioc:
+                    _CITY_TO_COUNTRY[city_upper.lower()] = country
+        except Exception:
+            pass
+
+    return _CITY_TO_COUNTRY
+
+
+# ── Public API ──────────────────────────────────────────────────────────────
 
 
 def country_to_ioc(country_name: str) -> Optional[str]:
@@ -469,6 +244,9 @@ def city_to_country(city: str) -> Optional[str]:
     """
     Look up country name for a tennis city. Case-insensitive.
 
+    Backed by scripts/city_country_cache.json which contains ~2600 tennis
+    city→country mappings built via Nominatim geocoding.
+
     Args:
         city: Name of the city (e.g., "Paris", "london")
 
@@ -478,16 +256,8 @@ def city_to_country(city: str) -> Optional[str]:
     if not city:
         return None
 
-    # Check exact match first
-    if city in CITY_TO_COUNTRY:
-        return CITY_TO_COUNTRY[city]
-
-    global _LOWER_CITY_TO_COUNTRY
-    if _LOWER_CITY_TO_COUNTRY is None:
-        _LOWER_CITY_TO_COUNTRY = {k.lower(): v for k, v in CITY_TO_COUNTRY.items()}
-
-    normalized = city.strip().lower()
-    return _LOWER_CITY_TO_COUNTRY.get(normalized)
+    lookup = _get_city_lookup()
+    return lookup.get(city.strip().lower())
 
 
 def city_to_ioc(city: str) -> Optional[str]:

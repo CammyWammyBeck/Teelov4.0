@@ -18,7 +18,7 @@ import re
 
 from teelo.db.models import Tournament
 from teelo.db.session import get_session
-from teelo.utils.geo import COUNTRY_TO_IOC, CITY_TO_COUNTRY, city_to_country, country_to_ioc
+from teelo.utils.geo import COUNTRY_TO_IOC, city_to_country, country_to_ioc
 
 
 # US state abbreviations that appear suffixed to city names
