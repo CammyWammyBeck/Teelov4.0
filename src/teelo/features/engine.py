@@ -16,6 +16,7 @@ from teelo.db.models import (
     Match,
     MatchFeatures,
     MatchSurfaceEloSnapshot,
+    Player,
     Tournament,
     TournamentEdition,
 )
@@ -60,6 +61,14 @@ class FeatureEngine:
 
             if not match_rows:
                 return
+
+            # Load player nationalities for country performance features
+            nationality_rows = session.execute(
+                select(Player.id, Player.nationality_ioc)
+            ).all()
+            nationalities: dict[int, str | None] = {
+                row.id: row.nationality_ioc for row in nationality_rows
+            }
 
             # Replay always starts from the beginning in both modes to rebuild state.
             # In incremental mode, we only persist features for matches after the watermark
@@ -119,6 +128,9 @@ class FeatureEngine:
                     tournament_edition_id=row.tournament_edition_id,
                     tournament_id=row.tournament_id,
                     match_date_estimated=row.match_date_estimated,
+                    tournament_country_ioc=getattr(row, "tournament_country_ioc", None),
+                    player_a_nationality=nationalities.get(row.player_a_id),
+                    player_b_nationality=nationalities.get(row.player_b_id),
                 )
 
                 should_compute = (
@@ -309,6 +321,7 @@ class FeatureEngine:
                 Tournament.tour,
                 Tournament.gender,
                 Tournament.level,
+                Tournament.country_ioc.label("tournament_country_ioc"),
             )
             .select_from(Match)
             .join(TournamentEdition, TournamentEdition.id == Match.tournament_edition_id)
