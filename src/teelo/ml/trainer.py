@@ -95,7 +95,6 @@ class ModelTrainer:
                 .where(Match.status.in_(TERMINAL_STATUSES))
                 .where(Match.winner_id.is_not(None))
                 .where(Match.temporal_order.is_not(None))
-                .order_by(Match.temporal_order.asc())
             )
 
             # Stream in chunks to avoid loading all JSONB dicts into memory
@@ -110,7 +109,7 @@ class ModelTrainer:
                 rows = list(partition)
                 if not rows:
                     break
-                chunk_df = pd.DataFrame([r.features or {} for r in rows])
+                chunk_df = pd.DataFrame([r.features or {} for r in rows]).apply(pd.to_numeric, errors="coerce")
                 feature_chunks.append(chunk_df)
                 y_vals.extend(1.0 if r.winner_id == r.player_a_id else 0.0 for r in rows)
                 date_vals.extend(r.match_date for r in rows)
@@ -121,7 +120,7 @@ class ModelTrainer:
         if not feature_chunks:
             raise ValueError("No training rows found for the requested feature set and filters.")
 
-        X = pd.concat(feature_chunks, ignore_index=True).apply(pd.to_numeric, errors="coerce")
+        X = pd.concat(feature_chunks, ignore_index=True)
         del feature_chunks
         y = pd.Series(y_vals, dtype="float64")
         del y_vals
