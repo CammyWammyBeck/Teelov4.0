@@ -3,7 +3,7 @@ from __future__ import annotations
 import gc
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -286,7 +286,6 @@ class ModelTrainer:
 
             model = xgb.XGBClassifier(
                 **params,
-                use_label_encoder=False,
                 eval_metric="logloss",
                 enable_categorical=False,
                 early_stopping_rounds=20,
@@ -309,7 +308,6 @@ class ModelTrainer:
         logger.info("trainer.final_training_start", rows=X.shape[0], columns=X.shape[1])
         model = xgb.XGBClassifier(
             **params,
-            use_label_encoder=False,
             eval_metric="logloss",
             enable_categorical=False,
         )
@@ -336,7 +334,7 @@ class ModelTrainer:
             "cv_scores": self.cv_scores,
             "train_size": int(len(y)),
             "date_range": f"{min_year}-{max_year}",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
         meta_path = Path(f"{self.output_path}_meta.json")
