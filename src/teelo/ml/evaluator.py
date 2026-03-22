@@ -82,7 +82,7 @@ class ModelEvaluator:
         X_df = pd.DataFrame([row.features or {} for row in rows]).reindex(columns=feature_names)
         X_df = X_df.apply(pd.to_numeric, errors="coerce")
         columns = list(X_df.columns)
-        X = X_df.to_numpy(dtype=np.float32)
+        X = X_df.to_numpy(dtype=np.float32, copy=True)
         del X_df
         y_true = np.array(
             [1.0 if row.winner_id == row.player_a_id else 0.0 for row in rows],

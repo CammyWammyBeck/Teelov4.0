@@ -129,7 +129,6 @@ class FeatureSelector:
                 .where(Match.status.in_(TERMINAL_STATUSES))
                 .where(Match.winner_id.is_not(None))
                 .where(Match.temporal_order.is_not(None))
-                .order_by(Match.temporal_order.asc())
             )
 
             # Discover column names from a small sample (JSONB keys may vary per row)
@@ -196,7 +195,6 @@ class FeatureSelector:
             max_depth=6,
             learning_rate=0.1,
             subsample=0.5,
-            use_label_encoder=False,
             eval_metric="logloss",
             enable_categorical=False,
         )

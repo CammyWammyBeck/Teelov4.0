@@ -1,203 +1,203 @@
 {
   "ablation_results": [
     {
-      "degraded": false,
-      "delta_log_loss": -0.0029541798564378663,
+      "degraded": true,
+      "delta_log_loss": 0.0008195843623753918,
       "group_prefix": "surface_",
-      "keep_without_group": true,
-      "log_loss": 0.4937548258087158,
-      "removed_count": 15
+      "keep_without_group": false,
+      "log_loss": 0.45130872943939465,
+      "removed_count": 17
     },
     {
-      "degraded": false,
-      "delta_log_loss": -0.0018943385749481956,
+      "degraded": true,
+      "delta_log_loss": 0.0012279660687762317,
       "group_prefix": "level_",
-      "keep_without_group": true,
-      "log_loss": 0.4948146670902055,
+      "keep_without_group": false,
+      "log_loss": 0.4517171111457955,
       "removed_count": 7
     },
     {
-      "degraded": false,
-      "delta_log_loss": -0.0002853238547579351,
+      "degraded": true,
+      "delta_log_loss": 0.00025741825729541645,
       "group_prefix": "round_",
-      "keep_without_group": true,
-      "log_loss": 0.49642368181039576,
+      "keep_without_group": false,
+      "log_loss": 0.4507465633343147,
       "removed_count": 11
     },
     {
-      "degraded": false,
-      "delta_log_loss": -0.004091591449489562,
+      "degraded": true,
+      "delta_log_loss": 0.00018097391563809406,
       "group_prefix": "tour_",
-      "keep_without_group": true,
-      "log_loss": 0.49261741421566413,
+      "keep_without_group": false,
+      "log_loss": 0.45067011899265735,
       "removed_count": 1
     },
     {
-      "degraded": false,
-      "delta_log_loss": -0.0037041866547436464,
+      "degraded": true,
+      "delta_log_loss": 0.0009467796878310786,
       "group_prefix": "year",
-      "keep_without_group": true,
-      "log_loss": 0.49300481901041004,
-      "removed_count": 1
+      "keep_without_group": false,
+      "log_loss": 0.45143592476485034,
+      "removed_count": 2
     },
     {
       "degraded": false,
-      "delta_log_loss": -0.001081794980498596,
+      "delta_log_loss": -0.001778465057021117,
       "group_prefix": "elo_",
       "keep_without_group": true,
-      "log_loss": 0.4956272106846551,
+      "log_loss": 0.44871068001999814,
       "removed_count": 15
     },
     {
       "degraded": false,
-      "delta_log_loss": -0.004982457722093436,
+      "delta_log_loss": -0.00045264758004565087,
       "group_prefix": "peak_",
       "keep_without_group": true,
-      "log_loss": 0.49172654794306025,
+      "log_loss": 0.4500364974969736,
       "removed_count": 4
     },
     {
       "degraded": true,
-      "delta_log_loss": 0.001778944618268885,
+      "delta_log_loss": 0.0029982445051413564,
       "group_prefix": "opp_",
       "keep_without_group": false,
-      "log_loss": 0.4984879502834226,
+      "log_loss": 0.4534873895821606,
       "removed_count": 4
     },
     {
-      "degraded": false,
-      "delta_log_loss": -0.0028537520927731097,
+      "degraded": true,
+      "delta_log_loss": 0.0016729412927691256,
       "group_prefix": "win_rate_",
-      "keep_without_group": true,
-      "log_loss": 0.4938552535723806,
+      "keep_without_group": false,
+      "log_loss": 0.4521620863697884,
       "removed_count": 16
     },
     {
       "degraded": false,
-      "delta_log_loss": -0.004146915246005745,
+      "delta_log_loss": -7.583914931158509e-05,
       "group_prefix": "match_count_",
       "keep_without_group": true,
-      "log_loss": 0.49256209041914795,
+      "log_loss": 0.4504133059277077,
       "removed_count": 16
     },
     {
       "degraded": false,
-      "delta_log_loss": -0.004039894417984302,
+      "delta_log_loss": -3.756461133330724e-05,
       "group_prefix": "career_",
       "keep_without_group": true,
-      "log_loss": 0.4926691112471694,
+      "log_loss": 0.45045158046568595,
       "removed_count": 2
     },
     {
       "degraded": true,
-      "delta_log_loss": 0.0059820661124956875,
+      "delta_log_loss": 0.0012016985044484008,
       "group_prefix": "h2h_",
       "keep_without_group": false,
-      "log_loss": 0.5026910717776494,
+      "log_loss": 0.45169084358146766,
       "removed_count": 14
     },
     {
       "degraded": false,
-      "delta_log_loss": -0.00324865807910385,
+      "delta_log_loss": -0.00013672953820031974,
       "group_prefix": "days_",
       "keep_without_group": true,
-      "log_loss": 0.49346034758604984,
+      "log_loss": 0.45035241553881894,
       "removed_count": 4
     },
     {
-      "degraded": false,
-      "delta_log_loss": -0.0034935561065466136,
+      "degraded": true,
+      "delta_log_loss": 0.0015001794980571415,
       "group_prefix": "matches_",
+      "keep_without_group": false,
+      "log_loss": 0.4519893245750764,
+      "removed_count": 8
+    },
+    {
+      "degraded": true,
+      "delta_log_loss": 0.0005774262818004083,
+      "group_prefix": "games_",
+      "keep_without_group": false,
+      "log_loss": 0.45106657135881967,
+      "removed_count": 6
+    },
+    {
+      "degraded": false,
+      "delta_log_loss": -0.0010706764206696584,
+      "group_prefix": "game_diff_",
       "keep_without_group": true,
-      "log_loss": 0.4932154495586071,
+      "log_loss": 0.4494184686563496,
+      "removed_count": 4
+    },
+    {
+      "degraded": true,
+      "delta_log_loss": 0.0030725210141169246,
+      "group_prefix": "set_diff_",
+      "keep_without_group": false,
+      "log_loss": 0.4535616660911362,
+      "removed_count": 4
+    },
+    {
+      "degraded": true,
+      "delta_log_loss": 0.0025949186120867163,
+      "group_prefix": "straight_",
+      "keep_without_group": false,
+      "log_loss": 0.453084063689106,
+      "removed_count": 6
+    },
+    {
+      "degraded": false,
+      "delta_log_loss": -0.00030764123838977753,
+      "group_prefix": "deciding_",
+      "keep_without_group": true,
+      "log_loss": 0.4501815038386295,
+      "removed_count": 8
+    },
+    {
+      "degraded": true,
+      "delta_log_loss": 0.0003673318540577952,
+      "group_prefix": "tiebreak_",
+      "keep_without_group": false,
+      "log_loss": 0.45085647693107705,
       "removed_count": 8
     },
     {
       "degraded": false,
-      "delta_log_loss": -0.003309836666072874,
-      "group_prefix": "games_",
+      "delta_log_loss": -0.0004633909466261743,
+      "group_prefix": "close_",
       "keep_without_group": true,
-      "log_loss": 0.4933991689990808,
-      "removed_count": 6
-    },
-    {
-      "degraded": false,
-      "delta_log_loss": -0.00268613553578384,
-      "group_prefix": "game_diff_",
-      "keep_without_group": true,
-      "log_loss": 0.49402287012936985,
-      "removed_count": 2
-    },
-    {
-      "degraded": true,
-      "delta_log_loss": 0.003043038687020938,
-      "group_prefix": "set_diff_",
-      "keep_without_group": false,
-      "log_loss": 0.49975204435217463,
-      "removed_count": 2
-    },
-    {
-      "degraded": false,
-      "delta_log_loss": -0.0011425199872491798,
-      "group_prefix": "straight_",
-      "keep_without_group": true,
-      "log_loss": 0.4955664856779045,
-      "removed_count": 2
-    },
-    {
-      "degraded": false,
-      "delta_log_loss": -0.004163212804875915,
-      "group_prefix": "deciding_",
-      "keep_without_group": true,
-      "log_loss": 0.4925457928602778,
-      "removed_count": 2
-    },
-    {
-      "degraded": false,
-      "delta_log_loss": -0.0012992465873257752,
-      "group_prefix": "tiebreak_",
-      "keep_without_group": true,
-      "log_loss": 0.4954097590778279,
+      "log_loss": 0.4500257541303931,
       "removed_count": 4
     },
     {
       "degraded": false,
-      "delta_log_loss": -0.004843124169757795,
-      "group_prefix": "close_",
-      "keep_without_group": true,
-      "log_loss": 0.4918658814953959,
-      "removed_count": 2
-    },
-    {
-      "degraded": false,
-      "delta_log_loss": -0.0033052941530323787,
+      "delta_log_loss": -0.0002719200718610537,
       "group_prefix": "rest_",
       "keep_without_group": true,
-      "log_loss": 0.4934037115121213,
+      "log_loss": 0.4502172250051582,
       "removed_count": 3
     },
     {
       "degraded": false,
-      "delta_log_loss": -0.003712194361376875,
+      "delta_log_loss": -0.0017321865196906483,
       "group_prefix": "tournament_",
       "keep_without_group": true,
-      "log_loss": 0.4929968113037768,
+      "log_loss": 0.4487569585573286,
       "removed_count": 6
     },
     {
       "degraded": false,
-      "delta_log_loss": -0.005285260080119092,
+      "delta_log_loss": -0.0006286800626088551,
       "group_prefix": "surface_elo_",
       "keep_without_group": true,
-      "log_loss": 0.4914237455850346,
+      "log_loss": 0.4498604650144104,
       "removed_count": 9
     },
     {
-      "degraded": false,
-      "delta_log_loss": -0.00406693715982126,
+      "degraded": true,
+      "delta_log_loss": 0.000998787356830233,
       "group_prefix": "match_date_estimated_",
-      "keep_without_group": true,
-      "log_loss": 0.49264206850533243,
+      "keep_without_group": false,
+      "log_loss": 0.4514879324338495,
       "removed_count": 1
     },
     {
@@ -205,7 +205,7 @@
       "delta_log_loss": 0.0,
       "group_prefix": "seed_",
       "keep_without_group": true,
-      "log_loss": 0.4967090056651537,
+      "log_loss": 0.45048914507701926,
       "removed_count": 3
     },
     {
@@ -213,705 +213,1029 @@
       "delta_log_loss": 0.0,
       "group_prefix": "both_",
       "keep_without_group": true,
-      "log_loss": 0.4967090056651537,
+      "log_loss": 0.45048914507701926,
       "removed_count": 1
     }
   ],
   "cumulative_results": [
     {
-      "log_loss": 0.5954508416455448,
+      "log_loss": 0.5939532902766007,
       "n_features": 5
     },
     {
-      "log_loss": 0.563726088185492,
+      "log_loss": 0.5060783089256635,
       "n_features": 10
     },
     {
-      "log_loss": 0.5530099352993416,
+      "log_loss": 0.47555936944088506,
       "n_features": 15
     },
     {
-      "log_loss": 0.519874131701444,
+      "log_loss": 0.47323970116533454,
       "n_features": 20
     },
     {
-      "log_loss": 0.5109091305437239,
+      "log_loss": 0.47221855822093106,
       "n_features": 25
     },
     {
-      "log_loss": 0.49829994089674584,
+      "log_loss": 0.4693513090569575,
       "n_features": 30
     },
     {
-      "log_loss": 0.49406592274774885,
+      "log_loss": 0.4667560432294367,
       "n_features": 35
     },
     {
-      "log_loss": 0.4931083925434534,
+      "log_loss": 0.46498150180842923,
       "n_features": 40
     },
     {
-      "log_loss": 0.4924731366929123,
+      "log_loss": 0.45900680147008244,
       "n_features": 45
     },
     {
-      "log_loss": 0.4913229115097244,
+      "log_loss": 0.45190097569378074,
       "n_features": 50
     },
     {
-      "log_loss": 0.4918308750589821,
+      "log_loss": 0.4474490811054757,
       "n_features": 55
     },
     {
-      "log_loss": 0.49108944888672496,
+      "log_loss": 0.4471443145325492,
       "n_features": 60
     },
     {
-      "log_loss": 0.49289721354431454,
+      "log_loss": 0.4466462659995678,
       "n_features": 65
     },
     {
-      "log_loss": 0.4911120124388271,
+      "log_loss": 0.4470387796238594,
       "n_features": 70
     },
     {
-      "log_loss": 0.4940014231933012,
+      "log_loss": 0.44914212049717356,
       "n_features": 75
     },
     {
-      "log_loss": 0.4909500377890905,
+      "log_loss": 0.44850640152026344,
       "n_features": 80
     },
     {
-      "log_loss": 0.4902432399034546,
+      "log_loss": 0.4477034299226372,
       "n_features": 85
     },
     {
-      "log_loss": 0.4935147823879615,
+      "log_loss": 0.4479619350212447,
       "n_features": 90
     },
     {
-      "log_loss": 0.49022629037375076,
+      "log_loss": 0.4477885464898962,
       "n_features": 95
     },
     {
-      "log_loss": 0.49154257622234343,
+      "log_loss": 0.44818536789930724,
       "n_features": 100
     },
     {
-      "log_loss": 0.4910877805184429,
+      "log_loss": 0.44825241385262776,
       "n_features": 105
     },
     {
-      "log_loss": 0.4919115248949397,
+      "log_loss": 0.44873937011818393,
       "n_features": 110
     },
     {
-      "log_loss": 0.4915032079940068,
+      "log_loss": 0.4476279719605675,
       "n_features": 115
     },
     {
-      "log_loss": 0.4910988155123705,
+      "log_loss": 0.44795134056515595,
       "n_features": 120
     },
     {
-      "log_loss": 0.4922793284508729,
+      "log_loss": 0.4492087826010979,
       "n_features": 125
     },
     {
-      "log_loss": 0.49234279886371485,
+      "log_loss": 0.4491316325350953,
       "n_features": 130
     },
     {
-      "log_loss": 0.4946036463115024,
+      "log_loss": 0.4481756253631671,
       "n_features": 135
     },
     {
-      "log_loss": 0.49531787193604926,
+      "log_loss": 0.44892788615115664,
       "n_features": 140
     },
     {
-      "log_loss": 0.49531787193604926,
+      "log_loss": 0.4483887904268523,
       "n_features": 145
     },
     {
-      "log_loss": 0.49531787193604926,
+      "log_loss": 0.44938800247404975,
       "n_features": 150
     },
     {
-      "log_loss": 0.49531787193604926,
+      "log_loss": 0.44947652429639073,
       "n_features": 155
     },
     {
-      "log_loss": 0.49531787193604926,
-      "n_features": 158
+      "log_loss": 0.44906488216923096,
+      "n_features": 160
+    },
+    {
+      "log_loss": 0.44935476154589177,
+      "n_features": 165
+    },
+    {
+      "log_loss": 0.45132175171134264,
+      "n_features": 170
+    },
+    {
+      "log_loss": 0.4508375075594779,
+      "n_features": 175
+    },
+    {
+      "log_loss": 0.45102765104291165,
+      "n_features": 180
+    },
+    {
+      "log_loss": 0.4495161794898426,
+      "n_features": 185
+    },
+    {
+      "log_loss": 0.45058945363666414,
+      "n_features": 190
+    },
+    {
+      "log_loss": 0.4511186492028693,
+      "n_features": 195
+    },
+    {
+      "log_loss": 0.4509688052805273,
+      "n_features": 200
+    },
+    {
+      "log_loss": 0.4509688052805273,
+      "n_features": 205
+    },
+    {
+      "log_loss": 0.4508859384013411,
+      "n_features": 210
+    },
+    {
+      "log_loss": 0.4502706884009725,
+      "n_features": 215
+    },
+    {
+      "log_loss": 0.4502706884009725,
+      "n_features": 220
+    },
+    {
+      "log_loss": 0.4502706884009725,
+      "n_features": 221
     }
   ],
   "feature_set": "baseline_v2",
-  "full_split_log_loss": 0.4967090056651537,
+  "full_split_log_loss": 0.45048914507701926,
   "importance_ranking": [
     {
       "feature": "elo_diff",
-      "gain": 1281.4808349609375
-    },
-    {
-      "feature": "opponent_quality_sample_count_8_a",
-      "gain": 910.9677734375
-    },
-    {
-      "feature": "opponent_quality_sample_count_8_b",
-      "gain": 302.7108154296875
-    },
-    {
-      "feature": "h2h_a_wins",
-      "gain": 267.6277770996094
-    },
-    {
-      "feature": "win_rate_512w_b",
-      "gain": 246.9615478515625
-    },
-    {
-      "feature": "win_rate_512w_a",
-      "gain": 206.2021484375
-    },
-    {
-      "feature": "h2h_total",
-      "gain": 173.8562469482422
-    },
-    {
-      "feature": "h2h_b_wins",
-      "gain": 149.55442810058594
-    },
-    {
-      "feature": "h2h_a_dominance",
-      "gain": 140.583984375
-    },
-    {
-      "feature": "level_C",
-      "gain": 129.8800811767578
-    },
-    {
-      "feature": "tiebreak_rate_8_a",
-      "gain": 124.71975708007812
-    },
-    {
-      "feature": "tiebreak_rate_8_b",
-      "gain": 120.42401885986328
-    },
-    {
-      "feature": "career_win_rate_a",
-      "gain": 120.25956726074219
-    },
-    {
-      "feature": "win_rate_8w_b",
-      "gain": 115.00607299804688
-    },
-    {
-      "feature": "win_rate_8w_a",
-      "gain": 111.64936065673828
-    },
-    {
-      "feature": "straight_sets_rate_8_b",
-      "gain": 108.51278686523438
-    },
-    {
-      "feature": "win_rate_256w_b",
-      "gain": 104.84364318847656
-    },
-    {
-      "feature": "straight_sets_rate_8_a",
-      "gain": 86.88297271728516
-    },
-    {
-      "feature": "career_win_rate_b",
-      "gain": 75.45616912841797
-    },
-    {
-      "feature": "game_diff_avg_8_a",
-      "gain": 75.36006164550781
-    },
-    {
-      "feature": "win_rate_256w_a",
-      "gain": 75.021728515625
-    },
-    {
-      "feature": "win_rate_4w_b",
-      "gain": 69.565673828125
-    },
-    {
-      "feature": "matches_7d_diff_ab",
-      "gain": 68.08626556396484
-    },
-    {
-      "feature": "level_F",
-      "gain": 67.86473846435547
-    },
-    {
-      "feature": "set_diff_avg_8_b",
-      "gain": 61.32292938232422
-    },
-    {
-      "feature": "elo_a",
-      "gain": 60.87714767456055
-    },
-    {
-      "feature": "match_count_512w_b",
-      "gain": 58.98141098022461
-    },
-    {
-      "feature": "opp_elo_avg_8_b",
-      "gain": 58.331214904785156
-    },
-    {
-      "feature": "opp_elo_avg_8_a",
-      "gain": 56.80223846435547
-    },
-    {
-      "feature": "round_Q1",
-      "gain": 53.51862335205078
-    },
-    {
-      "feature": "win_rate_4w_a",
-      "gain": 50.88517761230469
-    },
-    {
-      "feature": "tour_wta",
-      "gain": 49.277992248535156
-    },
-    {
-      "feature": "set_diff_avg_8_a",
-      "gain": 47.51593780517578
-    },
-    {
-      "feature": "match_count_64w_a",
-      "gain": 47.42282485961914
-    },
-    {
-      "feature": "elo_b",
-      "gain": 46.15120315551758
-    },
-    {
-      "feature": "elo_momentum_a",
-      "gain": 44.573123931884766
-    },
-    {
-      "feature": "match_count_512w_a",
-      "gain": 43.508235931396484
-    },
-    {
-      "feature": "tournament_match_count_a",
-      "gain": 43.44329071044922
-    },
-    {
-      "feature": "matches_4w_b",
-      "gain": 43.23971176147461
-    },
-    {
-      "feature": "h2h_a_wins_2y",
-      "gain": 42.66058349609375
-    },
-    {
-      "feature": "tournament_win_rate_a",
-      "gain": 42.421241760253906
-    },
-    {
-      "feature": "match_count_128w_b",
-      "gain": 42.24793243408203
-    },
-    {
-      "feature": "match_count_32w_a",
-      "gain": 40.10125732421875
-    },
-    {
-      "feature": "matches_16w_b",
-      "gain": 39.42893600463867
-    },
-    {
-      "feature": "game_diff_avg_8_b",
-      "gain": 39.23007583618164
-    },
-    {
-      "feature": "matches_8w_b",
-      "gain": 39.035552978515625
-    },
-    {
-      "feature": "level_win_rate_b",
-      "gain": 38.4764289855957
-    },
-    {
-      "feature": "match_count_256w_a",
-      "gain": 38.198219299316406
-    },
-    {
-      "feature": "matches_this_tournament_diff_ab",
-      "gain": 37.5199089050293
-    },
-    {
-      "feature": "match_count_32w_b",
-      "gain": 37.184593200683594
-    },
-    {
-      "feature": "match_count_128w_a",
-      "gain": 36.34206771850586
-    },
-    {
-      "feature": "level_G",
-      "gain": 36.04607009887695
-    },
-    {
-      "feature": "level_win_rate_a",
-      "gain": 35.893768310546875
-    },
-    {
-      "feature": "round_R32",
-      "gain": 35.04259490966797
-    },
-    {
-      "feature": "rest_days_b",
-      "gain": 34.9687385559082
-    },
-    {
-      "feature": "elo_momentum_b",
-      "gain": 34.51840591430664
-    },
-    {
-      "feature": "round_Q3",
-      "gain": 34.33916091918945
-    },
-    {
-      "feature": "tournament_win_rate_b",
-      "gain": 34.07492446899414
-    },
-    {
-      "feature": "h2h_b_wins_2y",
-      "gain": 33.9627685546875
-    },
-    {
-      "feature": "surface_win_rate_a",
-      "gain": 33.66307067871094
-    },
-    {
-      "feature": "matches_8w_a",
-      "gain": 31.869155883789062
-    },
-    {
-      "feature": "games_this_tournament_diff_ab",
-      "gain": 31.85167694091797
-    },
-    {
-      "feature": "matches_4w_a",
-      "gain": 31.529644012451172
-    },
-    {
-      "feature": "wins_vs_higher_elo_8_a",
-      "gain": 31.361328125
-    },
-    {
-      "feature": "rest_days_a",
-      "gain": 31.251556396484375
-    },
-    {
-      "feature": "win_rate_16w_b",
-      "gain": 30.9750919342041
-    },
-    {
-      "feature": "elo_var_64_b",
-      "gain": 30.37514877319336
-    },
-    {
-      "feature": "match_date_estimated_flag",
-      "gain": 30.14090347290039
-    },
-    {
-      "feature": "surface_hard",
-      "gain": 30.043325424194336
-    },
-    {
-      "feature": "win_rate_16w_a",
-      "gain": 29.929828643798828
-    },
-    {
-      "feature": "level_A",
-      "gain": 29.72323989868164
-    },
-    {
-      "feature": "wins_vs_higher_elo_8_b",
-      "gain": 29.502716064453125
-    },
-    {
-      "feature": "matches_16w_a",
-      "gain": 28.72374725341797
-    },
-    {
-      "feature": "surface_win_rate_b",
-      "gain": 28.526065826416016
-    },
-    {
-      "feature": "level_M",
-      "gain": 28.33207893371582
-    },
-    {
-      "feature": "surface_elo_match_count_a",
-      "gain": 28.295499801635742
-    },
-    {
-      "feature": "surface_elo_diff",
-      "gain": 27.86874771118164
-    },
-    {
-      "feature": "surface_elo_match_count_b",
-      "gain": 27.431459426879883
-    },
-    {
-      "feature": "year",
-      "gain": 27.163244247436523
-    },
-    {
-      "feature": "round_SF",
-      "gain": 26.78937339782715
-    },
-    {
-      "feature": "opp_surface_elo_avg_8_a",
-      "gain": 25.58126449584961
-    },
-    {
-      "feature": "tournament_match_count_b",
-      "gain": 25.53068733215332
-    },
-    {
-      "feature": "match_count_256w_b",
-      "gain": 24.842382431030273
-    },
-    {
-      "feature": "match_count_64w_b",
-      "gain": 24.0739688873291
-    },
-    {
-      "feature": "elo_var_32_b",
-      "gain": 23.895648956298828
-    },
-    {
-      "feature": "rest_days_diff_ab",
-      "gain": 23.868318557739258
-    },
-    {
-      "feature": "elo_var_8_a",
-      "gain": 23.86110496520996
-    },
-    {
-      "feature": "elo_overperf_8_b",
-      "gain": 23.420001983642578
-    },
-    {
-      "feature": "elo_overperf_8_a",
-      "gain": 23.385446548461914
-    },
-    {
-      "feature": "elo_var_64_a",
-      "gain": 22.854389190673828
-    },
-    {
-      "feature": "round_F",
-      "gain": 22.31728172302246
-    },
-    {
-      "feature": "close_match_rate_8_a",
-      "gain": 21.82240867614746
-    },
-    {
-      "feature": "opp_surface_elo_avg_8_b",
-      "gain": 21.375396728515625
-    },
-    {
-      "feature": "deciding_set_rate_8_a",
-      "gain": 20.73639488220215
-    },
-    {
-      "feature": "close_match_rate_8_b",
-      "gain": 20.54743003845215
-    },
-    {
-      "feature": "peak_ratio_a",
-      "gain": 20.25152587890625
-    },
-    {
-      "feature": "win_rate_128w_a",
-      "gain": 19.43990135192871
-    },
-    {
-      "feature": "win_rate_32w_b",
-      "gain": 19.43504524230957
-    },
-    {
-      "feature": "games_last_match_a",
-      "gain": 19.025360107421875
-    },
-    {
-      "feature": "days_since_debut_a",
-      "gain": 18.606548309326172
-    },
-    {
-      "feature": "peak_ratio_b",
-      "gain": 18.56584358215332
-    },
-    {
-      "feature": "round_R16",
-      "gain": 17.739957809448242
-    },
-    {
-      "feature": "games_tournament_b",
-      "gain": 17.453344345092773
-    },
-    {
-      "feature": "games_last_match_b",
-      "gain": 17.232805252075195
-    },
-    {
-      "feature": "win_rate_128w_b",
-      "gain": 17.22652244567871
-    },
-    {
-      "feature": "round_R64",
-      "gain": 17.220827102661133
-    },
-    {
-      "feature": "days_since_debut_b",
-      "gain": 16.599681854248047
-    },
-    {
-      "feature": "round_Q2",
-      "gain": 16.0401611328125
-    },
-    {
-      "feature": "tiebreak_win_rate_8_a",
-      "gain": 16.000497817993164
-    },
-    {
-      "feature": "games_tournament_a",
-      "gain": 15.896598815917969
-    },
-    {
-      "feature": "peak_elo_b",
-      "gain": 14.985926628112793
-    },
-    {
-      "feature": "tiebreak_win_rate_8_b",
-      "gain": 14.921174049377441
-    },
-    {
-      "feature": "peak_elo_a",
-      "gain": 14.696858406066895
+      "gain": 1110.490478515625
     },
     {
       "feature": "win_rate_64w_b",
-      "gain": 14.409543991088867
+      "gain": 322.55853271484375
     },
     {
-      "feature": "surface_elo_b",
-      "gain": 14.005014419555664
-    },
-    {
-      "feature": "games_7d_diff_ab",
-      "gain": 13.933534622192383
-    },
-    {
-      "feature": "h2h_b_wins_surface",
-      "gain": 13.93237590789795
-    },
-    {
-      "feature": "elo_var_32_a",
-      "gain": 13.68699836730957
-    },
-    {
-      "feature": "win_rate_32w_a",
-      "gain": 13.56556510925293
-    },
-    {
-      "feature": "deciding_set_rate_8_b",
-      "gain": 13.46422290802002
+      "feature": "surface_gap_a",
+      "gain": 303.9456481933594
     },
     {
       "feature": "win_rate_64w_a",
-      "gain": 12.720673561096191
+      "gain": 289.9718322753906
     },
     {
-      "feature": "elo_var_8_b",
-      "gain": 12.692728042602539
+      "feature": "surface_gap_b",
+      "gain": 269.9932861328125
     },
     {
-      "feature": "seed_b",
-      "gain": 12.517046928405762
+      "feature": "level_C",
+      "gain": 268.1797180175781
+    },
+    {
+      "feature": "tiebreaks_played_64_a",
+      "gain": 246.23590087890625
+    },
+    {
+      "feature": "tiebreaks_played_64_b",
+      "gain": 243.08212280273438
+    },
+    {
+      "feature": "game_diff_avg_64_a",
+      "gain": 240.6602020263672
+    },
+    {
+      "feature": "opponent_quality_sample_count_8_b",
+      "gain": 231.0804901123047
+    },
+    {
+      "feature": "game_diff_avg_64_b",
+      "gain": 222.3904266357422
+    },
+    {
+      "feature": "tiebreak_rate_64_a",
+      "gain": 190.3551025390625
+    },
+    {
+      "feature": "straight_sets_rate_64_b",
+      "gain": 181.34234619140625
+    },
+    {
+      "feature": "deciding_sets_played_64_a",
+      "gain": 173.61032104492188
+    },
+    {
+      "feature": "straight_sets_rate_64_a",
+      "gain": 166.2234649658203
+    },
+    {
+      "feature": "deciding_sets_played_64_b",
+      "gain": 164.55345153808594
+    },
+    {
+      "feature": "surface_elo_diff",
+      "gain": 160.9153289794922
+    },
+    {
+      "feature": "tiebreak_rate_64_b",
+      "gain": 160.7779998779297
+    },
+    {
+      "feature": "matches_7d_diff_ab",
+      "gain": 155.63768005371094
+    },
+    {
+      "feature": "tiebreaks_played_8_a",
+      "gain": 136.80157470703125
+    },
+    {
+      "feature": "tiebreak_rate_8_b",
+      "gain": 105.21348571777344
+    },
+    {
+      "feature": "straight_sets_rate_8_a",
+      "gain": 102.77989959716797
+    },
+    {
+      "feature": "level_F",
+      "gain": 101.96858215332031
+    },
+    {
+      "feature": "match_count_512w_b",
+      "gain": 88.06452178955078
+    },
+    {
+      "feature": "set_diff_avg_64_b",
+      "gain": 81.86463928222656
+    },
+    {
+      "feature": "tiebreak_rate_8_a",
+      "gain": 77.42216491699219
+    },
+    {
+      "feature": "set_diff_avg_64_a",
+      "gain": 73.17057037353516
+    },
+    {
+      "feature": "round_Q1",
+      "gain": 68.42599487304688
+    },
+    {
+      "feature": "first_sets_lost_64_b",
+      "gain": 63.6316032409668
+    },
+    {
+      "feature": "straight_sets_rate_8_b",
+      "gain": 62.41225051879883
+    },
+    {
+      "feature": "days_since_last_b",
+      "gain": 62.26435470581055
+    },
+    {
+      "feature": "h2h_a_wins",
+      "gain": 59.254005432128906
+    },
+    {
+      "feature": "tour_wta",
+      "gain": 58.35136032104492
+    },
+    {
+      "feature": "match_count_32w_b",
+      "gain": 55.347591400146484
+    },
+    {
+      "feature": "match_count_8w_a",
+      "gain": 54.72980499267578
+    },
+    {
+      "feature": "match_count_16w_b",
+      "gain": 54.320011138916016
+    },
+    {
+      "feature": "first_sets_lost_64_a",
+      "gain": 53.80695724487305
+    },
+    {
+      "feature": "h2h_b_wins",
+      "gain": 52.77999496459961
+    },
+    {
+      "feature": "wins_vs_higher_elo_8_a",
+      "gain": 52.491085052490234
+    },
+    {
+      "feature": "win_rate_8w_a",
+      "gain": 52.29428482055664
+    },
+    {
+      "feature": "match_count_128w_a",
+      "gain": 52.20381164550781
+    },
+    {
+      "feature": "vs_normal_clutch_matches_b",
+      "gain": 52.04146194458008
+    },
+    {
+      "feature": "opp_elo_avg_8_a",
+      "gain": 51.9206428527832
+    },
+    {
+      "feature": "match_date_estimated_flag",
+      "gain": 51.43355178833008
+    },
+    {
+      "feature": "vs_normal_clutch_matches_a",
+      "gain": 50.1732063293457
+    },
+    {
+      "feature": "set_diff_avg_8_a",
+      "gain": 49.109703063964844
+    },
+    {
+      "feature": "match_count_512w_a",
+      "gain": 47.33389663696289
+    },
+    {
+      "feature": "h2h_a_dominance",
+      "gain": 46.419639587402344
+    },
+    {
+      "feature": "tiebreaks_played_8_b",
+      "gain": 43.78676986694336
+    },
+    {
+      "feature": "opp_elo_avg_8_b",
+      "gain": 43.56490707397461
+    },
+    {
+      "feature": "elo_a",
+      "gain": 43.21204376220703
+    },
+    {
+      "feature": "match_count_64w_a",
+      "gain": 42.708744049072266
+    },
+    {
+      "feature": "matches_this_tournament_diff_ab",
+      "gain": 41.60491180419922
+    },
+    {
+      "feature": "match_count_16w_a",
+      "gain": 41.34757614135742
+    },
+    {
+      "feature": "set_diff_avg_8_b",
+      "gain": 40.85477066040039
+    },
+    {
+      "feature": "match_count_4w_b",
+      "gain": 40.457027435302734
+    },
+    {
+      "feature": "surface_elo_match_count_b",
+      "gain": 40.18422317504883
+    },
+    {
+      "feature": "match_count_8w_b",
+      "gain": 40.04001998901367
+    },
+    {
+      "feature": "elo_b",
+      "gain": 38.44973373413086
+    },
+    {
+      "feature": "level_M",
+      "gain": 37.88632583618164
     },
     {
       "feature": "surface_elo_a",
-      "gain": 12.46146297454834
+      "gain": 37.64836120605469
     },
     {
-      "feature": "surface_elo_default_b",
-      "gain": 12.427936553955078
+      "feature": "match_count_32w_a",
+      "gain": 37.233726501464844
     },
     {
-      "feature": "surface_clay",
-      "gain": 12.163715362548828
+      "feature": "match_count_64w_b",
+      "gain": 36.111663818359375
     },
     {
-      "feature": "losses_vs_lower_elo_8_b",
-      "gain": 12.085713386535645
+      "feature": "days_since_debut_a",
+      "gain": 34.57514572143555
     },
     {
-      "feature": "elo_var_16_b",
-      "gain": 11.966075897216797
+      "feature": "match_count_4w_a",
+      "gain": 34.57423400878906
     },
     {
-      "feature": "seed_a",
-      "gain": 11.85379409790039
+      "feature": "win_rate_128w_b",
+      "gain": 33.613319396972656
     },
     {
-      "feature": "h2h_b_wins_level",
-      "gain": 11.744767189025879
+      "feature": "match_count_256w_b",
+      "gain": 33.5711669921875
     },
     {
-      "feature": "seed_diff",
-      "gain": 11.689277648925781
+      "feature": "surface_elo_b",
+      "gain": 32.70244216918945
     },
     {
-      "feature": "h2h_a_wins_level",
-      "gain": 11.201541900634766
+      "feature": "surface_elo_match_count_a",
+      "gain": 32.283851623535156
+    },
+    {
+      "feature": "win_rate_128w_a",
+      "gain": 32.121673583984375
+    },
+    {
+      "feature": "win_rate_512w_b",
+      "gain": 32.10403823852539
+    },
+    {
+      "feature": "games_this_tournament_diff_ab",
+      "gain": 31.847015380859375
+    },
+    {
+      "feature": "win_rate_8w_b",
+      "gain": 31.83637237548828
+    },
+    {
+      "feature": "deciding_set_rate_8_a",
+      "gain": 31.333759307861328
+    },
+    {
+      "feature": "off_surface_elo_b",
+      "gain": 30.9581298828125
+    },
+    {
+      "feature": "elo_overperf_8_a",
+      "gain": 29.977020263671875
+    },
+    {
+      "feature": "round_R32",
+      "gain": 29.193519592285156
+    },
+    {
+      "feature": "elo_overperf_8_b",
+      "gain": 29.184892654418945
+    },
+    {
+      "feature": "surface_hard",
+      "gain": 28.26941680908203
+    },
+    {
+      "feature": "level_win_rate_a",
+      "gain": 27.992233276367188
+    },
+    {
+      "feature": "peak_ratio_a",
+      "gain": 27.531606674194336
+    },
+    {
+      "feature": "year",
+      "gain": 26.729366302490234
+    },
+    {
+      "feature": "days_since_last_a",
+      "gain": 26.545108795166016
+    },
+    {
+      "feature": "match_count_256w_a",
+      "gain": 25.546306610107422
+    },
+    {
+      "feature": "off_surface_elo_a",
+      "gain": 25.37364959716797
+    },
+    {
+      "feature": "rest_days_diff_ab",
+      "gain": 25.04762077331543
+    },
+    {
+      "feature": "vs_non_clutch_matches_a",
+      "gain": 24.90048599243164
+    },
+    {
+      "feature": "round_SF",
+      "gain": 24.609588623046875
+    },
+    {
+      "feature": "win_rate_4w_b",
+      "gain": 24.377296447753906
+    },
+    {
+      "feature": "opp_surface_elo_avg_8_b",
+      "gain": 24.156986236572266
+    },
+    {
+      "feature": "level_win_rate_b",
+      "gain": 22.986215591430664
+    },
+    {
+      "feature": "career_win_rate_a",
+      "gain": 22.959794998168945
+    },
+    {
+      "feature": "opp_surface_elo_avg_8_a",
+      "gain": 22.621559143066406
+    },
+    {
+      "feature": "close_match_rate_64_b",
+      "gain": 22.550979614257812
+    },
+    {
+      "feature": "win_rate_256w_a",
+      "gain": 22.45829963684082
+    },
+    {
+      "feature": "vs_non_clutch_matches_b",
+      "gain": 22.33700180053711
+    },
+    {
+      "feature": "win_rate_4w_a",
+      "gain": 22.325578689575195
+    },
+    {
+      "feature": "level_A",
+      "gain": 21.835947036743164
+    },
+    {
+      "feature": "round_R64",
+      "gain": 21.527557373046875
     },
     {
       "feature": "elo_var_16_a",
-      "gain": 11.093846321105957
+      "gain": 21.19965171813965
     },
     {
-      "feature": "round_QF",
-      "gain": 10.774284362792969
+      "feature": "win_rate_512w_a",
+      "gain": 21.17530059814453
     },
     {
-      "feature": "h2h_a_wins_6m",
-      "gain": 10.593206405639648
+      "feature": "round_Q2",
+      "gain": 20.610790252685547
     },
     {
-      "feature": "h2h_a_wins_surface",
-      "gain": 9.844562530517578
+      "feature": "game_diff_avg_8_b",
+      "gain": 20.580820083618164
     },
     {
-      "feature": "h2h_surface_sample_count",
-      "gain": 9.635170936584473
+      "feature": "deciding_set_rate_64_b",
+      "gain": 20.542848587036133
     },
     {
-      "feature": "h2h_b_wins_6m",
-      "gain": 9.346433639526367
+      "feature": "win_rate_256w_b",
+      "gain": 20.180253982543945
+    },
+    {
+      "feature": "tournament_win_rate_b",
+      "gain": 19.717063903808594
+    },
+    {
+      "feature": "round_R16",
+      "gain": 19.657588958740234
+    },
+    {
+      "feature": "game_diff_avg_8_a",
+      "gain": 19.533639907836914
+    },
+    {
+      "feature": "vs_normal_clutch_win_rate_b",
+      "gain": 19.456357955932617
+    },
+    {
+      "feature": "match_count_128w_b",
+      "gain": 18.921043395996094
+    },
+    {
+      "feature": "elo_var_32_b",
+      "gain": 18.833791732788086
+    },
+    {
+      "feature": "deciding_set_win_rate_64_b",
+      "gain": 18.70393943786621
+    },
+    {
+      "feature": "country_win_rate_b",
+      "gain": 18.444128036499023
+    },
+    {
+      "feature": "deciding_set_rate_8_b",
+      "gain": 18.298898696899414
+    },
+    {
+      "feature": "tournament_win_rate_a",
+      "gain": 18.1041202545166
+    },
+    {
+      "feature": "tiebreak_win_rate_8_b",
+      "gain": 17.982995986938477
+    },
+    {
+      "feature": "games_tournament_b",
+      "gain": 17.898197174072266
+    },
+    {
+      "feature": "career_win_rate_b",
+      "gain": 17.84762954711914
+    },
+    {
+      "feature": "elo_momentum_b",
+      "gain": 17.791330337524414
+    },
+    {
+      "feature": "games_last_match_a",
+      "gain": 17.659833908081055
+    },
+    {
+      "feature": "comeback_rate_64_a",
+      "gain": 17.362520217895508
+    },
+    {
+      "feature": "country_win_rate_a",
+      "gain": 17.302772521972656
+    },
+    {
+      "feature": "vs_non_clutch_win_rate_b",
+      "gain": 17.203054428100586
+    },
+    {
+      "feature": "vs_normal_clutch_win_rate_a",
+      "gain": 17.190139770507812
+    },
+    {
+      "feature": "win_rate_32w_b",
+      "gain": 16.985910415649414
+    },
+    {
+      "feature": "deciding_set_rate_64_a",
+      "gain": 16.983442306518555
+    },
+    {
+      "feature": "deciding_set_win_rate_64_a",
+      "gain": 16.826322555541992
+    },
+    {
+      "feature": "close_match_rate_64_a",
+      "gain": 16.64653968811035
+    },
+    {
+      "feature": "tiebreak_win_rate_8_a",
+      "gain": 16.636823654174805
+    },
+    {
+      "feature": "days_since_debut_b",
+      "gain": 16.56311798095703
+    },
+    {
+      "feature": "wins_vs_higher_elo_8_b",
+      "gain": 16.396902084350586
+    },
+    {
+      "feature": "surface_win_rate_b",
+      "gain": 16.204757690429688
+    },
+    {
+      "feature": "country_delta_a",
+      "gain": 16.123981475830078
+    },
+    {
+      "feature": "elo_var_64_b",
+      "gain": 16.02959632873535
+    },
+    {
+      "feature": "region_win_rate_a",
+      "gain": 15.972512245178223
+    },
+    {
+      "feature": "games_last_match_b",
+      "gain": 15.876285552978516
+    },
+    {
+      "feature": "tournament_history_sample_count_b",
+      "gain": 15.631924629211426
+    },
+    {
+      "feature": "vs_non_clutch_win_rate_a",
+      "gain": 15.591711044311523
+    },
+    {
+      "feature": "elo_var_64_a",
+      "gain": 15.458365440368652
+    },
+    {
+      "feature": "tournament_history_sample_count_a",
+      "gain": 15.367166519165039
+    },
+    {
+      "feature": "elo_var_32_a",
+      "gain": 15.05788803100586
+    },
+    {
+      "feature": "games_tournament_a",
+      "gain": 15.01365852355957
+    },
+    {
+      "feature": "win_rate_32w_a",
+      "gain": 14.78040599822998
+    },
+    {
+      "feature": "peak_elo_b",
+      "gain": 14.763736724853516
+    },
+    {
+      "feature": "is_home_a",
+      "gain": 14.637154579162598
+    },
+    {
+      "feature": "seed_b",
+      "gain": 14.55430793762207
+    },
+    {
+      "feature": "win_rate_16w_b",
+      "gain": 14.413801193237305
+    },
+    {
+      "feature": "close_match_rate_8_b",
+      "gain": 14.346671104431152
+    },
+    {
+      "feature": "country_matches_b",
+      "gain": 14.283421516418457
+    },
+    {
+      "feature": "surface_win_rate_a",
+      "gain": 14.24142074584961
+    },
+    {
+      "feature": "region_win_rate_b",
+      "gain": 14.214876174926758
+    },
+    {
+      "feature": "opponent_clutch_score_b",
+      "gain": 13.887040138244629
+    },
+    {
+      "feature": "vs_clutch_matches_a",
+      "gain": 13.752862930297852
+    },
+    {
+      "feature": "level_G",
+      "gain": 13.529121398925781
+    },
+    {
+      "feature": "peak_ratio_b",
+      "gain": 13.45887565612793
+    },
+    {
+      "feature": "peak_elo_a",
+      "gain": 13.408961296081543
+    },
+    {
+      "feature": "country_delta_b",
+      "gain": 13.407011032104492
+    },
+    {
+      "feature": "elo_momentum_a",
+      "gain": 13.268830299377441
+    },
+    {
+      "feature": "country_matches_a",
+      "gain": 13.241629600524902
+    },
+    {
+      "feature": "games_7d_diff_ab",
+      "gain": 13.225876808166504
+    },
+    {
+      "feature": "opponent_clutch_score_a",
+      "gain": 13.044650077819824
+    },
+    {
+      "feature": "region_delta_a",
+      "gain": 12.895097732543945
+    },
+    {
+      "feature": "win_rate_16w_a",
+      "gain": 12.753701210021973
+    },
+    {
+      "feature": "region_delta_b",
+      "gain": 12.689705848693848
+    },
+    {
+      "feature": "round_F",
+      "gain": 12.568964958190918
+    },
+    {
+      "feature": "seed_a",
+      "gain": 12.553466796875
+    },
+    {
+      "feature": "vs_clutch_win_rate_b",
+      "gain": 12.35153579711914
+    },
+    {
+      "feature": "vs_clutch_matches_b",
+      "gain": 12.333452224731445
+    },
+    {
+      "feature": "tiebreak_win_rate_64_b",
+      "gain": 12.24272346496582
+    },
+    {
+      "feature": "elo_var_16_b",
+      "gain": 12.17189884185791
+    },
+    {
+      "feature": "elo_var_8_a",
+      "gain": 12.077369689941406
+    },
+    {
+      "feature": "elo_var_8_b",
+      "gain": 12.0121431350708
+    },
+    {
+      "feature": "straight_sets_win_rate_64_b",
+      "gain": 11.655462265014648
+    },
+    {
+      "feature": "straight_sets_win_rate_64_a",
+      "gain": 11.62186050415039
+    },
+    {
+      "feature": "h2h_b_wins_2y",
+      "gain": 11.605234146118164
+    },
+    {
+      "feature": "comeback_rate_64_b",
+      "gain": 11.567914962768555
     },
     {
       "feature": "losses_vs_lower_elo_8_a",
-      "gain": 9.160943031311035
+      "gain": 11.535460472106934
     },
     {
-      "feature": "surface_grass",
-      "gain": 1.2526473999023438
+      "feature": "is_home_b",
+      "gain": 11.29713249206543
     },
     {
-      "feature": "round_RR",
+      "feature": "losses_vs_lower_elo_8_b",
+      "gain": 11.203357696533203
+    },
+    {
+      "feature": "region_matches_a",
+      "gain": 11.181589126586914
+    },
+    {
+      "feature": "round_QF",
+      "gain": 11.13837718963623
+    },
+    {
+      "feature": "close_match_rate_8_a",
+      "gain": 11.018860816955566
+    },
+    {
+      "feature": "vs_clutch_win_rate_a",
+      "gain": 10.635494232177734
+    },
+    {
+      "feature": "year_progress",
+      "gain": 10.616829872131348
+    },
+    {
+      "feature": "region_matches_b",
+      "gain": 10.397541046142578
+    },
+    {
+      "feature": "tiebreak_win_rate_64_a",
+      "gain": 10.067981719970703
+    },
+    {
+      "feature": "h2h_a_wins_6m",
+      "gain": 10.045886993408203
+    },
+    {
+      "feature": "h2h_a_wins_2y",
+      "gain": 9.743165016174316
+    },
+    {
+      "feature": "h2h_b_wins_level",
+      "gain": 9.354793548583984
+    },
+    {
+      "feature": "month_cos",
+      "gain": 9.135652542114258
+    },
+    {
+      "feature": "h2h_b_wins_6m",
+      "gain": 8.008476257324219
+    },
+    {
+      "feature": "h2h_a_wins_surface",
+      "gain": 6.677877426147461
+    },
+    {
+      "feature": "month_sin",
+      "gain": 5.556725025177002
+    },
+    {
+      "feature": "h2h_sample_count",
+      "gain": 5.463923454284668
+    },
+    {
+      "feature": "both_seeded",
+      "gain": 0.0
+    },
+    {
+      "feature": "h2h_a_wins_level",
+      "gain": 0.0
+    },
+    {
+      "feature": "h2h_b_wins_surface",
+      "gain": 0.0
+    },
+    {
+      "feature": "h2h_surface_sample_count",
+      "gain": 0.0
+    },
+    {
+      "feature": "h2h_total",
+      "gain": 0.0
+    },
+    {
+      "feature": "matches_16w_a",
+      "gain": 0.0
+    },
+    {
+      "feature": "matches_16w_b",
+      "gain": 0.0
+    },
+    {
+      "feature": "matches_4w_a",
+      "gain": 0.0
+    },
+    {
+      "feature": "matches_4w_b",
+      "gain": 0.0
+    },
+    {
+      "feature": "matches_8w_a",
+      "gain": 0.0
+    },
+    {
+      "feature": "matches_8w_b",
+      "gain": 0.0
+    },
+    {
+      "feature": "opponent_quality_sample_count_8_a",
+      "gain": 0.0
+    },
+    {
+      "feature": "rest_days_a",
+      "gain": 0.0
+    },
+    {
+      "feature": "rest_days_b",
+      "gain": 0.0
+    },
+    {
+      "feature": "round_Q3",
       "gain": 0.0
     },
     {
@@ -919,51 +1243,23 @@
       "gain": 0.0
     },
     {
-      "feature": "both_seeded",
+      "feature": "round_RR",
       "gain": 0.0
     },
     {
-      "feature": "surface_indoor",
+      "feature": "seed_diff",
       "gain": 0.0
     },
     {
-      "feature": "h2h_sample_count",
-      "gain": 0.0
-    },
-    {
-      "feature": "match_count_4w_a",
-      "gain": 0.0
-    },
-    {
-      "feature": "match_count_4w_b",
-      "gain": 0.0
-    },
-    {
-      "feature": "match_count_8w_a",
-      "gain": 0.0
-    },
-    {
-      "feature": "match_count_8w_b",
-      "gain": 0.0
-    },
-    {
-      "feature": "days_since_last_a",
-      "gain": 0.0
-    },
-    {
-      "feature": "days_since_last_b",
-      "gain": 0.0
-    },
-    {
-      "feature": "match_count_16w_a",
-      "gain": 0.0
-    },
-    {
-      "feature": "match_count_16w_b",
+      "feature": "surface_clay",
       "gain": 0.0
     },
     {
       "feature": "surface_elo_default_a",
+      "gain": 0.0
+    },
+    {
+      "feature": "surface_elo_default_b",
       "gain": 0.0
     },
     {
@@ -975,14 +1271,22 @@
       "gain": 0.0
     },
     {
-      "feature": "tournament_history_sample_count_a",
+      "feature": "surface_grass",
       "gain": 0.0
     },
     {
-      "feature": "tournament_history_sample_count_b",
+      "feature": "surface_indoor",
+      "gain": 0.0
+    },
+    {
+      "feature": "tournament_match_count_a",
+      "gain": 0.0
+    },
+    {
+      "feature": "tournament_match_count_b",
       "gain": 0.0
     }
   ],
-  "n_features": 158,
-  "n_rows": 668111
+  "n_features": 221,
+  "n_rows": 668911
 }
