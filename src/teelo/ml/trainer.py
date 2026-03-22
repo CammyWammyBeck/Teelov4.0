@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import optuna
-import pandas as pd
 import structlog
 import xgboost as xgb
 from sklearn.metrics import log_loss
@@ -39,6 +39,7 @@ class ModelTrainer:
         self.feature_set_name = feature_set_name or latest_feature_set()
         self.output_path = output_path or next_model_path()
         self.cv_scores: dict[str, float] = {}
+        self.feature_names: list[str] = []
 
     def train(self, holdout_year: int | None = None) -> dict[str, Any]:
         logger.info("loading data")
@@ -46,9 +47,9 @@ class ModelTrainer:
 
         if holdout_year is not None:
             train_mask = years != holdout_year
-            X_train = X.loc[train_mask].reset_index(drop=True)
-            y_train = y.loc[train_mask].reset_index(drop=True)
-            years_train = years.loc[train_mask].reset_index(drop=True)
+            X_train = X[train_mask]
+            y_train = y[train_mask]
+            years_train = years[train_mask]
             logger.info(
                 "trainer.holdout_excluded",
                 holdout_year=holdout_year,
@@ -60,7 +61,7 @@ class ModelTrainer:
         logger.info("beginning training")
         best_params = self._optimize(X_train, y_train, years_train)
         model = self._train_final(X_train, y_train, best_params)
-        metadata = self._save(model, best_params, X_train, y_train, years_train)
+        metadata = self._save(model, best_params, y_train, years_train)
 
         try:
             upload_model(self.output_path)
@@ -74,7 +75,7 @@ class ModelTrainer:
 
         return metadata
 
-    def _load_data(self) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+    def _load_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         with get_session() as session:
             feature_set = session.execute(
                 select(FeatureSet).where(FeatureSet.name == self.feature_set_name)
@@ -97,8 +98,10 @@ class ModelTrainer:
                 .where(Match.temporal_order.is_not(None))
             )
 
-            # Stream in chunks to avoid loading all JSONB dicts into memory
-            feature_chunks: list[pd.DataFrame] = []
+            import pandas as pd
+
+            columns: list[str] = []
+            feature_chunks: list[np.ndarray] = []
             y_vals: list[float] = []
             date_vals: list[Any] = []
             chunk_size = 50_000
@@ -109,8 +112,16 @@ class ModelTrainer:
                 rows = list(partition)
                 if not rows:
                     break
-                chunk_df = pd.DataFrame([r.features or {} for r in rows]).apply(pd.to_numeric, errors="coerce")
-                feature_chunks.append(chunk_df)
+                chunk_df = pd.DataFrame([r.features or {} for r in rows]).apply(
+                    pd.to_numeric, errors="coerce"
+                )
+                if not columns:
+                    columns = list(chunk_df.columns)
+                else:
+                    # Align to established columns
+                    chunk_df = chunk_df.reindex(columns=columns)
+                feature_chunks.append(chunk_df.to_numpy(dtype=np.float32))
+                del chunk_df
                 y_vals.extend(1.0 if r.winner_id == r.player_a_id else 0.0 for r in rows)
                 date_vals.extend(r.match_date for r in rows)
                 total_loaded += len(rows)
@@ -120,37 +131,41 @@ class ModelTrainer:
         if not feature_chunks:
             raise ValueError("No training rows found for the requested feature set and filters.")
 
-        X = pd.concat(feature_chunks, ignore_index=True)
+        X = np.vstack(feature_chunks)
         del feature_chunks
-        y = pd.Series(y_vals, dtype="float64")
+        y = np.array(y_vals, dtype=np.float32)
         del y_vals
-        years = pd.to_datetime(pd.Series(date_vals), errors="coerce").dt.year
-        del date_vals
 
-        valid_mask = years.notna()
+        dates = pd.to_datetime(pd.Series(date_vals), errors="coerce")
+        del date_vals
+        year_series = dates.dt.year
+        valid_mask = year_series.notna().to_numpy()
         if not valid_mask.all():
             dropped = int((~valid_mask).sum())
             logger.warning("trainer.rows_dropped_missing_year", dropped=dropped)
-            X = X.loc[valid_mask].reset_index(drop=True)
-            y = y.loc[valid_mask].reset_index(drop=True)
-            years = years.loc[valid_mask].reset_index(drop=True)
+            X = X[valid_mask]
+            y = y[valid_mask]
+            year_series = year_series[valid_mask]
 
-        years = years.astype("int64")
+        years = year_series.to_numpy(dtype=np.int64)
+        del year_series
 
-        if X.empty:
+        if X.shape[0] == 0:
             raise ValueError("No valid rows left after filtering missing match_date years.")
 
-        X, y = randomize_ab(X, y)
+        self.feature_names = columns
+        randomize_ab(X, y, columns)
 
         logger.info(
             "trainer.data_loaded",
             feature_set=self.feature_set_name,
-            rows=len(X),
-            columns=len(X.columns),
+            rows=X.shape[0],
+            columns=X.shape[1],
+            memory_mb=f"{X.nbytes / 1024**2:.1f}",
         )
         return X, y, years
 
-    def _optimize(self, X: pd.DataFrame, y: pd.Series, years: pd.Series) -> dict[str, Any]:
+    def _optimize(self, X: np.ndarray, y: np.ndarray, years: np.ndarray) -> dict[str, Any]:
         n_trials = 25
         t_start = time.monotonic()
 
@@ -165,6 +180,7 @@ class ModelTrainer:
                 "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
                 "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
             }
+            logger.info("trainer.trial_start", trial=trial.number + 1, total=n_trials)
             score = self._temporal_cv_score(params, X, y, years)
             done = trial.number + 1
             elapsed = time.monotonic() - t_start
@@ -198,9 +214,9 @@ class ModelTrainer:
     def _temporal_cv_score(
         self,
         params: dict[str, Any],
-        X: pd.DataFrame,
-        y: pd.Series,
-        years: pd.Series,
+        X: np.ndarray,
+        y: np.ndarray,
+        years: np.ndarray,
     ) -> float:
         scores = self._temporal_cv_scores(params, X, y, years)
         mean_score = scores.get("mean_log_loss")
@@ -211,9 +227,9 @@ class ModelTrainer:
     def _temporal_cv_scores(
         self,
         params: dict[str, Any],
-        X: pd.DataFrame,
-        y: pd.Series,
-        years: pd.Series,
+        X: np.ndarray,
+        y: np.ndarray,
+        years: np.ndarray,
     ) -> dict[str, float]:
         fold_scores: dict[str, float] = {}
 
@@ -230,12 +246,12 @@ class ModelTrainer:
                 )
                 continue
 
-            X_train = X.loc[train_mask]
-            y_train = y.loc[train_mask]
-            X_test = X.loc[test_mask]
-            y_test = y.loc[test_mask]
+            X_train = X[train_mask]
+            y_train = y[train_mask]
+            X_test = X[test_mask]
+            y_test = y[test_mask]
 
-            if y_train.nunique() < 2:
+            if len(np.unique(y_train)) < 2:
                 logger.warning(
                     "trainer.fold_skipped_single_class_train",
                     fold=idx,
@@ -264,8 +280,9 @@ class ModelTrainer:
         return fold_scores
 
     def _train_final(
-        self, X: pd.DataFrame, y: pd.Series, params: dict[str, Any]
+        self, X: np.ndarray, y: np.ndarray, params: dict[str, Any]
     ) -> xgb.XGBClassifier:
+        logger.info("trainer.final_training_start", rows=X.shape[0], columns=X.shape[1])
         model = xgb.XGBClassifier(
             **params,
             use_label_encoder=False,
@@ -273,15 +290,15 @@ class ModelTrainer:
             enable_categorical=False,
         )
         model.fit(X, y)
+        logger.info("trainer.final_training_done")
         return model
 
     def _save(
         self,
         model: xgb.XGBClassifier,
         params: dict[str, Any],
-        X: pd.DataFrame,
-        y: pd.Series,
-        years: pd.Series,
+        y: np.ndarray,
+        years: np.ndarray,
     ) -> dict[str, Any]:
         output = Path(self.output_path)
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -290,9 +307,9 @@ class ModelTrainer:
         min_year = int(years.min())
         max_year = int(years.max())
         metadata = {
-            "feature_names": list(X.columns),
+            "feature_names": self.feature_names,
             "params": params,
-            "cv_scores": self.cv_scores or self._temporal_cv_scores(params, X, y, years),
+            "cv_scores": self.cv_scores,
             "train_size": int(len(y)),
             "date_range": f"{min_year}-{max_year}",
             "created_at": datetime.utcnow().isoformat(),

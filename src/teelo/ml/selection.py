@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import structlog
 import xgboost as xgb
@@ -52,6 +53,7 @@ ABLATION_GROUP_PREFIXES = (
 class FeatureSelector:
     def __init__(self, feature_set_name: str) -> None:
         self.feature_set_name = feature_set_name
+        self.columns: list[str] = []
 
     def run(self) -> dict[str, Any]:
         X, y, temporal_order = self._load_data()
@@ -59,13 +61,12 @@ class FeatureSelector:
 
         importance_gain = full_model.get_booster().get_score(importance_type="gain")
         normalized_importance: dict[str, float] = {}
-        columns = list(X.columns)
         for feature, gain in importance_gain.items():
             resolved = feature
             if feature.startswith("f") and feature[1:].isdigit():
                 idx = int(feature[1:])
-                if 0 <= idx < len(columns):
-                    resolved = str(columns[idx])
+                if 0 <= idx < len(self.columns):
+                    resolved = str(self.columns[idx])
             normalized_importance[resolved] = float(gain)
 
         importance_ranking = sorted(
@@ -77,7 +78,7 @@ class FeatureSelector:
             reverse=True,
         )
         ranked_features = [row["feature"] for row in importance_ranking]
-        for column in X.columns:
+        for column in self.columns:
             if column not in normalized_importance:
                 importance_ranking.append({"feature": column, "gain": 0.0})
                 ranked_features.append(column)
@@ -88,8 +89,8 @@ class FeatureSelector:
 
         report = {
             "feature_set": self.feature_set_name,
-            "n_rows": int(len(X)),
-            "n_features": int(len(X.columns)),
+            "n_rows": int(X.shape[0]),
+            "n_features": int(X.shape[1]),
             "full_split_log_loss": full_split_log_loss,
             "importance_ranking": importance_ranking,
             "cumulative_results": cumulative_results,
@@ -101,7 +102,7 @@ class FeatureSelector:
         )
         return report
 
-    def _load_data(self) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+    def _load_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         with get_session() as session:
             feature_set = session.execute(
                 select(FeatureSet).where(FeatureSet.name == self.feature_set_name)
@@ -125,8 +126,8 @@ class FeatureSelector:
                 .order_by(Match.temporal_order.asc())
             )
 
-            # Stream in chunks to avoid loading all JSONB dicts into memory
-            feature_chunks: list[pd.DataFrame] = []
+            columns: list[str] = []
+            feature_chunks: list[np.ndarray] = []
             y_vals: list[float] = []
             t_vals: list[int] = []
             chunk_size = 50_000
@@ -137,38 +138,44 @@ class FeatureSelector:
                 rows = list(partition)
                 if not rows:
                     break
-                chunk_df = pd.DataFrame([r.features or {} for r in rows])
-                feature_chunks.append(chunk_df)
+                chunk_df = pd.DataFrame([r.features or {} for r in rows]).apply(
+                    pd.to_numeric, errors="coerce"
+                )
+                if not columns:
+                    columns = list(chunk_df.columns)
+                else:
+                    chunk_df = chunk_df.reindex(columns=columns)
+                feature_chunks.append(chunk_df.to_numpy(dtype=np.float32))
+                del chunk_df
                 y_vals.extend(1.0 if r.winner_id == r.player_a_id else 0.0 for r in rows)
                 t_vals.extend(int(r.temporal_order) for r in rows)
                 total_loaded += len(rows)
-                logger.info(
-                    "selection.loading_data",
-                    loaded=total_loaded,
-                )
+                logger.info("selection.loading_data", loaded=total_loaded)
                 del rows
 
         if not feature_chunks:
             raise ValueError("No rows found for feature selection.")
 
-        X = pd.concat(feature_chunks, ignore_index=True).apply(pd.to_numeric, errors="coerce")
+        X = np.vstack(feature_chunks)
         del feature_chunks
-        y = pd.Series(y_vals, dtype="float64")
+        y = np.array(y_vals, dtype=np.float32)
         del y_vals
-        temporal_order = pd.Series(t_vals, dtype="int64")
+        temporal_order = np.array(t_vals, dtype=np.int64)
         del t_vals
 
-        X, y = randomize_ab(X, y)
+        self.columns = columns
+        randomize_ab(X, y, columns)
 
         logger.info(
             "feature_selector.data_loaded",
             feature_set=self.feature_set_name,
-            rows=len(X),
-            columns=len(X.columns),
+            rows=X.shape[0],
+            columns=X.shape[1],
+            memory_mb=f"{X.nbytes / 1024**2:.1f}",
         )
         return X, y, temporal_order
 
-    def _train_model(self, X: pd.DataFrame, y: pd.Series) -> xgb.XGBClassifier:
+    def _train_model(self, X: np.ndarray, y: np.ndarray) -> xgb.XGBClassifier:
         model = xgb.XGBClassifier(
             n_estimators=200,
             max_depth=6,
@@ -183,23 +190,27 @@ class FeatureSelector:
 
     def _temporal_split_log_loss(
         self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        temporal_order: pd.Series,
+        X: np.ndarray,
+        y: np.ndarray,
+        temporal_order: np.ndarray,
     ) -> float:
-        order = temporal_order.sort_values().index
-        split_idx = max(1, int(len(order) * 0.8))
-        if split_idx >= len(order):
-            split_idx = len(order) - 1
+        # temporal_order is already sorted (query ORDER BY), so use simple index split
+        n = len(temporal_order)
+        split_idx = max(1, int(n * 0.8))
+        if split_idx >= n:
+            split_idx = n - 1
 
-        train_idx = order[:split_idx]
-        test_idx = order[split_idx:]
-        X_train = X.loc[train_idx]
-        y_train = y.loc[train_idx]
-        X_test = X.loc[test_idx]
-        y_test = y.loc[test_idx]
+        # Sort indices by temporal_order to get proper train/test split
+        sorted_indices = np.argsort(temporal_order, kind="stable")
+        train_indices = sorted_indices[:split_idx]
+        test_indices = sorted_indices[split_idx:]
 
-        if y_train.nunique() < 2 or y_test.nunique() < 2:
+        X_train = X[train_indices]
+        y_train = y[train_indices]
+        X_test = X[test_indices]
+        y_test = y[test_indices]
+
+        if len(np.unique(y_train)) < 2 or len(np.unique(y_test)) < 2:
             return float("inf")
 
         model = self._train_model(X_train, y_train)
@@ -208,14 +219,16 @@ class FeatureSelector:
 
     def _run_cumulative_test(
         self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        temporal_order: pd.Series,
+        X: np.ndarray,
+        y: np.ndarray,
+        temporal_order: np.ndarray,
         ranked_features: list[str],
     ) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
         if not ranked_features:
             return results
+
+        col_idx = {name: i for i, name in enumerate(self.columns)}
 
         start = min(5, len(ranked_features))
         steps = list(range(start, len(ranked_features) + 1, 5))
@@ -226,7 +239,8 @@ class FeatureSelector:
 
         for step_i, n_features in enumerate(steps, 1):
             selected = ranked_features[:n_features]
-            loss = self._temporal_split_log_loss(X[selected], y, temporal_order)
+            col_indices = np.array([col_idx[c] for c in selected if c in col_idx], dtype=np.intp)
+            loss = self._temporal_split_log_loss(X[:, col_indices], y, temporal_order)
             results.append(
                 {
                     "n_features": n_features,
@@ -250,24 +264,26 @@ class FeatureSelector:
 
     def _run_ablation(
         self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        temporal_order: pd.Series,
+        X: np.ndarray,
+        y: np.ndarray,
+        temporal_order: np.ndarray,
         full_split_log_loss: float,
     ) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
-        columns = list(X.columns)
+        col_idx = {name: i for i, name in enumerate(self.columns)}
 
         total_groups = len(ABLATION_GROUP_PREFIXES)
         t_start = time.monotonic()
 
         for group_i, prefix in enumerate(ABLATION_GROUP_PREFIXES, 1):
-            removed = [column for column in columns if column.startswith(prefix)]
-            if not removed or len(removed) >= len(columns):
+            removed = [c for c in self.columns if c.startswith(prefix)]
+            if not removed or len(removed) >= len(self.columns):
                 continue
 
-            kept_columns = [column for column in columns if column not in removed]
-            ablated_loss = self._temporal_split_log_loss(X[kept_columns], y, temporal_order)
+            kept_indices = np.array(
+                [col_idx[c] for c in self.columns if c not in set(removed)], dtype=np.intp
+            )
+            ablated_loss = self._temporal_split_log_loss(X[:, kept_indices], y, temporal_order)
             degraded = ablated_loss > full_split_log_loss
             results.append(
                 {

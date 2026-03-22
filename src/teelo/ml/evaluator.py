@@ -77,26 +77,32 @@ class ModelEvaluator:
         if not rows:
             raise ValueError(f"No completed rows found for holdout_year={holdout_year}")
 
-        X = pd.DataFrame([row.features or {} for row in rows]).reindex(columns=feature_names)
-        X = X.apply(pd.to_numeric, errors="coerce")
-        y_true = pd.Series(
-            [1 if row.winner_id == row.player_a_id else 0 for row in rows],
-            dtype="int64",
+        import numpy as np
+
+        X_df = pd.DataFrame([row.features or {} for row in rows]).reindex(columns=feature_names)
+        X_df = X_df.apply(pd.to_numeric, errors="coerce")
+        columns = list(X_df.columns)
+        X = X_df.to_numpy(dtype=np.float32)
+        del X_df
+        y_true = np.array(
+            [1.0 if row.winner_id == row.player_a_id else 0.0 for row in rows],
+            dtype=np.float32,
         )
         tours = pd.Series([row.tour or "unknown" for row in rows], dtype="object")
 
-        X, y_true = randomize_ab(X, y_true)
+        randomize_ab(X, y_true, columns)
 
         y_prob = model.predict_proba(X)[:, 1]
         y_pred = (y_prob > 0.5).astype(int)
 
-        accuracy = float(accuracy_score(y_true, y_pred))
-        ll = float(log_loss(y_true, y_prob, labels=[0, 1]))
-        brier = float(brier_score_loss(y_true, y_prob))
+        y_true_int = y_true.astype(int)
+        accuracy = float(accuracy_score(y_true_int, y_pred))
+        ll = float(log_loss(y_true_int, y_prob, labels=[0, 1]))
+        brier = float(brier_score_loss(y_true_int, y_prob))
         ece = float(self._expected_calibration_error(y_true, y_prob))
 
         tour_breakdown: dict[str, float] = {}
-        frame = pd.DataFrame({"tour": tours, "y_true": y_true, "y_pred": y_pred})
+        frame = pd.DataFrame({"tour": tours, "y_true": y_true_int, "y_pred": y_pred})
         for tour, group in frame.groupby("tour"):
             tour_breakdown[str(tour)] = float((group["y_true"] == group["y_pred"]).mean())
 
