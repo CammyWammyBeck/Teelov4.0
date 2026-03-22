@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import json
 import time
 from datetime import datetime
@@ -11,7 +12,7 @@ import optuna
 import structlog
 import xgboost as xgb
 from sklearn.metrics import log_loss
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
@@ -76,6 +77,12 @@ class ModelTrainer:
         return metadata
 
     def _load_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        def _to_f32(v: Any) -> float:
+            try:
+                return float(v) if v is not None else np.nan
+            except (TypeError, ValueError):
+                return np.nan
+
         with get_session() as session:
             feature_set = session.execute(
                 select(FeatureSet).where(FeatureSet.name == self.feature_set_name)
@@ -98,57 +105,74 @@ class ModelTrainer:
                 .where(Match.temporal_order.is_not(None))
             )
 
-            import pandas as pd
+            # Discover column names from a small sample (JSONB keys may vary per row)
+            sample_rows = session.execute(stmt.limit(100)).all()
+            column_set: set[str] = set()
+            for r in sample_rows:
+                column_set.update((r.features or {}).keys())
+            columns = sorted(column_set)
+            n_cols = len(columns)
+            del sample_rows
 
-            columns: list[str] = []
-            feature_chunks: list[np.ndarray] = []
-            y_vals: list[float] = []
-            date_vals: list[Any] = []
-            chunk_size = 50_000
+            # Count total rows with the same filters
+            total_rows = session.execute(
+                select(func.count()).select_from(stmt.subquery())
+            ).scalar_one()
+            if total_rows == 0:
+                raise ValueError("No training rows found for the requested feature set and filters.")
+
+            # Pre-allocate arrays
+            X = np.empty((total_rows, n_cols), dtype=np.float32)
+            y = np.empty(total_rows, dtype=np.float32)
+            date_vals: list[Any] = [None] * total_rows
+
+            chunk_size = 10_000
             total_loaded = 0
+            row_idx = 0
 
             result = session.execute(stmt).yield_per(chunk_size)
             for partition in result.partitions(chunk_size):
                 rows = list(partition)
                 if not rows:
                     break
-                chunk_df = pd.DataFrame([r.features or {} for r in rows]).apply(
-                    pd.to_numeric, errors="coerce"
-                )
-                if not columns:
-                    columns = list(chunk_df.columns)
-                else:
-                    # Align to established columns
-                    chunk_df = chunk_df.reindex(columns=columns)
-                feature_chunks.append(chunk_df.to_numpy(dtype=np.float32))
-                del chunk_df
-                y_vals.extend(1.0 if r.winner_id == r.player_a_id else 0.0 for r in rows)
-                date_vals.extend(r.match_date for r in rows)
+
+                for r in rows:
+                    features_dict = r.features or {}
+                    for j, col in enumerate(columns):
+                        X[row_idx, j] = _to_f32(features_dict.get(col, None))
+                    y[row_idx] = 1.0 if r.winner_id == r.player_a_id else 0.0
+                    date_vals[row_idx] = r.match_date
+                    row_idx += 1
+
                 total_loaded += len(rows)
-                logger.info("trainer.loading_data", loaded=total_loaded)
                 del rows
+                gc.collect()
+                logger.info("trainer.loading_data", loaded=total_loaded, total=total_rows)
 
-        if not feature_chunks:
-            raise ValueError("No training rows found for the requested feature set and filters.")
+            # Trim if actual row count differs from COUNT (e.g. concurrent deletes)
+            if row_idx != total_rows:
+                X = X[:row_idx]
+                y = y[:row_idx]
+                date_vals = date_vals[:row_idx]
+                total_rows = row_idx
 
-        X = np.vstack(feature_chunks)
-        del feature_chunks
-        y = np.array(y_vals, dtype=np.float32)
-        del y_vals
-
-        dates = pd.to_datetime(pd.Series(date_vals), errors="coerce")
+        # Parse dates without pandas: extract .year from date/datetime objects
+        years = np.empty(total_rows, dtype=np.int64)
+        valid_mask = np.zeros(total_rows, dtype=bool)
+        for i, date_value in enumerate(date_vals):
+            if hasattr(date_value, "year"):
+                years[i] = date_value.year
+                valid_mask[i] = True
+            else:
+                years[i] = 0
         del date_vals
-        year_series = dates.dt.year
-        valid_mask = year_series.notna().to_numpy()
+
         if not valid_mask.all():
             dropped = int((~valid_mask).sum())
             logger.warning("trainer.rows_dropped_missing_year", dropped=dropped)
             X = X[valid_mask]
             y = y[valid_mask]
-            year_series = year_series[valid_mask]
-
-        years = year_series.to_numpy(dtype=np.int64)
-        del year_series
+            years = years[valid_mask]
 
         if X.shape[0] == 0:
             raise ValueError("No valid rows left after filtering missing match_date years.")
@@ -161,7 +185,7 @@ class ModelTrainer:
             feature_set=self.feature_set_name,
             rows=X.shape[0],
             columns=X.shape[1],
-            memory_mb=f"{X.nbytes / 1024**2:.1f}",
+            memory_mb=f"{(X.nbytes + y.nbytes + years.nbytes) / 1024**2:.1f}",
         )
         return X, y, years
 

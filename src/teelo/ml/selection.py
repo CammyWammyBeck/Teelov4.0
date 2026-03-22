@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import gc
 import json
 import time
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 import structlog
 import xgboost as xgb
 from sklearn.metrics import log_loss
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
@@ -103,6 +103,12 @@ class FeatureSelector:
         return report
 
     def _load_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        def _to_f32(v: Any) -> float:
+            try:
+                return float(v) if v is not None else np.nan
+            except (TypeError, ValueError):
+                return np.nan
+
         with get_session() as session:
             feature_set = session.execute(
                 select(FeatureSet).where(FeatureSet.name == self.feature_set_name)
@@ -126,11 +132,28 @@ class FeatureSelector:
                 .order_by(Match.temporal_order.asc())
             )
 
-            columns: list[str] = []
-            feature_chunks: list[np.ndarray] = []
-            y_vals: list[float] = []
-            t_vals: list[int] = []
-            chunk_size = 50_000
+            # Discover column names from a small sample (JSONB keys may vary per row)
+            sample_rows = session.execute(stmt.limit(100)).all()
+            column_set: set[str] = set()
+            for r in sample_rows:
+                column_set.update((r.features or {}).keys())
+            columns = sorted(column_set)
+            n_cols = len(columns)
+            del sample_rows
+
+            # Count total rows with the same filters
+            total_rows = session.execute(
+                select(func.count()).select_from(stmt.subquery())
+            ).scalar_one()
+            if total_rows == 0:
+                raise ValueError("No rows found for feature selection.")
+
+            # Pre-allocate arrays
+            X = np.empty((total_rows, n_cols), dtype=np.float32)
+            y = np.empty(total_rows, dtype=np.float32)
+            t_vals = np.empty(total_rows, dtype=np.int64)
+
+            chunk_size = 10_000
             total_loaded = 0
 
             result = session.execute(stmt).yield_per(chunk_size)
@@ -138,30 +161,22 @@ class FeatureSelector:
                 rows = list(partition)
                 if not rows:
                     break
-                chunk_df = pd.DataFrame([r.features or {} for r in rows]).apply(
-                    pd.to_numeric, errors="coerce"
-                )
-                if not columns:
-                    columns = list(chunk_df.columns)
-                else:
-                    chunk_df = chunk_df.reindex(columns=columns)
-                feature_chunks.append(chunk_df.to_numpy(dtype=np.float32))
-                del chunk_df
-                y_vals.extend(1.0 if r.winner_id == r.player_a_id else 0.0 for r in rows)
-                t_vals.extend(int(r.temporal_order) for r in rows)
+
+                for i, r in enumerate(rows):
+                    row_idx = total_loaded + i
+                    features_dict = r.features or {}
+                    for j, col in enumerate(columns):
+                        X[row_idx, j] = _to_f32(features_dict.get(col, None))
+                    y[row_idx] = 1.0 if r.winner_id == r.player_a_id else 0.0
+                    t_vals[row_idx] = int(r.temporal_order)
+
                 total_loaded += len(rows)
-                logger.info("selection.loading_data", loaded=total_loaded)
                 del rows
+                gc.collect()
+                logger.info("selection.loading_data", loaded=total_loaded, total=total_rows)
 
-        if not feature_chunks:
+        if total_loaded == 0:
             raise ValueError("No rows found for feature selection.")
-
-        X = np.vstack(feature_chunks)
-        del feature_chunks
-        y = np.array(y_vals, dtype=np.float32)
-        del y_vals
-        temporal_order = np.array(t_vals, dtype=np.int64)
-        del t_vals
 
         self.columns = columns
         randomize_ab(X, y, columns)
@@ -173,7 +188,7 @@ class FeatureSelector:
             columns=X.shape[1],
             memory_mb=f"{X.nbytes / 1024**2:.1f}",
         )
-        return X, y, temporal_order
+        return X, y, t_vals
 
     def _train_model(self, X: np.ndarray, y: np.ndarray) -> xgb.XGBClassifier:
         model = xgb.XGBClassifier(
