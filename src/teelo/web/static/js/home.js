@@ -208,9 +208,8 @@ function renderBlogPosts(data) {
   const posts = Array.isArray(data) ? data : (data ? [data] : []);
   if (posts.length === 0) return;
 
-  // On mobile (single-column), limit to 3 posts
-  const isMobile = window.innerWidth < 1024;
-  const visible = isMobile ? posts.slice(0, 3) : posts;
+  // Always limit to 3 posts on the home page
+  const visible = posts.slice(0, 3);
 
   listEl.innerHTML = visible.map(p => `
     <div class="p-5">
