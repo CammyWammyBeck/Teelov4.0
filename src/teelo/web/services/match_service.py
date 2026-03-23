@@ -170,6 +170,7 @@ def serialize_match(match: Match) -> dict:
         "player_a": player_a_payload,
         "player_b": player_b_payload,
         "score": match.score,
+        "score_structured": match.score_structured,
         "winner_id": match.winner_id,
         "status": match.status,
         "match_date": (

@@ -12,15 +12,29 @@
         {% set pred_a_pct = (match.prediction_a * 100) | round(0) | int %}
         {% set pred_b_pct = 100 - pred_a_pct %}
         <div class="flex items-center justify-between mb-4">
-            <a href="{{ match.player_a.player_url }}" class="text-lg md:text-xl font-bold text-teelo-dark hover:underline decoration-teelo-lime decoration-2">{{ match.player_a.name }}</a>
-            <a href="{{ match.player_b.player_url }}" class="text-lg md:text-xl font-bold text-teelo-dark hover:underline decoration-teelo-lime decoration-2 text-right">{{ match.player_b.name }}</a>
+            <div class="flex items-center gap-1.5">
+                {% if match.winner_id == match.player_a.id %}<i data-lucide="check-circle" class="w-5 h-5 text-status-success flex-shrink-0"></i>{% endif %}
+                <a href="{{ match.player_a.player_url }}" class="text-lg md:text-xl font-bold {{ 'text-teelo-dark' if not match.winner_id or match.winner_id == match.player_a.id else 'text-content-faint' }} hover:underline decoration-teelo-lime decoration-2">{{ match.player_a.name }}</a>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <a href="{{ match.player_b.player_url }}" class="text-lg md:text-xl font-bold {{ 'text-teelo-dark' if not match.winner_id or match.winner_id == match.player_b.id else 'text-content-faint' }} hover:underline decoration-teelo-lime decoration-2 text-right">{{ match.player_b.name }}</a>
+                {% if match.winner_id == match.player_b.id %}<i data-lucide="check-circle" class="w-5 h-5 text-status-success flex-shrink-0"></i>{% endif %}
+            </div>
         </div>
         <div class="flex items-center gap-4 mb-3">
+            {% if match.winner_id %}
+            <span class="text-3xl md:text-4xl font-black {{ 'text-teelo-dark' if match.winner_id == match.player_a.id else 'text-content-faint' }}">{{ pred_a_pct }}%</span>
+            {% else %}
             <span class="text-3xl md:text-4xl font-black {{ 'text-teelo-dark' if pred_a_pct >= pred_b_pct else 'text-content-faint' }}">{{ pred_a_pct }}%</span>
+            {% endif %}
             <div class="flex-1 h-3 rounded-full bg-surface-muted overflow-hidden flex {{ 'justify-end' if pred_b_pct > pred_a_pct else '' }}">
                 <div class="h-full bg-teelo-lime rounded-full transition-all" style="width: {{ [pred_a_pct, pred_b_pct] | max }}%"></div>
             </div>
+            {% if match.winner_id %}
+            <span class="text-3xl md:text-4xl font-black {{ 'text-teelo-dark' if match.winner_id == match.player_b.id else 'text-content-faint' }}">{{ pred_b_pct }}%</span>
+            {% else %}
             <span class="text-3xl md:text-4xl font-black {{ 'text-teelo-dark' if pred_b_pct > pred_a_pct else 'text-content-faint' }}">{{ pred_b_pct }}%</span>
+            {% endif %}
         </div>
         {% if feature_set %}
         <p class="text-xs text-content-faintest text-center">Model: {{ feature_set.name }} v{{ feature_set.version }}</p>
@@ -28,9 +42,15 @@
         {% else %}
         <div class="text-center py-4">
             <div class="flex items-center justify-between mb-4">
-                <a href="{{ match.player_a.player_url }}" class="text-lg md:text-xl font-bold text-teelo-dark hover:underline decoration-teelo-lime decoration-2">{{ match.player_a.name }}</a>
+                <div class="flex items-center gap-1.5">
+                    {% if match.winner_id == match.player_a.id %}<i data-lucide="check-circle" class="w-5 h-5 text-status-success flex-shrink-0"></i>{% endif %}
+                    <a href="{{ match.player_a.player_url }}" class="text-lg md:text-xl font-bold {{ 'text-teelo-dark' if not match.winner_id or match.winner_id == match.player_a.id else 'text-content-faint' }} hover:underline decoration-teelo-lime decoration-2">{{ match.player_a.name }}</a>
+                </div>
                 <span class="text-content-faint font-medium">vs</span>
-                <a href="{{ match.player_b.player_url }}" class="text-lg md:text-xl font-bold text-teelo-dark hover:underline decoration-teelo-lime decoration-2 text-right">{{ match.player_b.name }}</a>
+                <div class="flex items-center gap-1.5">
+                    <a href="{{ match.player_b.player_url }}" class="text-lg md:text-xl font-bold {{ 'text-teelo-dark' if not match.winner_id or match.winner_id == match.player_b.id else 'text-content-faint' }} hover:underline decoration-teelo-lime decoration-2 text-right">{{ match.player_b.name }}</a>
+                    {% if match.winner_id == match.player_b.id %}<i data-lucide="check-circle" class="w-5 h-5 text-status-success flex-shrink-0"></i>{% endif %}
+                </div>
             </div>
             <p class="text-sm text-content-faint">No prediction available</p>
         </div>
@@ -64,10 +84,39 @@
             {% endif %}
         </div>
         {% if match.score %}
-        <div class="mt-4 flex items-center gap-3">
-            <span class="text-lg font-mono font-semibold">{{ match.score }}</span>
+        <div class="mt-4">
+            {% if match.winner_id and match.score_structured %}
+            {% set is_a_winner = match.winner_id == match.player_a.id %}
+            {% set winner = match.player_a if is_a_winner else match.player_b %}
+            {% set loser = match.player_b if is_a_winner else match.player_a %}
+            <table class="text-lg font-mono">
+                <tr>
+                    <td class="pr-3 font-semibold text-sm font-sans">{{ winner.name.split(' ')[-1] }}</td>
+                    {% for s in match.score_structured %}
+                    {% set w_score = s.a if is_a_winner else s.b %}
+                    {% set l_score = s.b if is_a_winner else s.a %}
+                    <td class="px-2 text-center {{ 'font-bold text-teelo-dark' if w_score > l_score else 'text-content-muted' }}">{{ w_score }}</td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <td class="pr-3 text-sm font-sans text-content-muted">{{ loser.name.split(' ')[-1] }}</td>
+                    {% for s in match.score_structured %}
+                    {% set w_score = s.a if is_a_winner else s.b %}
+                    {% set l_score = s.b if is_a_winner else s.a %}
+                    <td class="px-2 text-center {{ 'font-bold text-teelo-dark' if l_score > w_score else 'text-content-muted' }}">{{ l_score }}</td>
+                    {% endfor %}
+                </tr>
+            </table>
             {% if match.status and match.status not in ['completed', 'scheduled'] %}
-            <span class="text-xs text-content-faint bg-surface-muted px-2 py-0.5 rounded">{{ match.status | capitalize }}</span>
+            <span class="text-xs text-content-faint bg-surface-muted px-2 py-0.5 rounded mt-1 inline-block">{{ match.status | capitalize }}</span>
+            {% endif %}
+            {% else %}
+            <div class="flex items-center gap-3">
+                <span class="text-lg font-mono font-semibold">{{ match.score }}</span>
+                {% if match.status and match.status not in ['completed', 'scheduled'] %}
+                <span class="text-xs text-content-faint bg-surface-muted px-2 py-0.5 rounded">{{ match.status | capitalize }}</span>
+                {% endif %}
+            </div>
             {% endif %}
         </div>
         {% endif %}
