@@ -13,6 +13,7 @@ from sqlalchemy import bindparam, select, true, update
 
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
+from teelo.ml.randomize import swap_ab_features
 from teelo.ml.versioning import latest_feature_set, latest_model_path
 from teelo.storage import download_model
 
@@ -115,10 +116,21 @@ class BatchPredictor:
         return total_predicted
 
     def _predict_chunk(self, chunk, model, feature_names, model_version, source, update_stmt, session) -> int:
-        X = pd.DataFrame([row.features or {} for row in chunk])
-        X = X.reindex(columns=feature_names)
-        X = X.apply(pd.to_numeric, errors="coerce")
-        probs = model.predict_proba(X)[:, 1]
+        raw_features = [row.features or {} for row in chunk]
+
+        # Original orientation: P(A wins)
+        X_orig = pd.DataFrame(raw_features).reindex(columns=feature_names)
+        X_orig = X_orig.apply(pd.to_numeric, errors="coerce")
+        probs_orig = model.predict_proba(X_orig)[:, 1]
+
+        # Swapped orientation: model sees (B, A), returns P(orig-B wins)
+        X_swap = pd.DataFrame([swap_ab_features(f) for f in raw_features])
+        X_swap = X_swap.reindex(columns=feature_names)
+        X_swap = X_swap.apply(pd.to_numeric, errors="coerce")
+        probs_swap = model.predict_proba(X_swap)[:, 1]
+
+        # Average: P(A wins) = mean of original and (1 - swapped)
+        probs = (probs_orig + (1.0 - probs_swap)) / 2.0
 
         now = datetime.utcnow()
         payloads = [

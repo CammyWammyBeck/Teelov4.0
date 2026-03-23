@@ -64,3 +64,64 @@ def randomize_ab(
         X[mask, idx] = 1.0 - X[mask, idx]
 
     y[mask] = 1 - y[mask]
+
+
+def swap_ab_features(features: dict) -> dict:
+    """Return a copy of *features* with player-A and player-B roles swapped.
+
+    Handles three patterns:
+    1. ``_a`` / ``_b`` suffix pairs → swap values
+    2. ``h2h_a_`` / ``h2h_b_`` prefix pairs → swap values
+    3. ``*diff*`` features (not already swapped) → negate
+    4. ``h2h_a_dominance`` (not already swapped) → complement (1 - x)
+    5. Everything else → pass through unchanged
+    """
+    swapped: dict = {}
+    processed: set = set()
+
+    # 1. Swap _a / _b suffix pairs
+    for key, val in features.items():
+        if key in processed:
+            continue
+        if key.endswith("_a"):
+            partner = key[:-2] + "_b"
+            if partner in features:
+                swapped[key] = features[partner]
+                swapped[partner] = val
+                processed.add(key)
+                processed.add(partner)
+
+    # 2. Swap h2h_a_ / h2h_b_ prefix pairs
+    for key, val in features.items():
+        if key in processed:
+            continue
+        if key.startswith("h2h_a_"):
+            partner = "h2h_b_" + key[len("h2h_a_"):]
+            if partner in features:
+                swapped[key] = features[partner]
+                swapped[partner] = val
+                processed.add(key)
+                processed.add(partner)
+
+    # 3. Negate *diff* features not already handled
+    for key, val in features.items():
+        if key in processed:
+            continue
+        if "diff" in key:
+            swapped[key] = -val if val is not None else val
+            processed.add(key)
+
+    # 4. Complement h2h_a_dominance if not already swapped
+    for key, val in features.items():
+        if key in processed:
+            continue
+        if key == "h2h_a_dominance":
+            swapped[key] = (1.0 - val) if val is not None else val
+            processed.add(key)
+
+    # 5. Pass through anything not yet handled
+    for key, val in features.items():
+        if key not in processed:
+            swapped[key] = val
+
+    return swapped
