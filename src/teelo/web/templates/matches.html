@@ -129,7 +129,16 @@
     <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
         <div id="results-header" class="p-6 border-b border-line-subtle flex items-center justify-between">
             <h2 class="text-xl font-bold text-teelo-dark">Results</h2>
-            <span id="results-count" class="text-sm text-content-muted"></span>
+            <div class="flex items-center gap-4">
+                <span id="results-count" class="text-sm text-content-muted"></span>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs text-content-faint uppercase tracking-wider font-bold">Betting</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="betting-toggle" class="sr-only peer">
+                        <div class="w-10 h-5 bg-surface-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-line-strong after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teelo-lime"></div>
+                    </label>
+                </div>
+            </div>
         </div>
 
         <div id="matches-results-wrapper">
@@ -142,6 +151,7 @@
                         <th class="px-5 py-3 text-right">Player A</th>
                         <th class="px-5 py-3 text-center">Score / Pred</th>
                         <th class="px-5 py-3">Player B</th>
+                        <th id="betting-th" class="px-3 py-3 text-center hidden">Betting</th>
                         <th class="px-5 py-3 text-right">Date</th>
                         <th class="w-8"></th>
                     </tr>
