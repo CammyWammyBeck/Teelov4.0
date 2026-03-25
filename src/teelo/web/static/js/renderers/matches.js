@@ -115,7 +115,27 @@ export function buildFallbackTableRows(matches) {
         // Level context
         const levelCtx = `${escapeHtml(genderLabel(gender, tour))} \u2022 ${escapeHtml(level || 'Unknown')}`;
 
-        return `<tr class="hover:bg-surface-hover/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime cursor-pointer" data-match-url="${escapeHtml(matchUrl)}" role="link" tabindex="0">
+        // Betting column HTML (only for matches with predictions)
+        const bettingColHtml = predA != null ? `<td class="betting-col px-3 py-3 hidden">
+    <div class="flex gap-2" style="min-width:200px;">
+        <div class="flex flex-col items-center gap-0.5">
+            <div class="flex items-center gap-0.5">
+                <span class="text-[10px] text-content-faint">$</span>
+                <input type="number" step="0.01" min="1" class="betting-odds-input w-14 px-1 py-0.5 text-xs border border-line rounded text-center focus:outline-none focus:border-teelo-dark" data-match-id="${m.id}" data-player="a" placeholder="Odds" onclick="event.stopPropagation()">
+            </div>
+            <span class="betting-ev text-[10px] text-content-faint" data-match-id="${m.id}" data-ev-player="a"></span>
+        </div>
+        <div class="flex flex-col items-center gap-0.5">
+            <div class="flex items-center gap-0.5">
+                <span class="text-[10px] text-content-faint">$</span>
+                <input type="number" step="0.01" min="1" class="betting-odds-input w-14 px-1 py-0.5 text-xs border border-line rounded text-center focus:outline-none focus:border-teelo-dark" data-match-id="${m.id}" data-player="b" placeholder="Odds" onclick="event.stopPropagation()">
+            </div>
+            <span class="betting-ev text-[10px] text-content-faint" data-match-id="${m.id}" data-ev-player="b"></span>
+        </div>
+    </div>
+</td>` : '<td class="betting-col hidden"></td>';
+
+        return `<tr class="hover:bg-surface-hover/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime cursor-pointer" data-match-url="${escapeHtml(matchUrl)}"${predA != null ? ` data-prediction-a="${m.prediction_a}"` : ''} role="link" tabindex="0">
     <td class="px-5 py-3">
         <div class="flex items-center gap-2">
             <span class="${circuitBg(tour, level)} text-content-inverse text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">${circuitLabel(tour, level)}</span>
@@ -161,6 +181,7 @@ export function buildFallbackTableRows(matches) {
             ${eloBadge(m.player_b)}
         </div>
     </td>
+    ${bettingColHtml}
     <td class="px-5 py-3 text-right">
         <span class="text-xs text-content-faint whitespace-nowrap"${m.match_datetime_utc ? ` data-utc-date="${escapeHtml(m.match_datetime_utc)}"` : ''}>${escapeHtml(dateText)}</span>
         ${m.has_exact_time && m.match_datetime_utc ? `<span class="block text-[11px] text-content-faint whitespace-nowrap" data-utc-time="${escapeHtml(m.match_datetime_utc)}">${escapeHtml(timeText)}</span>` : (!m.has_exact_time && (!m.score || m.score === 'vs') ? '<span class="block text-[11px] text-content-faint italic whitespace-nowrap">Not yet scheduled</span>' : '')}
@@ -225,7 +246,29 @@ export function buildFallbackCards(matches) {
             scoreCls = 'text-teelo-dark font-semibold';
         }
 
-        return `<div class="px-4 py-3 border-b border-line-subtle last:border-b-0 cursor-pointer hover:bg-surface-hover/50 transition-colors" data-match-url="${escapeHtml(matchUrl)}" role="link" tabindex="0">
+        // Betting section HTML (mobile, only for matches with predictions)
+        const bettingSectionHtml = predA != null ? `<div class="betting-section hidden mt-2 pt-2 border-t border-line-subtle/50">
+    <div class="flex gap-3 justify-center">
+        <div class="flex flex-col items-center gap-0.5">
+            <span class="text-[10px] text-content-faint">${escapeHtml(m.player_a?.name?.split(' ').pop() || 'A')}</span>
+            <div class="flex items-center gap-0.5">
+                <span class="text-[10px] text-content-faint">$</span>
+                <input type="number" step="0.01" min="1" class="betting-odds-input w-16 px-1.5 py-1 text-xs border border-line rounded text-center focus:outline-none focus:border-teelo-dark" data-match-id="${m.id}" data-player="a" placeholder="Odds" onclick="event.stopPropagation()">
+            </div>
+            <span class="betting-ev text-[10px] text-content-faint" data-match-id="${m.id}" data-ev-player="a"></span>
+        </div>
+        <div class="flex flex-col items-center gap-0.5">
+            <span class="text-[10px] text-content-faint">${escapeHtml(m.player_b?.name?.split(' ').pop() || 'B')}</span>
+            <div class="flex items-center gap-0.5">
+                <span class="text-[10px] text-content-faint">$</span>
+                <input type="number" step="0.01" min="1" class="betting-odds-input w-16 px-1.5 py-1 text-xs border border-line rounded text-center focus:outline-none focus:border-teelo-dark" data-match-id="${m.id}" data-player="b" placeholder="Odds" onclick="event.stopPropagation()">
+            </div>
+            <span class="betting-ev text-[10px] text-content-faint" data-match-id="${m.id}" data-ev-player="b"></span>
+        </div>
+    </div>
+</div>` : '';
+
+        return `<div class="px-4 py-3 border-b border-line-subtle last:border-b-0 cursor-pointer hover:bg-surface-hover/50 transition-colors" data-match-url="${escapeHtml(matchUrl)}"${predA != null ? ` data-prediction-a="${m.prediction_a}"` : ''} role="link" tabindex="0">
     <div class="flex items-center gap-2 mb-0.5">
         <span class="${circuitBg(tour, level)} text-content-inverse text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">${circuitLabel(tour, level)}</span>
         ${tournamentNameHtml}
@@ -256,6 +299,7 @@ export function buildFallbackCards(matches) {
         </div>
         <span class="text-xs font-mono whitespace-nowrap flex-shrink-0 ml-3 ${scoreCls}">${escapeHtml(scoreDisplay)}</span>
     </div>
+    ${bettingSectionHtml}
 </div>`;
     }).join('');
 }

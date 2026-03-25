@@ -4,6 +4,48 @@ import { MULTI_VALUE_FILTERS, removeByKey, toggleValue } from '../lib/filters.js
 import { createMatchesState, hydrateFromUrl, toApiQuery, toUrlQuery } from '../state/matches_state.js';
 import { renderMatchesView, renderSummaryTags } from '../renderers/matches.js';
 
+function toggleBettingColumns(enabled) {
+  document.querySelectorAll('.betting-col, .betting-section').forEach(el => {
+    el.classList.toggle('hidden', !enabled);
+  });
+  const bettingTh = document.getElementById('betting-th');
+  if (bettingTh) bettingTh.classList.toggle('hidden', !enabled);
+}
+
+function updateEv(matchId, player, odds) {
+  document.querySelectorAll(`[data-match-id="${matchId}"][data-ev-player="${player}"]`).forEach(evEl => {
+    const input = evEl.closest('[data-prediction-a]') || evEl.closest('tr[data-prediction-a]') || evEl.closest('div[data-prediction-a]');
+    if (!input) { evEl.textContent = ''; return; }
+
+    const predA = parseFloat(input.dataset.predictionA);
+    const prob = player === 'a' ? predA : 1 - predA;
+
+    if (!odds || odds < 1 || isNaN(prob)) {
+      evEl.textContent = '';
+      return;
+    }
+
+    const ev = (odds * prob) - 1;
+    const evPct = (ev * 100).toFixed(1);
+    const isPositive = ev > 0;
+    evEl.textContent = `${isPositive ? '+' : ''}${evPct}%`;
+    evEl.className = `betting-ev text-[10px] font-semibold ${isPositive ? 'text-status-success' : 'text-content-faint'}`;
+  });
+}
+
+function restoreBettingOdds() {
+  const saved = JSON.parse(localStorage.getItem('teelo_betting_odds') || '{}');
+  Object.entries(saved).forEach(([key, odds]) => {
+    const parts = key.split('_');
+    const player = parts.pop();
+    const matchId = parts.join('_');
+    document.querySelectorAll(`.betting-odds-input[data-match-id="${matchId}"][data-player="${player}"]`).forEach(input => {
+      input.value = odds;
+    });
+    updateEv(matchId, player, odds);
+  });
+}
+
 export function initMatchesPage() {
   const state = createMatchesState();
   const els = {
@@ -20,6 +62,16 @@ export function initMatchesPage() {
     matchesWrapper: byId('matches-results-wrapper'),
   };
   if (!els.tableBody) return;
+
+  // Betting toggle — restore from localStorage
+  const bettingToggle = byId('betting-toggle');
+  if (bettingToggle && localStorage.getItem('teelo_betting_enabled') === 'true') {
+    bettingToggle.checked = true;
+  }
+  bettingToggle?.addEventListener('change', () => {
+    localStorage.setItem('teelo_betting_enabled', bettingToggle.checked);
+    toggleBettingColumns(bettingToggle.checked);
+  });
 
   hydrateFromUrl(state, window.location.search);
   if (els.playerSearch && state.player_name) els.playerSearch.value = state.player_name;
@@ -90,6 +142,8 @@ export function initMatchesPage() {
       const data = await getJson(`/api/matches?${toApiQuery(state)}`, { signal: abortController.signal });
       state.has_more = !!data.has_more;
       renderMatchesView(els, data, append);
+      toggleBettingColumns(bettingToggle?.checked || false);
+      restoreBettingOdds();
     } catch (e) {
       if (e.name === 'AbortError') return; // superseded by newer request
       console.error(e);
@@ -356,8 +410,8 @@ export function initMatchesPage() {
 
     // Match row click-to-detail navigation
     function handleMatchRowClick(e) {
-        // Don't navigate if user clicked a link inside the row
-        if (e.target.closest('a')) return;
+        // Don't navigate if user clicked a link or betting input inside the row
+        if (e.target.closest('a') || e.target.closest('.betting-odds-input')) return;
         const row = e.target.closest('[data-match-url]');
         if (row) {
             window.location.href = row.dataset.matchUrl;
@@ -376,5 +430,24 @@ export function initMatchesPage() {
     if (matchesWrapper) {
         matchesWrapper.addEventListener('click', handleMatchRowClick);
         matchesWrapper.addEventListener('keydown', handleMatchRowKeydown);
+
+        // Betting odds input — EV calculation and localStorage persistence
+        matchesWrapper.addEventListener('input', (e) => {
+            if (!e.target.classList.contains('betting-odds-input')) return;
+            const input = e.target;
+            const matchId = input.dataset.matchId;
+            const player = input.dataset.player;
+            const odds = parseFloat(input.value);
+
+            const saved = JSON.parse(localStorage.getItem('teelo_betting_odds') || '{}');
+            if (odds && odds >= 1) {
+                saved[`${matchId}_${player}`] = odds;
+            } else {
+                delete saved[`${matchId}_${player}`];
+            }
+            localStorage.setItem('teelo_betting_odds', JSON.stringify(saved));
+
+            updateEv(matchId, player, odds);
+        });
     }
 }
