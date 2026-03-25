@@ -1107,6 +1107,34 @@ class UpdateLog(Base):
         return f"<UpdateLog(type='{self.update_type}', success={self.success})>"
 
 
+class ActivityLog(Base):
+    """
+    Customer-facing activity log entries.
+
+    Simple human-readable records of what happened during pipeline runs
+    or admin actions, e.g. "7 new matches created".
+    """
+    __tablename__ = "activity_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    count: Mapped[int] = mapped_column(Integer, nullable=False)
+    message: Mapped[str] = mapped_column(String(200), nullable=False)
+    pipeline_run_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("pipeline_runs.run_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_activity_log_created_at", "created_at"),
+        Index("idx_activity_log_type_created_at", "event_type", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ActivityLog(type='{self.event_type}', message='{self.message}')>"
+
+
 class PipelineCheckpoint(Base):
     """Key/value checkpoint store for resumable pipeline stages."""
 

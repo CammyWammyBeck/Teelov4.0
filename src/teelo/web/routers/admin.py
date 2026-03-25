@@ -26,3 +26,4 @@ router.add_api_route('/admin/api/predictions/breakdown', pred.admin_predictions_
 router.add_api_route('/admin/api/predictions/charts/accuracy', pred.admin_predictions_charts_accuracy, methods=['GET'])
 router.add_api_route('/admin/api/predictions/charts/calibration', pred.admin_predictions_charts_calibration, methods=['GET'])
 router.add_api_route('/admin/api/predictions/charts/distribution', pred.admin_predictions_charts_distribution, methods=['GET'])
+router.add_api_route('/admin/activity-log', legacy.admin_activity_log, methods=['GET'], response_class=legacy.HTMLResponse)

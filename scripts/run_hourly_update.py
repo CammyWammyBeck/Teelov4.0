@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import structlog
 
-from teelo.db import PipelineRun, PipelineStageRun, get_engine, get_session
+from teelo.db import PipelineRun, PipelineStageRun, ActivityLog, get_engine, get_session
 from teelo.tasks import (
     StageContext,
     StageDefinition,
@@ -270,6 +270,84 @@ def _run_metrics_snapshot_stage(ctx: StageContext) -> StageResult:
         )
 
 
+def _run_activity_log_stage(ctx: StageContext) -> StageResult:
+    """Write customer-facing activity log entries based on what changed."""
+    started_at = _utc_now()
+    try:
+        from teelo.db import get_session, Match, TournamentEdition, PipelineRun as PR
+
+        with get_session() as session:
+            run = session.query(PR).filter(PR.run_id == ctx.run_id).first()
+            if not run:
+                return StageResult(
+                    stage_name=ctx.stage_name, status="skipped",
+                    started_at=started_at, ended_at=_utc_now(),
+                    error="Pipeline run not found",
+                )
+            since = run.started_at
+
+            from sqlalchemy import func
+
+            counts = {
+                "match_created": (
+                    session.query(func.count(Match.id))
+                    .filter(Match.created_at >= since)
+                    .scalar() or 0
+                ),
+                "match_completed": (
+                    session.query(func.count(Match.id))
+                    .filter(
+                        Match.updated_at >= since,
+                        Match.created_at < since,
+                        Match.status.in_(["completed", "retired", "walkover", "default"]),
+                    )
+                    .scalar() or 0
+                ),
+                "prediction_made": (
+                    session.query(func.count(Match.id))
+                    .filter(Match.prediction_updated_at >= since)
+                    .scalar() or 0
+                ),
+                "tournament_created": (
+                    session.query(func.count(TournamentEdition.id))
+                    .filter(TournamentEdition.created_at >= since)
+                    .scalar() or 0
+                ),
+            }
+
+            messages = {
+                "match_created": lambda n: f"{n} new match{'es' if n != 1 else ''} created",
+                "match_completed": lambda n: f"{n} match{'es' if n != 1 else ''} completed",
+                "prediction_made": lambda n: f"{n} prediction{'s' if n != 1 else ''} made",
+                "tournament_created": lambda n: f"{n} tournament{'s' if n != 1 else ''} created",
+            }
+
+            logged = {}
+            for event_type, count in counts.items():
+                if count > 0:
+                    entry = ActivityLog(
+                        event_type=event_type,
+                        count=count,
+                        message=messages[event_type](count),
+                        pipeline_run_id=ctx.run_id,
+                    )
+                    session.add(entry)
+                    logged[event_type] = count
+
+        logger.info("stage.activity_log_done", logged=logged)
+        return StageResult(
+            stage_name=ctx.stage_name, status="success",
+            started_at=started_at, ended_at=_utc_now(),
+            metrics={"logged": logged},
+        )
+    except Exception as exc:
+        logger.error("stage.activity_log_failed", error=str(exc))
+        return StageResult(
+            stage_name=ctx.stage_name, status="failed",
+            started_at=started_at, ended_at=_utc_now(), error=str(exc),
+        )
+
+
 def _save_run_started(run_id: str, started_at: datetime) -> None:
     with get_session() as session:
         session.add(
@@ -368,6 +446,14 @@ def _build_registry() -> StageRegistry:
             name="metrics_snapshot",
             runner=_run_metrics_snapshot_stage,
             description="Compute and store prediction accuracy metric snapshots.",
+            enabled_by_default=True,
+        )
+    )
+    registry.register(
+        StageDefinition(
+            name="activity_log",
+            runner=_run_activity_log_stage,
+            description="Write customer-facing activity log entries.",
             enabled_by_default=True,
         )
     )

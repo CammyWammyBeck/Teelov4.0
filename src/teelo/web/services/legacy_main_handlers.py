@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, aliased, joinedload
 from teelo.config import settings
 from teelo.db.models import (
     AdminQueryLog,
+    ActivityLog,
     AdminUser,
     Match,
     MatchSurfaceEloSnapshot,
@@ -1730,6 +1731,45 @@ async def admin_home(
             "admin": admin,
             "pending_count": pending_count,
             "invalid_match_count": invalid_match_count,
+            "now": datetime.utcnow(),
+            "current_path": request.url.path,
+        },
+    )
+
+
+@app.get("/admin/activity-log", response_class=HTMLResponse)
+async def admin_activity_log(
+    request: Request,
+    page: int = Query(1, ge=1),
+    db: Session = Depends(get_db),
+):
+    redirect = _require_admin(request, db)
+    if redirect:
+        return redirect
+
+    per_page = 50
+    offset = (page - 1) * per_page
+
+    total = db.query(func.count(ActivityLog.id)).scalar() or 0
+    entries = (
+        db.query(ActivityLog)
+        .order_by(ActivityLog.created_at.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    admin = _current_admin_user(request, db)
+    return templates.TemplateResponse(
+        "admin_activity_log.html",
+        {
+            "request": request,
+            "admin": admin,
+            "entries": entries,
+            "page": page,
+            "total_pages": total_pages,
+            "total": total,
             "now": datetime.utcnow(),
             "current_path": request.url.path,
         },
