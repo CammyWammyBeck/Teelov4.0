@@ -288,31 +288,46 @@ def _run_activity_log_stage(ctx: StageContext) -> StageResult:
 
             from sqlalchemy import func
 
+            # match_created and tournament_created: query by created_at (reliable)
+            match_created = (
+                session.query(func.count(Match.id))
+                .filter(Match.created_at >= since)
+                .scalar() or 0
+            )
+            tournament_created = (
+                session.query(func.count(TournamentEdition.id))
+                .filter(TournamentEdition.created_at >= since)
+                .scalar() or 0
+            )
+
+            # match_completed and prediction_made: read from sibling stage metrics
+            # to avoid over-counting matches that were merely re-touched during scraping
+            match_completed = 0
+            prediction_made = 0
+            stage_rows = (
+                session.query(PipelineStageRun)
+                .filter(
+                    PipelineStageRun.run_id == ctx.run_id,
+                    PipelineStageRun.stage_name.in_(["elo_incremental", "predictions"]),
+                )
+                .all()
+            )
+            for stage_row in stage_rows:
+                m = stage_row.metrics_json or {}
+                sm = m.get("script_metrics") or {}
+                if stage_row.stage_name == "elo_incremental":
+                    match_completed = sm.get("processed", 0)
+                elif stage_row.stage_name == "predictions":
+                    prediction_made = sm.get("predicted_count", 0)
+                    if not prediction_made:
+                        # in-process predictions stage stores count directly
+                        prediction_made = m.get("predicted_count", 0)
+
             counts = {
-                "match_created": (
-                    session.query(func.count(Match.id))
-                    .filter(Match.created_at >= since)
-                    .scalar() or 0
-                ),
-                "match_completed": (
-                    session.query(func.count(Match.id))
-                    .filter(
-                        Match.updated_at >= since,
-                        Match.created_at < since,
-                        Match.status.in_(["completed", "retired", "walkover", "default"]),
-                    )
-                    .scalar() or 0
-                ),
-                "prediction_made": (
-                    session.query(func.count(Match.id))
-                    .filter(Match.prediction_updated_at >= since)
-                    .scalar() or 0
-                ),
-                "tournament_created": (
-                    session.query(func.count(TournamentEdition.id))
-                    .filter(TournamentEdition.created_at >= since)
-                    .scalar() or 0
-                ),
+                "match_created": match_created,
+                "match_completed": match_completed,
+                "prediction_made": prediction_made,
+                "tournament_created": tournament_created,
             }
 
             messages = {
