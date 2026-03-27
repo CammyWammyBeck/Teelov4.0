@@ -94,13 +94,22 @@ function buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, p
     };
 
     // Player row builder — split into left (flex-1, truncates) and right (fixed, aligned)
-    const playerRow = (player, url, isWinner, scoreKey, otherKey, pct, isLeading) => {
+    const playerRow = (player, url, isWinner, scoreKey, otherKey, pct, isLeading, matchId, playerKey) => {
         const winnerIcon = isWinner
             ? '<i data-lucide="trophy" class="w-3 h-3 text-teelo-lime flex-shrink-0"></i>'
             : '<span class="w-3 flex-shrink-0"></span>';
         const nameCls = isWinner ? 'font-bold text-teelo-dark' : (hasWinner ? 'text-content-faint' : 'text-teelo-dark font-medium');
         const bgFill = pct != null
             ? `<div class="absolute inset-y-0 left-0 bg-teelo-lime/10" style="width:${pct}%"></div>`
+            : '';
+        const bettingHtml = (pct != null && matchId != null)
+            ? `<div class="betting-section hidden flex flex-col items-end gap-0.5 ml-2 flex-shrink-0">
+                <div class="flex items-center gap-0.5">
+                    <span class="text-[10px] text-content-faint">$</span>
+                    <input type="number" step="0.01" min="1" class="betting-odds-input w-14 px-1 py-0.5 text-[11px] border border-line rounded text-center bg-surface focus:outline-none focus:ring-1 focus:ring-teelo-lime focus:border-teelo-lime" data-match-id="${matchId}" data-player="${playerKey}" placeholder="Odds" onclick="event.stopPropagation()">
+                </div>
+                <span class="betting-ev text-[10px] text-content-faint" data-match-id="${matchId}" data-ev-player="${playerKey}"></span>
+            </div>`
             : '';
         return `<div class="relative overflow-hidden rounded-sm">
             ${bgFill}
@@ -114,6 +123,7 @@ function buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, p
                 <div class="flex items-center flex-shrink-0">
                     ${scoreCells(scores, scoreKey, isWinner, otherKey)}
                     ${predHtml(pct, isLeading)}
+                    ${bettingHtml}
                 </div>
             </div>
         </div>`;
@@ -130,9 +140,9 @@ function buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, p
     const predALeading = predA != null && predA >= predB;
     const predBLeading = predB != null && predB > predA;
 
-    return playerRow(m.player_a, playerAUrl, isWinnerA, 'a', 'b', predA, predALeading)
+    return playerRow(m.player_a, playerAUrl, isWinnerA, 'a', 'b', predA, predALeading, m.id, 'a')
         + '<div style="height:2px"></div>'
-        + playerRow(m.player_b, playerBUrl, isWinnerB, 'b', 'a', predB, predBLeading)
+        + playerRow(m.player_b, playerBUrl, isWinnerB, 'b', 'a', predB, predBLeading, m.id, 'b')
         + footerHtml;
 }
 
