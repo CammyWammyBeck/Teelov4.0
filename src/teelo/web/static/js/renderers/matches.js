@@ -50,17 +50,6 @@ function surfaceCls(surface) {
     return '';
 }
 
-function eloBadge(player) {
-    if (player?.elo_pre == null) return '';
-    let changeHtml = '';
-    if (player.elo_change != null) {
-        const cls = player.elo_change > 0 ? 'text-status-success' : (player.elo_change < 0 ? 'text-status-danger' : 'text-content-faint');
-        const formatted = player.elo_change >= 0 ? `+${player.elo_change}` : `${player.elo_change}`;
-        changeHtml = `<span class="font-semibold ${cls}">${formatted}</span>`;
-    }
-    return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-surface-muted text-[11px] leading-none"><span class="text-content-muted font-medium">${player.elo_pre}</span>${changeHtml}</span>`;
-}
-
 function eloCompact(player) {
     if (player?.elo_pre == null) return '';
     let changeHtml = '';
@@ -72,15 +61,93 @@ function eloCompact(player) {
     return `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-surface-muted text-[10px] leading-none whitespace-nowrap flex-shrink-0 ml-1"><span class="text-content-muted font-medium">${player.elo_pre}</span>${changeHtml}</span>`;
 }
 
+/* ── Mini scoreboard (shared between table rows and cards) ── */
+
+function buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, playerAUrl, playerBUrl) {
+    const scores = m.score_structured;
+    const hasScores = Array.isArray(scores) && scores.length > 0;
+    const isWalkover = m.status === 'walkover';
+
+    // Nationality helper
+    const natHtml = (player) => {
+        const ioc = player?.nationality_ioc;
+        if (!ioc) return '';
+        return `<span class="text-[9px] text-content-faint font-medium flex-shrink-0 w-6 text-center">${escapeHtml(ioc)}</span>`;
+    };
+
+    // Score cells for a player row
+    const scoreCells = (scores, key, isWinner, otherKey) => {
+        if (!hasScores) return '';
+        const cells = scores.map(s => {
+            const bold = isWinner && s[key] > s[otherKey];
+            const cls = bold ? 'font-bold text-teelo-dark' : (hasWinner ? 'text-content-muted' : 'font-bold text-teelo-dark');
+            return `<span class="w-5 text-center text-[11px] ${cls}">${s[key]}</span>`;
+        }).join('');
+        return `<div class="flex items-center gap-0 ml-auto flex-shrink-0 font-mono">${cells}</div>`;
+    };
+
+    // Prediction percentage for a row
+    const predHtml = (pct, isLeading, hasScoresLocal) => {
+        if (pct == null) return '';
+        const cls = isLeading ? 'font-semibold text-teelo-dark' : 'text-content-faint';
+        if (hasScoresLocal) {
+            return `<span class="flex-shrink-0 text-[10px] ml-1 ${cls}">${pct}%</span>`;
+        }
+        return `<span class="ml-auto flex-shrink-0 text-[10px] ${cls}">${pct}%</span>`;
+    };
+
+    // Player row builder
+    const playerRow = (player, url, isWinner, scoreKey, otherKey, pct, isLeading) => {
+        const accentCls = isWinner ? 'bg-teelo-lime' : 'bg-transparent';
+        const nameCls = isWinner ? 'font-bold text-teelo-dark' : (hasWinner ? 'text-content-faint' : 'text-teelo-dark font-medium');
+        return `<div class="flex items-center gap-1.5 min-w-0">
+            <div class="w-0.5 h-4 rounded-full ${accentCls} flex-shrink-0"></div>
+            ${natHtml(player)}
+            <a href="${escapeHtml(url)}" class="text-[12px] truncate hover:underline decoration-teelo-lime decoration-2 ${nameCls}" onclick="event.stopPropagation()">${escapeHtml(player?.name || '')}</a>
+            ${eloCompact(player)}
+            ${scoreCells(scores, scoreKey, isWinner, otherKey)}
+            ${predHtml(pct, isLeading, hasScores)}
+        </div>`;
+    };
+
+    // Probability bar
+    let barHtml;
+    if (predA != null) {
+        barHtml = `<div class="flex w-full overflow-hidden my-0.5" style="height:4px;border-radius:2px;">
+            <div class="bg-teelo-lime" style="width:${predA}%;border-radius:2px 0 0 2px;"></div>
+            <div class="bg-surface-muted" style="width:${predB}%;border-radius:0 2px 2px 0;"></div>
+        </div>`;
+    } else {
+        barHtml = '<div class="my-0.5" style="height:1px;"></div>';
+    }
+
+    // Footer (walkover or vs)
+    let footerHtml = '';
+    if (isWalkover) {
+        footerHtml = '<div class="text-center mt-0.5"><span class="text-[10px] text-content-faint font-medium">W/O</span></div>';
+    } else if (!hasScores && predA == null) {
+        footerHtml = '<div class="text-center mt-0.5"><span class="text-[10px] text-content-faintest italic">vs</span></div>';
+    }
+
+    const predALeading = predA != null && predA >= predB;
+    const predBLeading = predB != null && predB > predA;
+
+    return playerRow(m.player_a, playerAUrl, isWinnerA, 'a', 'b', predA, predALeading)
+        + barHtml
+        + playerRow(m.player_b, playerBUrl, isWinnerB, 'b', 'a', predB, predBLeading)
+        + footerHtml;
+}
+
+
 /* ── Table rows (desktop) ── */
 
 export function buildFallbackTableRows(matches) {
     return matches.map(m => {
         const isWinnerA = m.winner_id != null && m.winner_id === m.player_a?.id;
         const isWinnerB = m.winner_id != null && m.winner_id === m.player_b?.id;
+        const hasWinner = isWinnerA || isWinnerB;
         const playerAUrl = m.player_a?.player_url || `/players/${m.player_a?.id ?? ''}`;
         const playerBUrl = m.player_b?.player_url || `/players/${m.player_b?.id ?? ''}`;
-        const scoreDisplay = m.status === 'walkover' ? 'W/O' : (m.score || 'vs');
         const matchUrl = m.match_url || `/matches/${m.id}`;
         const _ft = formatLocalTime(m.match_datetime_utc);
         const dateText = _ft ? _ft.dateLabel : (m.match_date_display || '');
@@ -101,39 +168,11 @@ export function buildFallbackTableRows(matches) {
             ? `<a href="${escapeHtml(m.tournament_url)}" class="text-sm font-semibold text-teelo-dark truncate block hover:underline decoration-teelo-lime decoration-2" title="${tournamentName}" onclick="event.stopPropagation()">${tournamentName}</a>`
             : `<span class="text-sm font-semibold text-teelo-dark truncate block" title="${tournamentName}">${tournamentName}</span>`;
 
-        // Player A styling
-        const playerACls = isWinnerA ? 'text-teelo-dark font-bold' : 'text-content-faint';
-        const playerACheck = isWinnerA ? '<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>' : '';
-
-        // Player B styling
-        const playerBCls = isWinnerB ? 'text-teelo-dark font-bold' : 'text-content-faint';
-        const playerBCheck = isWinnerB ? '<i data-lucide="check" class="w-3.5 h-3.5 text-teelo-lime flex-shrink-0"></i>' : '';
-
-        // Score styling
-        const scoreCls = scoreDisplay === 'vs' ? 'text-content-faint italic' : 'text-teelo-dark font-semibold';
-
         // Level context
         const levelCtx = `${escapeHtml(genderLabel(gender, tour))} \u2022 ${escapeHtml(level || 'Unknown')}`;
 
-        // Betting column HTML (only for matches with predictions)
-        const bettingColHtml = predA != null ? `<td class="betting-col px-3 py-3 hidden">
-    <div class="flex gap-2" style="min-width:200px;">
-        <div class="flex flex-col items-center gap-0.5">
-            <div class="flex items-center gap-0.5">
-                <span class="text-[10px] text-content-faint">$</span>
-                <input type="number" step="0.01" min="1" class="betting-odds-input w-14 px-1 py-0.5 text-xs border border-line rounded text-center focus:outline-none focus:border-teelo-dark" data-match-id="${m.id}" data-player="a" placeholder="Odds" onclick="event.stopPropagation()">
-            </div>
-            <span class="betting-ev text-[10px] text-content-faint" data-match-id="${m.id}" data-ev-player="a"></span>
-        </div>
-        <div class="flex flex-col items-center gap-0.5">
-            <div class="flex items-center gap-0.5">
-                <span class="text-[10px] text-content-faint">$</span>
-                <input type="number" step="0.01" min="1" class="betting-odds-input w-14 px-1 py-0.5 text-xs border border-line rounded text-center focus:outline-none focus:border-teelo-dark" data-match-id="${m.id}" data-player="b" placeholder="Odds" onclick="event.stopPropagation()">
-            </div>
-            <span class="betting-ev text-[10px] text-content-faint" data-match-id="${m.id}" data-ev-player="b"></span>
-        </div>
-    </div>
-</td>` : '<td class="betting-col hidden"></td>';
+        // Mini scoreboard
+        const scoreboardHtml = buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, playerAUrl, playerBUrl);
 
         return `<tr class="hover:bg-surface-hover/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime cursor-pointer" data-match-url="${escapeHtml(matchUrl)}"${predA != null ? ` data-prediction-a="${m.prediction_a}"` : ''} role="link" tabindex="0">
     <td class="px-5 py-3">
@@ -154,34 +193,9 @@ export function buildFallbackTableRows(matches) {
             </div>
         </div>
     </td>
-    <td class="px-5 py-3 text-right">
-        <div class="flex items-center justify-end gap-2">
-            <a href="${escapeHtml(playerAUrl)}" class="text-sm hover:underline decoration-teelo-lime decoration-2 ${playerACls}" onclick="event.stopPropagation()">${escapeHtml(m.player_a?.name || '')}</a>
-            ${eloBadge(m.player_a)}
-            ${playerACheck}
-        </div>
+    <td class="px-3 py-2" style="min-width:220px;">
+        ${scoreboardHtml}
     </td>
-    <td class="px-3 py-3 text-center">
-        ${predA != null ? `<div class="flex flex-col items-center" style="min-width:110px;">
-            ${scoreDisplay !== 'vs' ? `<span class="text-teelo-dark font-semibold text-[11px] mb-1">${escapeHtml(scoreDisplay)}</span>` : ''}
-            <div class="flex justify-between w-full" style="font-size:10px;margin-bottom:2px;">
-                <span class="${predA >= predB ? 'font-semibold text-teelo-dark' : 'text-content-faint'}">${predA}%</span>
-                <span class="${predB > predA ? 'font-semibold text-teelo-dark' : 'text-content-faint'}">${predB}%</span>
-            </div>
-            <div class="flex w-full overflow-hidden" style="height:6px;border-radius:3px;">
-                <div class="bg-teelo-lime" style="width:${predA}%;border-radius:3px 0 0 3px;"></div>
-                <div class="bg-surface-muted" style="width:${predB}%;border-radius:0 3px 3px 0;"></div>
-            </div>
-        </div>` : `<span class="inline-block px-2.5 py-1 bg-surface-alt rounded-md text-xs font-mono whitespace-nowrap group-hover:bg-teelo-lime/10 transition-colors ${scoreCls}">${escapeHtml(scoreDisplay)}</span>`}
-    </td>
-    <td class="px-5 py-3">
-        <div class="flex items-center gap-2">
-            ${playerBCheck}
-            <a href="${escapeHtml(playerBUrl)}" class="text-sm hover:underline decoration-teelo-lime decoration-2 ${playerBCls}" onclick="event.stopPropagation()">${escapeHtml(m.player_b?.name || '')}</a>
-            ${eloBadge(m.player_b)}
-        </div>
-    </td>
-    ${bettingColHtml}
     <td class="px-5 py-3 text-right">
         <span class="text-xs text-content-faint whitespace-nowrap"${m.match_datetime_utc ? ` data-utc-date="${escapeHtml(m.match_datetime_utc)}"` : ''}>${escapeHtml(dateText)}</span>
         ${m.has_exact_time && m.match_datetime_utc ? `<span class="block text-[11px] text-content-faint whitespace-nowrap" data-utc-time="${escapeHtml(m.match_datetime_utc)}">${escapeHtml(timeText)}</span>` : (!m.has_exact_time && (!m.score || m.score === 'vs') ? '<span class="block text-[11px] text-content-faint italic whitespace-nowrap">Not yet scheduled</span>' : '')}
@@ -200,7 +214,6 @@ export function buildFallbackCards(matches) {
         const hasWinner = isWinnerA || isWinnerB;
         const playerAUrl = m.player_a?.player_url || `/players/${m.player_a?.id ?? ''}`;
         const playerBUrl = m.player_b?.player_url || `/players/${m.player_b?.id ?? ''}`;
-        const scoreDisplay = m.status === 'walkover' ? 'W/O' : (m.score || 'vs');
         const matchUrl = m.match_url || `/matches/${m.id}`;
         const _ft = formatLocalTime(m.match_datetime_utc);
         const dateText = _ft ? _ft.dateLabel : (m.match_date_display || '');
@@ -214,13 +227,6 @@ export function buildFallbackCards(matches) {
         // Prediction
         const predA = m.prediction_a != null ? Math.round(m.prediction_a * 100) : null;
         const predB = predA != null ? 100 - predA : null;
-        const predHtml = predA != null
-            ? `<div class="flex items-center gap-2 text-[11px] mb-2">
-                 <span class="${predA >= predB ? 'font-semibold text-teelo-dark' : 'text-content-faint'}">${predA}%</span>
-                 <div class="flex-1 h-1 rounded-full bg-surface-muted overflow-hidden"><div class="h-full bg-teelo-lime rounded-full" style="width:${predA}%"></div></div>
-                 <span class="${predB > predA ? 'font-semibold text-teelo-dark' : 'text-content-faint'}">${predB}%</span>
-               </div>`
-            : '';
 
         // Tournament name — link or span
         const tournamentName = escapeHtml(m.tournament_name || 'Unknown');
@@ -228,45 +234,8 @@ export function buildFallbackCards(matches) {
             ? `<a href="${escapeHtml(m.tournament_url)}" class="text-[13px] font-semibold text-teelo-dark truncate hover:underline decoration-teelo-lime decoration-2" onclick="event.stopPropagation()">${tournamentName}</a>`
             : `<span class="text-[13px] font-semibold text-teelo-dark truncate">${tournamentName}</span>`;
 
-        // Player styling
-        const playerACls = isWinnerA ? 'font-bold text-teelo-dark' : (hasWinner ? 'text-content-faint' : 'text-teelo-dark font-medium');
-        const playerBCls = isWinnerB ? 'font-bold text-teelo-dark' : (hasWinner ? 'text-content-faint' : 'text-teelo-dark font-medium');
-
-        // Winner accent bars
-        const accentA = isWinnerA ? 'bg-teelo-lime' : 'bg-transparent';
-        const accentB = isWinnerB ? 'bg-teelo-lime' : 'bg-transparent';
-
-        // Score styling
-        let scoreCls;
-        if (scoreDisplay === 'vs') {
-            scoreCls = 'text-content-faintest italic font-sans';
-        } else if (scoreDisplay === 'W/O') {
-            scoreCls = 'text-content-faint font-sans font-medium';
-        } else {
-            scoreCls = 'text-teelo-dark font-semibold';
-        }
-
-        // Betting section HTML (mobile, only for matches with predictions)
-        const bettingSectionHtml = predA != null ? `<div class="betting-section hidden mt-2 pt-2 border-t border-line-subtle/50">
-    <div class="flex gap-3 justify-center">
-        <div class="flex flex-col items-center gap-0.5">
-            <span class="text-[10px] text-content-faint">${escapeHtml(m.player_a?.name?.split(' ').pop() || 'A')}</span>
-            <div class="flex items-center gap-0.5">
-                <span class="text-[10px] text-content-faint">$</span>
-                <input type="number" step="0.01" min="1" class="betting-odds-input w-16 px-1.5 py-1 text-xs border border-line rounded text-center focus:outline-none focus:border-teelo-dark" data-match-id="${m.id}" data-player="a" placeholder="Odds" onclick="event.stopPropagation()">
-            </div>
-            <span class="betting-ev text-[10px] text-content-faint" data-match-id="${m.id}" data-ev-player="a"></span>
-        </div>
-        <div class="flex flex-col items-center gap-0.5">
-            <span class="text-[10px] text-content-faint">${escapeHtml(m.player_b?.name?.split(' ').pop() || 'B')}</span>
-            <div class="flex items-center gap-0.5">
-                <span class="text-[10px] text-content-faint">$</span>
-                <input type="number" step="0.01" min="1" class="betting-odds-input w-16 px-1.5 py-1 text-xs border border-line rounded text-center focus:outline-none focus:border-teelo-dark" data-match-id="${m.id}" data-player="b" placeholder="Odds" onclick="event.stopPropagation()">
-            </div>
-            <span class="betting-ev text-[10px] text-content-faint" data-match-id="${m.id}" data-ev-player="b"></span>
-        </div>
-    </div>
-</div>` : '';
+        // Mini scoreboard
+        const scoreboardHtml = buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, playerAUrl, playerBUrl);
 
         return `<div class="px-4 py-3 border-b border-line-subtle last:border-b-0 cursor-pointer hover:bg-surface-hover/50 transition-colors" data-match-url="${escapeHtml(matchUrl)}"${predA != null ? ` data-prediction-a="${m.prediction_a}"` : ''} role="link" tabindex="0">
     <div class="flex items-center gap-2 mb-0.5">
@@ -283,23 +252,7 @@ export function buildFallbackCards(matches) {
         <span${m.match_datetime_utc ? ` data-utc-date="${escapeHtml(m.match_datetime_utc)}"` : ''}>${escapeHtml(dateText)}</span>
         ${m.has_exact_time && m.match_datetime_utc ? `<span data-utc-time="${escapeHtml(m.match_datetime_utc)}">${escapeHtml(timeText)}</span>` : (!m.has_exact_time && (!m.score || m.score === 'vs') ? '<span class="italic">Not yet scheduled</span>' : '')}
     </div>
-    ${predHtml}
-    <div class="flex items-center">
-        <div class="flex-1 min-w-0 space-y-1">
-            <div class="flex items-center gap-1.5">
-                <div class="w-0.5 h-4 rounded-full ${accentA} flex-shrink-0"></div>
-                <a href="${escapeHtml(playerAUrl)}" class="text-[13px] truncate hover:underline decoration-teelo-lime decoration-2 ${playerACls}" onclick="event.stopPropagation()">${escapeHtml(m.player_a?.name || '')}</a>
-                ${eloCompact(m.player_a)}
-            </div>
-            <div class="flex items-center gap-1.5">
-                <div class="w-0.5 h-4 rounded-full ${accentB} flex-shrink-0"></div>
-                <a href="${escapeHtml(playerBUrl)}" class="text-[13px] truncate hover:underline decoration-teelo-lime decoration-2 ${playerBCls}" onclick="event.stopPropagation()">${escapeHtml(m.player_b?.name || '')}</a>
-                ${eloCompact(m.player_b)}
-            </div>
-        </div>
-        <span class="text-xs font-mono whitespace-nowrap flex-shrink-0 ml-3 ${scoreCls}">${escapeHtml(scoreDisplay)}</span>
-    </div>
-    ${bettingSectionHtml}
+    ${scoreboardHtml}
 </div>`;
     }).join('');
 }

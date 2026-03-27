@@ -30,6 +30,7 @@ Usage:
 """
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import islice
@@ -76,6 +77,39 @@ def _flip_score_structured(
             d["retired"] = s["retired"]
         flipped.append(d)
     return flipped
+
+
+def _flip_score_raw(score_raw: Optional[str]) -> Optional[str]:
+    """Flip each set token in a raw score string.
+
+    E.g. ``"6-4 7-6(4)"`` → ``"4-6 6-7(4)"``.  Each space-delimited token
+    is split on ``-`` and the two game counts are swapped while keeping any
+    tiebreak suffix (parenthesised number) attached to the second part.
+    Tokens without a hyphen (e.g. ``RET``) are kept as-is.
+    """
+    if not score_raw:
+        return score_raw
+    tb_re = re.compile(r"^(\d+)(\(\d+\))?$")
+    tokens = score_raw.split()
+    flipped: list[str] = []
+    for token in tokens:
+        parts = token.split("-")
+        if len(parts) == 2:
+            m_a = tb_re.match(parts[0])
+            m_b = tb_re.match(parts[1])
+            if m_a and m_b:
+                # Extract game counts and optional tiebreak suffix
+                a_games = m_a.group(1)
+                b_games = m_b.group(1)
+                # Tiebreak suffix goes with the second part (loser's tb score)
+                tb = m_a.group(2) or m_b.group(2) or ""
+                flipped.append(f"{b_games}-{a_games}{tb}")
+            else:
+                # Fallback: simple swap
+                flipped.append(f"{parts[1]}-{parts[0]}")
+        else:
+            flipped.append(token)
+    return " ".join(flipped)
 
 
 def _determine_winner_id(
@@ -664,7 +698,10 @@ def _update_match_with_result(
     # Set result fields
     # winner_id is a player ID (not position-dependent), so it's correct as-is.
     match.winner_id = _determine_winner_id(scraped, player_a_id, player_b_id)
-    match.score = scraped.score_raw
+    match.score = (
+        _flip_score_raw(scraped.score_raw) if reversed_order
+        else scraped.score_raw
+    )
     match.score_structured = (
         _flip_score_structured(score_structured) if reversed_order
         else score_structured

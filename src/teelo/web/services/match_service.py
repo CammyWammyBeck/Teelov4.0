@@ -110,6 +110,7 @@ def serialize_match(match: Match) -> dict:
     player_a_payload = {
         "id": pa.id if pa else match.player_a_id,
         "name": pa.canonical_name if pa else "Unknown",
+        "nationality_ioc": pa.nationality_ioc if pa else None,
         "player_url": (
             f"/players/{pa.id}/{slugify_name(pa.canonical_name)}"
             if pa and pa.id is not None
@@ -131,6 +132,7 @@ def serialize_match(match: Match) -> dict:
     player_b_payload = {
         "id": pb.id if pb else match.player_b_id,
         "name": pb.canonical_name if pb else "Unknown",
+        "nationality_ioc": pb.nationality_ioc if pb else None,
         "player_url": (
             f"/players/{pb.id}/{slugify_name(pb.canonical_name)}"
             if pb and pb.id is not None
