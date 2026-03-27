@@ -75,7 +75,7 @@ function buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, p
         return `<span class="text-[9px] text-content-faint font-medium flex-shrink-0 w-6 text-center">${escapeHtml(ioc)}</span>`;
     };
 
-    // Score cells for a player row
+    // Score cells for a player row (no ml-auto — parent handles alignment)
     const scoreCells = (scores, key, isWinner, otherKey) => {
         if (!hasScores) return '';
         const cells = scores.map(s => {
@@ -83,45 +83,41 @@ function buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, p
             const cls = bold ? 'font-bold text-teelo-dark' : (hasWinner ? 'text-content-muted' : 'font-bold text-teelo-dark');
             return `<span class="w-5 text-center text-[11px] ${cls}">${s[key]}</span>`;
         }).join('');
-        return `<div class="flex items-center gap-0 ml-auto flex-shrink-0 font-mono">${cells}</div>`;
+        return `<div class="flex items-center gap-0 font-mono">${cells}</div>`;
     };
 
-    // Prediction percentage for a row
-    const predHtml = (pct, isLeading, hasScoresLocal) => {
+    // Prediction percentage for a row (fixed width for alignment)
+    const predHtml = (pct, isLeading) => {
         if (pct == null) return '';
         const cls = isLeading ? 'font-semibold text-teelo-dark' : 'text-content-faint';
-        if (hasScoresLocal) {
-            return `<span class="flex-shrink-0 text-[10px] ml-1 ${cls}">${pct}%</span>`;
-        }
-        return `<span class="ml-auto flex-shrink-0 text-[10px] ${cls}">${pct}%</span>`;
+        return `<span class="w-9 text-right flex-shrink-0 text-[10px] ${cls}">${pct}%</span>`;
     };
 
-    // Player row builder
+    // Player row builder — split into left (flex-1, truncates) and right (fixed, aligned)
     const playerRow = (player, url, isWinner, scoreKey, otherKey, pct, isLeading) => {
         const winnerIcon = isWinner
             ? '<i data-lucide="trophy" class="w-3 h-3 text-teelo-lime flex-shrink-0"></i>'
             : '<span class="w-3 flex-shrink-0"></span>';
         const nameCls = isWinner ? 'font-bold text-teelo-dark' : (hasWinner ? 'text-content-faint' : 'text-teelo-dark font-medium');
-        return `<div class="flex items-center gap-1.5 min-w-0">
-            ${winnerIcon}
-            ${natHtml(player)}
-            <a href="${escapeHtml(url)}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 ${nameCls}" onclick="event.stopPropagation()">${escapeHtml(player?.name || '')}</a>
-            ${eloCompact(player)}
-            ${scoreCells(scores, scoreKey, isWinner, otherKey)}
-            ${predHtml(pct, isLeading, hasScores)}
+        const bgFill = pct != null
+            ? `<div class="absolute inset-y-0 left-0 bg-teelo-lime/10" style="width:${pct}%"></div>`
+            : '';
+        return `<div class="relative overflow-hidden rounded-sm">
+            ${bgFill}
+            <div class="relative flex items-center gap-1.5 min-w-0 py-0.5">
+                <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                    ${winnerIcon}
+                    ${natHtml(player)}
+                    <a href="${escapeHtml(url)}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 ${nameCls}" onclick="event.stopPropagation()">${escapeHtml(player?.name || '')}</a>
+                    ${eloCompact(player)}
+                </div>
+                <div class="flex items-center flex-shrink-0">
+                    ${scoreCells(scores, scoreKey, isWinner, otherKey)}
+                    ${predHtml(pct, isLeading)}
+                </div>
+            </div>
         </div>`;
     };
-
-    // Probability bar
-    let barHtml;
-    if (predA != null) {
-        barHtml = `<div class="flex w-full overflow-hidden my-0.5" style="height:4px;border-radius:2px;">
-            <div class="bg-teelo-lime" style="width:${predA}%;border-radius:2px 0 0 2px;"></div>
-            <div class="bg-surface-muted" style="width:${predB}%;border-radius:0 2px 2px 0;"></div>
-        </div>`;
-    } else {
-        barHtml = '<div class="my-0.5" style="height:1px;"></div>';
-    }
 
     // Footer (walkover or vs)
     let footerHtml = '';
@@ -135,7 +131,7 @@ function buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, p
     const predBLeading = predB != null && predB > predA;
 
     return playerRow(m.player_a, playerAUrl, isWinnerA, 'a', 'b', predA, predALeading)
-        + barHtml
+        + '<div style="height:2px"></div>'
         + playerRow(m.player_b, playerBUrl, isWinnerB, 'b', 'a', predB, predBLeading)
         + footerHtml;
 }
