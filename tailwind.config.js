@@ -8,7 +8,7 @@ module.exports = {
     extend: {
       colors: {
         teelo: {
-          lime: 'var(--color-teelo-lime)',
+          lime: 'rgb(var(--color-teelo-lime-rgb) / <alpha-value>)',
           blue: 'var(--color-teelo-blue)',
           ink: 'var(--color-teelo-ink)',
           light: 'var(--color-teelo-light)',
