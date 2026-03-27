@@ -49,65 +49,70 @@
 {% set has_scores = scores is not none and scores|length > 0 %}
 {% set score_display = 'W/O' if m.status == 'walkover' else none %}
 {# Player A row #}
-<div class="flex items-center gap-1.5 min-w-0">
-    {% if is_winner_a %}
-    <i data-lucide="trophy" class="w-3 h-3 text-teelo-lime flex-shrink-0"></i>
-    {% else %}
-    <span class="w-3 flex-shrink-0"></span>
+<div class="relative overflow-hidden rounded-sm">
+    {% if pred_a_pct is not none %}
+    <div class="absolute inset-y-0 left-0 bg-teelo-lime/10" style="width:{{ pred_a_pct }}%"></div>
     {% endif %}
-    {% if m.player_a.nationality_ioc is defined and m.player_a.nationality_ioc %}
-    <span class="text-[9px] text-content-faint font-medium flex-shrink-0 w-6 text-center">{{ m.player_a.nationality_ioc }}</span>
-    {% endif %}
-    <a href="{{ player_a_url }}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_a else ('text-content-faint' if has_winner else 'text-teelo-dark font-medium') }}" onclick="event.stopPropagation()">{{ m.player_a.name }}</a>
-    {{ elo_compact(m.player_a) }}
-    {% if has_scores %}
-    <div class="flex items-center gap-0 ml-auto flex-shrink-0 font-mono">
-        {% for s in scores %}
-        <span class="w-5 text-center text-[11px] {{ 'font-bold text-teelo-dark' if is_winner_a and s.a > s.b else ('font-bold text-teelo-dark' if not has_winner else 'text-content-muted') }}">{{ s.a }}</span>
-        {% endfor %}
+    <div class="relative flex items-center gap-1.5 min-w-0 py-0.5">
+        <div class="flex items-center gap-1.5 min-w-0 flex-1">
+            {% if is_winner_a %}
+            <i data-lucide="trophy" class="w-3 h-3 text-teelo-lime flex-shrink-0"></i>
+            {% else %}
+            <span class="w-3 flex-shrink-0"></span>
+            {% endif %}
+            {% if m.player_a.nationality_ioc is defined and m.player_a.nationality_ioc %}
+            <span class="text-[9px] text-content-faint font-medium flex-shrink-0 w-6 text-center">{{ m.player_a.nationality_ioc }}</span>
+            {% endif %}
+            <a href="{{ player_a_url }}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_a else ('text-content-faint' if has_winner else 'text-teelo-dark font-medium') }}" onclick="event.stopPropagation()">{{ m.player_a.name }}</a>
+            {{ elo_compact(m.player_a) }}
+        </div>
+        <div class="flex items-center flex-shrink-0">
+            {% if has_scores %}
+            <div class="flex items-center gap-0 font-mono">
+                {% for s in scores %}
+                <span class="w-5 text-center text-[11px] {{ 'font-bold text-teelo-dark' if is_winner_a and s.a > s.b else ('font-bold text-teelo-dark' if not has_winner else 'text-content-muted') }}">{{ s.a }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if pred_a_pct is not none %}
+            <span class="w-9 text-right flex-shrink-0 text-[10px] {{ 'font-semibold text-teelo-dark' if pred_a_pct >= pred_b_pct else 'text-content-faint' }}">{{ pred_a_pct }}%</span>
+            {% endif %}
+        </div>
     </div>
-    {% endif %}
-    {% if pred_a_pct is not none and not has_scores %}
-    <span class="ml-auto flex-shrink-0 text-[10px] {{ 'font-semibold text-teelo-dark' if pred_a_pct >= pred_b_pct else 'text-content-faint' }}">{{ pred_a_pct }}%</span>
-    {% elif pred_a_pct is not none and has_scores %}
-    <span class="flex-shrink-0 text-[10px] ml-1 {{ 'font-semibold text-teelo-dark' if pred_a_pct >= pred_b_pct else 'text-content-faint' }}">{{ pred_a_pct }}%</span>
-    {% endif %}
 </div>
-{# Probability bar (between rows) #}
-{% if pred_a_pct is not none %}
-<div class="flex w-full overflow-hidden my-0.5" style="height:4px;border-radius:2px;">
-    <div class="bg-teelo-lime" style="width:{{ pred_a_pct }}%;border-radius:2px 0 0 2px;"></div>
-    <div class="bg-surface-muted" style="width:{{ pred_b_pct }}%;border-radius:0 2px 2px 0;"></div>
-</div>
-{% elif has_winner %}
-<div class="my-0.5" style="height:1px;"></div>
-{% else %}
-<div class="my-0.5" style="height:1px;"></div>
-{% endif %}
+{# Spacer between rows #}
+<div style="height:2px;"></div>
 {# Player B row #}
-<div class="flex items-center gap-1.5 min-w-0">
-    {% if is_winner_b %}
-    <i data-lucide="trophy" class="w-3 h-3 text-teelo-lime flex-shrink-0"></i>
-    {% else %}
-    <span class="w-3 flex-shrink-0"></span>
+<div class="relative overflow-hidden rounded-sm">
+    {% if pred_b_pct is not none %}
+    <div class="absolute inset-y-0 left-0 bg-teelo-lime/10" style="width:{{ pred_b_pct }}%"></div>
     {% endif %}
-    {% if m.player_b.nationality_ioc is defined and m.player_b.nationality_ioc %}
-    <span class="text-[9px] text-content-faint font-medium flex-shrink-0 w-6 text-center">{{ m.player_b.nationality_ioc }}</span>
-    {% endif %}
-    <a href="{{ player_b_url }}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_b else ('text-content-faint' if has_winner else 'text-teelo-dark font-medium') }}" onclick="event.stopPropagation()">{{ m.player_b.name }}</a>
-    {{ elo_compact(m.player_b) }}
-    {% if has_scores %}
-    <div class="flex items-center gap-0 ml-auto flex-shrink-0 font-mono">
-        {% for s in scores %}
-        <span class="w-5 text-center text-[11px] {{ 'font-bold text-teelo-dark' if is_winner_b and s.b > s.a else ('font-bold text-teelo-dark' if not has_winner else 'text-content-muted') }}">{{ s.b }}</span>
-        {% endfor %}
+    <div class="relative flex items-center gap-1.5 min-w-0 py-0.5">
+        <div class="flex items-center gap-1.5 min-w-0 flex-1">
+            {% if is_winner_b %}
+            <i data-lucide="trophy" class="w-3 h-3 text-teelo-lime flex-shrink-0"></i>
+            {% else %}
+            <span class="w-3 flex-shrink-0"></span>
+            {% endif %}
+            {% if m.player_b.nationality_ioc is defined and m.player_b.nationality_ioc %}
+            <span class="text-[9px] text-content-faint font-medium flex-shrink-0 w-6 text-center">{{ m.player_b.nationality_ioc }}</span>
+            {% endif %}
+            <a href="{{ player_b_url }}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_b else ('text-content-faint' if has_winner else 'text-teelo-dark font-medium') }}" onclick="event.stopPropagation()">{{ m.player_b.name }}</a>
+            {{ elo_compact(m.player_b) }}
+        </div>
+        <div class="flex items-center flex-shrink-0">
+            {% if has_scores %}
+            <div class="flex items-center gap-0 font-mono">
+                {% for s in scores %}
+                <span class="w-5 text-center text-[11px] {{ 'font-bold text-teelo-dark' if is_winner_b and s.b > s.a else ('font-bold text-teelo-dark' if not has_winner else 'text-content-muted') }}">{{ s.b }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if pred_b_pct is not none %}
+            <span class="w-9 text-right flex-shrink-0 text-[10px] {{ 'font-semibold text-teelo-dark' if pred_b_pct > pred_a_pct else 'text-content-faint' }}">{{ pred_b_pct }}%</span>
+            {% endif %}
+        </div>
     </div>
-    {% endif %}
-    {% if pred_b_pct is not none and not has_scores %}
-    <span class="ml-auto flex-shrink-0 text-[10px] {{ 'font-semibold text-teelo-dark' if pred_b_pct > pred_a_pct else 'text-content-faint' }}">{{ pred_b_pct }}%</span>
-    {% elif pred_b_pct is not none and has_scores %}
-    <span class="flex-shrink-0 text-[10px] ml-1 {{ 'font-semibold text-teelo-dark' if pred_b_pct > pred_a_pct else 'text-content-faint' }}">{{ pred_b_pct }}%</span>
-    {% endif %}
 </div>
 {# Walkover / status badge #}
 {% if score_display == 'W/O' %}
