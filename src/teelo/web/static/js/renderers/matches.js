@@ -98,12 +98,14 @@ function buildMiniScoreboard(m, isWinnerA, isWinnerB, hasWinner, predA, predB, p
 
     // Player row builder
     const playerRow = (player, url, isWinner, scoreKey, otherKey, pct, isLeading) => {
-        const accentCls = isWinner ? 'bg-teelo-lime' : 'bg-transparent';
+        const winnerIcon = isWinner
+            ? '<i data-lucide="trophy" class="w-3 h-3 text-teelo-lime flex-shrink-0"></i>'
+            : '<span class="w-3 flex-shrink-0"></span>';
         const nameCls = isWinner ? 'font-bold text-teelo-dark' : (hasWinner ? 'text-content-faint' : 'text-teelo-dark font-medium');
         return `<div class="flex items-center gap-1.5 min-w-0">
-            <div class="w-0.5 h-4 rounded-full ${accentCls} flex-shrink-0"></div>
+            ${winnerIcon}
             ${natHtml(player)}
-            <a href="${escapeHtml(url)}" class="text-[12px] truncate hover:underline decoration-teelo-lime decoration-2 ${nameCls}" onclick="event.stopPropagation()">${escapeHtml(player?.name || '')}</a>
+            <a href="${escapeHtml(url)}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 ${nameCls}" onclick="event.stopPropagation()">${escapeHtml(player?.name || '')}</a>
             ${eloCompact(player)}
             ${scoreCells(scores, scoreKey, isWinner, otherKey)}
             ${predHtml(pct, isLeading, hasScores)}
