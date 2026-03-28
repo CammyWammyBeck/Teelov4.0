@@ -76,7 +76,7 @@ class ITFScraper(BaseScraper):
     BASE_URL = "https://www.itftennis.com"
 
     # XPath for "More Matches" button on calendar page
-    MORE_MATCHES_XPATH = "button.btn:has-text('more')"
+    MORE_MATCHES_XPATH = "button.btn:has-text('Show 100 more')"
 
     async def _accept_cookies(self, page: Page) -> None:
         """Dismiss the OneTrust cookie consent popup if present."""
