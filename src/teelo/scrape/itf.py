@@ -76,7 +76,7 @@ class ITFScraper(BaseScraper):
     BASE_URL = "https://www.itftennis.com"
 
     # XPath for "More Matches" button on calendar page
-    MORE_MATCHES_XPATH = '//*[@id="whatson-hero"]/div[3]/section/div/div/button'
+    MORE_MATCHES_XPATH = "button.btn:has-text('more')"
 
     async def _accept_cookies(self, page: Page) -> None:
         """Dismiss the OneTrust cookie consent popup if present."""
@@ -291,7 +291,7 @@ class ITFScraper(BaseScraper):
         while consecutive_failures < 3:
             try:
                 more_button = await page.wait_for_selector(
-                    f"xpath={self.MORE_MATCHES_XPATH}", timeout=4000
+                    self.MORE_MATCHES_XPATH, timeout=4000
                 )
                 if not more_button or not await more_button.is_visible():
                     consecutive_failures += 1
