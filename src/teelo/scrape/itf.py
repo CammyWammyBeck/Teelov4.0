@@ -75,7 +75,26 @@ class ITFScraper(BaseScraper):
 
     BASE_URL = "https://www.itftennis.com"
 
-    # XPath for "More Matches" button on calendar page
+    # Selectors for "More Matches" / "Load More" button on calendar page.
+    # Listed in priority order — first match wins.
+    # The XPath was brittle (depends on exact DOM nesting); text-based and
+    # role-based selectors are far more resilient to site redesigns.
+    MORE_MATCHES_SELECTORS = [
+        # Text-content matches (most robust)
+        "button:has-text('More Matches')",
+        "button:has-text('Load More')",
+        "button:has-text('Show More')",
+        "a:has-text('More Matches')",
+        "a:has-text('Load More')",
+        # Role + accessible name patterns
+        "[role='button']:has-text('More')",
+        # Legacy XPath (kept as last resort)
+        "xpath=//*[@id='whatson-hero']/div[3]/section/div/div/button",
+        "xpath=//*[@id='whatson-hero']//button[contains(., 'More')]",
+        "xpath=//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'more')]",
+    ]
+
+    # Kept for backward compat; not used directly anymore.
     MORE_MATCHES_XPATH = '//*[@id="whatson-hero"]/div[3]/section/div/div/button'
 
     async def _accept_cookies(self, page: Page) -> None:
@@ -283,27 +302,76 @@ class ITFScraper(BaseScraper):
         print(f"Parsed {len(tournaments)} ITF {gender}'s tournaments for {year}")
         return tournaments
 
+    async def _find_more_button(self, page: Page):
+        """
+        Try each selector in MORE_MATCHES_SELECTORS in order, returning the
+        first visible element found, or None if none match.
+        """
+        for selector in self.MORE_MATCHES_SELECTORS:
+            try:
+                btn = await page.wait_for_selector(selector, timeout=2000)
+                if btn and await btn.is_visible():
+                    return btn, selector
+            except PlaywrightTimeout:
+                continue
+            except Exception:
+                continue
+        return None, None
+
     async def _load_all_tournaments(self, page: Page) -> None:
         """Click "More Matches" button repeatedly to load all tournaments."""
         consecutive_failures = 0
         total_clicks = 0
+        working_selector: str | None = None
 
         while consecutive_failures < 3:
             try:
-                more_button = await page.wait_for_selector(
-                    f"xpath={self.MORE_MATCHES_XPATH}", timeout=4000
-                )
-                if not more_button or not await more_button.is_visible():
+                if working_selector:
+                    # Fast path: try the known-good selector directly
+                    try:
+                        more_button = await page.wait_for_selector(
+                            working_selector, timeout=3000
+                        )
+                        if not more_button or not await more_button.is_visible():
+                            more_button = None
+                    except PlaywrightTimeout:
+                        more_button = None
+
+                    if more_button is None:
+                        # Selector stopped working; fall through to full scan
+                        working_selector = None
+                else:
+                    more_button, found_selector = await self._find_more_button(page)
+                    if found_selector:
+                        working_selector = found_selector
+                        if total_clicks == 0:
+                            print(f"  [load_more] Using selector: {found_selector!r}")
+
+                if not more_button:
                     consecutive_failures += 1
                     continue
+
+                # Snapshot link count before clicking so we can detect DOM update
+                prev_count = await page.evaluate(
+                    "() => document.querySelectorAll(\"a[href*='/tournament/']\").length"
+                )
 
                 await more_button.click()
                 total_clicks += 1
                 consecutive_failures = 0
+
+                # Wait for new tournament links to appear (up to 5s)
                 try:
-                    await page.wait_for_load_state("networkidle", timeout=4000)
+                    await page.wait_for_function(
+                        f"() => document.querySelectorAll(\"a[href*='/tournament/']\").length > {prev_count}",
+                        timeout=5000,
+                    )
                 except PlaywrightTimeout:
-                    pass
+                    # No new links appeared — might be at the end of the list
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=3000)
+                    except PlaywrightTimeout:
+                        pass
 
                 if total_clicks % 10 == 0:
                     print(f"  Clicked 'More Matches' {total_clicks} times...")
@@ -313,7 +381,14 @@ class ITFScraper(BaseScraper):
             except Exception:
                 consecutive_failures += 1
 
-        print(f"Finished loading tournaments (clicked {total_clicks} times)")
+        if total_clicks == 0:
+            print(
+                f"  [WARNING] Finished loading tournaments (clicked 0 times) — "
+                "'More Matches' button not found. Only initial page content was scraped. "
+                "Current-week tournaments may be missing."
+            )
+        else:
+            print(f"Finished loading tournaments (clicked {total_clicks} times)")
 
     def _parse_tournament_link(
         self, link, href: str, year: int, gender: str
