@@ -80,21 +80,17 @@ class ITFScraper(BaseScraper):
     # The XPath was brittle (depends on exact DOM nesting); text-based and
     # role-based selectors are far more resilient to site redesigns.
     MORE_MATCHES_SELECTORS = [
-        # Text-content matches (most robust — partial, case-insensitive in Playwright)
-        # Current ITF site (2026): <button class="btn">Show 100 more</button>
-        "button.btn:has-text('more')",       # matches "Show 100 more", "Show 50 more", etc.
-        "button:has-text('Show 100 more')",  # exact current text as fallback
-        "button:has-text('Show more')",
+        # Text-content matches (most robust)
         "button:has-text('More Matches')",
         "button:has-text('Load More')",
         "button:has-text('Show More')",
         "a:has-text('More Matches')",
         "a:has-text('Load More')",
         # Role + accessible name patterns
-        "[role='button']:has-text('more')",
+        "[role='button']:has-text('More')",
         # Legacy XPath (kept as last resort)
         "xpath=//*[@id='whatson-hero']/div[3]/section/div/div/button",
-        "xpath=//*[@id='whatson-hero']//button[contains(., 'more')]",
+        "xpath=//*[@id='whatson-hero']//button[contains(., 'More')]",
         "xpath=//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'more')]",
     ]
 
@@ -272,17 +268,7 @@ class ITFScraper(BaseScraper):
             else:
                 calendar_path = "mens-world-tennis-tour-calendar"
 
-            # Use YYYY-MM startdate so the initial page load is anchored near
-            # the current month rather than Jan 1 — reduces the number of
-            # "Show more" clicks needed to reach current-week tournaments.
-            # Fall back to year-only if this is a historical/future year.
-            from datetime import date as _date
-            _today = _date.today()
-            if year == _today.year:
-                startdate = f"{year}-{_today.month:02d}"
-            else:
-                startdate = str(year)
-            url = f"{self.BASE_URL}/en/tournament-calendar/{calendar_path}/?categories=All&startdate={startdate}"
+            url = f"{self.BASE_URL}/en/tournament-calendar/{calendar_path}/?categories=All&startdate={year}"
             print(f"Loading ITF {gender}'s calendar for {year}...")
             await self.navigate(page, url, wait_for="domcontentloaded")
             try:
