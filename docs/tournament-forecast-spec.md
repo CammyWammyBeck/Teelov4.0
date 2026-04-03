@@ -44,9 +44,10 @@ Build a tournament forecast subsystem that:
 
 These decisions are locked in for the first implementation:
 
-- Winner-only scenario updates
+- Winner-only scenario updates with synthetic match defaults
   - Hypothetical path state updates track that a player advanced, played another match, and who the opponent was.
-  - Do not simulate fake scorelines, durations, or detailed stat lines in v1.
+  - For forecast-only hypothetical matches, use simple synthetic defaults for score-derived fields instead of leaving them empty.
+  - These synthetic defaults are for forecast path modelling only, not Teelo's authoritative live match prediction once a matchup becomes real.
 
 - Path-sensitive feature groups included in v1
   - Include path updates for:
@@ -54,11 +55,12 @@ These decisions are locked in for the first implementation:
     - confidence / form
     - opponent quality
     - tournament matches played / wins within the event
-  - Do not attempt to support path-sensitive features that require synthetic score-derived detail in v1.
+    - score-derived groups via simple forecast-only synthetic defaults where needed
 
 - Schedule drift does not trigger rebuilds in v1
   - Structural draw changes trigger a rebuild.
   - Actual result/status changes trigger probability recomputation.
+  - When a future matchup becomes a real known matchup, Teelo must recompute the real match prediction through the normal live feature pipeline.
   - Minor schedule/date drift alone does not invalidate scenario predictions.
 
 - Failure policy is all-or-nothing in v1
@@ -180,6 +182,30 @@ Recommended uniqueness key:
 
 ---
 
+## Forecast approximation policy
+
+For forecast-only hypothetical matches, use a simple synthetic match-result convention rather than leaving score-derived fields empty.
+
+Recommended v1 convention for a hypothetical win:
+- winner advanced
+- loser lost
+- default straight-sets style result
+- fixed neutral game-count assumption
+- no tiebreak
+- no comeback
+- no first-set-lost flag
+- no close-match flag
+
+Purpose:
+- keep the forecast feature vector complete
+- allow score-derived/activity/fatigue-style features to update coherently inside the forecast tree
+- avoid relying on large amounts of missing data
+
+Important boundary:
+- these synthetic values are acceptable for forecast/scenario modelling
+- once a matchup becomes real and is represented as an actual upcoming/scheduled match, Teelo must regenerate the real features and real prediction using the normal live pipeline
+- the real `matches` prediction remains the authoritative user-facing prediction
+
 ## State model
 
 ### Why state JSON is required
@@ -236,7 +262,7 @@ Suggested persisted JSON shape:
 Rule:
 - do not persist every raw feature independently unless needed
 - persist the scenario-adjusted state from which features can be deterministically rebuilt
-- in v1, state updates are winner-only; do not invent synthetic scorelines, durations, or detailed box-score stats for hypothetical matches
+- in v1, state updates are winner-only, but forecast-only hypothetical matches may use a simple synthetic default match profile so score-derived features are not left blank
 
 ---
 
@@ -284,6 +310,7 @@ Hard requirement:
 - no ELO-only fallback path
 - if feature generation fails, the node/run should fail loudly rather than silently degrade
 - v1 failure policy is all-or-nothing: if any required node cannot be generated or predicted, mark the run failed
+- when a forecasted future matchup becomes a real known matchup, recompute the real match features/prediction and treat that real prediction as authoritative
 
 ---
 
@@ -451,8 +478,14 @@ If a forecast node maps to a real unresolved `matches` row:
 If prediction missing or stale:
 - recompute using the normal match feature flow
 
+Additional rule:
+- forecast-only scenario predictions are not the final source of truth for real match odds
+- once a matchup becomes real/known in `matches`, regenerate real features and real prediction through the normal live path
+- this real match prediction should override any earlier forecast approximation for user-facing/live prediction surfaces
+
 Benefit:
 - no redundant computation for known current matches
+- forecast approximations do not degrade live match prediction quality
 
 ---
 

@@ -76,27 +76,33 @@ Implement:
 
 Locked v1 rules:
 - winner-only scenario updates
-- no fake scorelines/durations/stats
+- use simple synthetic defaults for forecast-only hypothetical match score-derived fields
 - path-sensitive updates for:
   - fatigue/activity
   - confidence/form
   - opponent quality
   - tournament matches played/wins
+  - score-derived groups via forecast-only synthetic defaults where needed
 
-### 8. Audit current feature groups
-Classify each feature group as:
-- static pre-tournament
-- path-sensitive in v1
-- unsupported for forecast v1
+### 8. Lock forecast feature approximation policy
+Document and implement the forecast-only synthetic defaults used for hypothetical matches.
+
+Examples to define explicitly:
+- default straight-sets style win
+- fixed neutral game-count assumption
+- no tiebreak
+- no comeback
+- no first-set-lost
+- no close-match flag
 
 Output:
-- a short mapping doc/code comment listing what is updated in scenario state
+- a short mapping doc/code comment listing which feature groups are static vs scenario-updated and which synthetic defaults are used
 
 ### 9. Add state-builder tests
 Tests:
 - initial state is built consistently
 - winner-state derivation updates supported fields correctly
-- unsupported score-derived fields are not faked in v1
+- synthetic forecast defaults are applied consistently for score-derived fields
 
 ---
 
@@ -122,7 +128,7 @@ Implement:
   - `prediction_model_version`
   - `predicted_at`
 
-### 12. Define strict reuse rules
+### 12. Define strict reuse + reprediction rules
 Only reuse actual match predictions if:
 - prediction exists
 - model version matches exactly
@@ -130,6 +136,10 @@ Only reuse actual match predictions if:
 
 Otherwise:
 - recompute forecast-local feature payload + prediction
+
+Also enforce:
+- when a matchup becomes real/known, regenerate the real match prediction through the normal live feature pipeline
+- treat the real `matches` prediction as authoritative for user-facing live match odds
 
 ### 13. Add prediction integration tests
 Tests:
