@@ -194,7 +194,7 @@ async def get_or_create_edition(
         edition = TournamentEdition(
             tournament_id=tournament.id,
             year=year,
-            surface=task_params.tournament_surface or "Hard",
+            surface=task_params.tournament_surface or tournament.surface or "Hard",
         )
         session.add(edition)
 
