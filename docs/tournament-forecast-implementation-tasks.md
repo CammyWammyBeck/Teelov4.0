@@ -124,6 +124,31 @@ If a tournament is not eligible:
 - do not build a forecast run
 - API should return no forecast / not supported for that event
 
+
+## Safety / non-regression constraints
+
+This system must be implemented as an additive subsystem. It should not degrade the normal Teelo live pipeline.
+
+### Hard boundaries
+- keep real system state separate from forecast scenario state
+- do not let synthetic/forecast state write back into real player state
+- do not let synthetic/forecast ELO updates overwrite real ELO values in the main system
+- do not let forecast predictions replace live `matches` predictions for real known matchups
+
+### Allowed interaction with the live system
+- forecast may reuse real match data and real predictions when valid
+- once a matchup becomes real/known, the system may trigger a normal live reprediction for that real `matches` row
+- this repredicted real match remains the authoritative user-facing prediction
+
+### Main regression risks to avoid
+- modifying the normal feature engine in a way that changes live feature generation unintentionally
+- mixing forecast predictions and live match predictions in the same read path without explicit separation
+- leaking hypothetical ELO/state updates into persistent real player state
+- triggering forecast auto-builds too aggressively and creating unnecessary load
+
+### Implementation principle
+If there is ever a conflict between forecast convenience and live-system correctness, protect the live system first.
+
 ## Phase 1 — Schema + run lifecycle
 
 ### Scope guard
