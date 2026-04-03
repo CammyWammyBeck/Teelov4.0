@@ -8,6 +8,7 @@ from sqlalchemy import select
 from teelo.db.models import FeatureSet
 from teelo.db.session import get_session
 from teelo.storage import list_models
+from teelo.features import default_preset_for_feature_set
 
 _PATTERN = re.compile(r"^prediction_v(\d+)\.json$")
 
@@ -42,3 +43,13 @@ def latest_feature_set() -> str:
     if fs is None:
         raise ValueError("No feature sets found in database")
     return fs
+
+
+def latest_preset(feature_set_name: str) -> str:
+    """Map a feature_set_name to the appropriate feature-engine preset.
+
+    Forecast uses feature presets ("full", "trimmed_v3", etc.) to build the same
+    registry used in training/inference.
+    """
+
+    return default_preset_for_feature_set(feature_set_name)

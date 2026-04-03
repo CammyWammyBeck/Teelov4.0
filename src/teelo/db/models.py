@@ -46,7 +46,11 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB as PG_JSONB
+from sqlalchemy.types import JSON
+
+# SQLite test runs don't support PostgreSQL JSONB; use JSON there.
+JSONB = PG_JSONB().with_variant(JSON(), "sqlite")
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -1016,6 +1020,116 @@ class ModelEvaluationSnapshot(Base):
     __table_args__ = (
         UniqueConstraint("model_version", "snapshot_date", "source_filter", name="uq_eval_snapshot"),
         Index("idx_eval_snapshot_date", "snapshot_date"),
+    )
+
+
+# =============================================================================
+# Tournament Forecast Models
+# =============================================================================
+
+class TournamentForecastRun(Base):
+    """Versioned forecast run for a tournament edition."""
+
+    __tablename__ = "tournament_forecast_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tournament_edition_id: Mapped[int] = mapped_column(
+        ForeignKey("tournament_editions.id"), nullable=False, index=True
+    )
+
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="building")
+    build_reason: Mapped[str] = mapped_column(String(30), nullable=False, default="initial")
+
+    structure_signature: Mapped[str] = mapped_column(String(64), nullable=False)
+    state_signature: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    feature_set_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(80), nullable=False)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    error_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    tournament_edition: Mapped["TournamentEdition"] = relationship()
+    nodes: Mapped[list["TournamentForecastNode"]] = relationship(
+        back_populates="forecast_run", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_forecast_run_active_edition",
+            "tournament_edition_id",
+            "is_active",
+            "status",
+        ),
+    )
+
+
+class TournamentForecastNode(Base):
+    """One possible matchup in one bracket slot for one forecast run."""
+
+    __tablename__ = "tournament_forecast_nodes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    forecast_run_id: Mapped[int] = mapped_column(
+        ForeignKey("tournament_forecast_runs.id"), nullable=False, index=True
+    )
+
+    round: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    draw_position: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+    player_a_id: Mapped[int] = mapped_column(ForeignKey("players.id"), nullable=False)
+    player_b_id: Mapped[int] = mapped_column(ForeignKey("players.id"), nullable=False)
+
+    left_parent_node_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("tournament_forecast_nodes.id"), nullable=True
+    )
+    right_parent_node_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("tournament_forecast_nodes.id"), nullable=True
+    )
+
+    source_match_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("matches.id"), nullable=True, index=True
+    )
+
+    node_type: Mapped[str] = mapped_column(String(20), nullable=False, default="scenario")
+    generation_depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    feature_set_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    prediction_model_version: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+
+    player_a_state_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    player_b_state_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
+    features_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
+    prediction_a: Mapped[Optional[float]] = mapped_column(Numeric(7, 6), nullable=True)
+    predicted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    forecast_run: Mapped["TournamentForecastRun"] = relationship(back_populates="nodes")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "forecast_run_id",
+            "round",
+            "draw_position",
+            "player_a_id",
+            "player_b_id",
+            "left_parent_node_id",
+            "right_parent_node_id",
+            name="uq_forecast_node_identity",
+        ),
+        Index(
+            "idx_forecast_nodes_slot",
+            "forecast_run_id",
+            "round",
+            "draw_position",
+        ),
     )
 
 

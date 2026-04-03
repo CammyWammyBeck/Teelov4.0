@@ -47,6 +47,7 @@ from sqlalchemy.orm import Session
 
 from teelo.db.models import (
     Match,
+    Player,
     TournamentEdition,
     compute_temporal_order,
     estimate_match_date_from_round,
@@ -259,15 +260,66 @@ def ingest_draw(
     for entry in entries:
         try:
             if entry.is_bye:
-                # Resolve the bye player so we can track their advancement
-                bye_player_id = _resolve_bye_player(
-                    session, entry, identity_service, context
-                )
-                if bye_player_id:
-                    bye_positions[(entry.round, entry.draw_position)] = bye_player_id
-                    stats.byes_processed += 1
-                else:
+                # Resolve the bye player so we can track their advancement.
+                bye_player_id = _resolve_bye_player(session, entry, identity_service, context)
+                if not bye_player_id:
                     stats.skipped_no_player_match += 1
+                    continue
+
+                bye_positions[(entry.round, entry.draw_position)] = bye_player_id
+                stats.byes_processed += 1
+
+                # Materialise the bye as a synthetic completed match (player vs BYE).
+                # This keeps player_a_id/player_b_id non-nullable and allows forecast readiness
+                # to be based on structural resolvability, without waiting for propagation.
+                existing = context.matches_by_slot.get((entry.round, entry.draw_position))
+
+                bye_player = session.get(Player, int(bye_player_id))
+                bye_gender = (getattr(bye_player, "gender", None) or "men") if bye_player else "men"
+                bye_dummy = (
+                    session.query(Player)
+                    .filter(Player.canonical_name == "BYE")
+                    .filter(Player.gender == bye_gender)
+                    .first()
+                )
+                if bye_dummy is None:
+                    bye_dummy = Player(canonical_name="BYE", gender=bye_gender)
+                    session.add(bye_dummy)
+                    session.flush()
+
+                if existing is None:
+                    m = Match(
+                        source=entry.source,
+                        tournament_edition_id=edition.id,
+                        round=entry.round,
+                        draw_position=entry.draw_position,
+                        player_a_id=int(bye_player_id),
+                        player_b_id=int(bye_dummy.id),
+                        status="completed",
+                        winner_id=int(bye_player_id),
+                        score="BYE",
+                        score_structured=None,
+                    )
+                    m.update_temporal_order(
+                        tournament_start=edition.start_date,
+                        tournament_end=edition.end_date,
+                    )
+                    session.add(m)
+                    context.matches_by_slot[(entry.round, entry.draw_position)] = m
+                    stats.matches_created += 1
+                elif overwrite and existing.status not in set(get_status_group("terminal")):
+                    existing.player_a_id = int(bye_player_id)
+                    existing.player_b_id = int(bye_dummy.id)
+                    existing.status = "completed"
+                    existing.winner_id = int(bye_player_id)
+                    existing.score = "BYE"
+                    existing.score_structured = None
+                    existing.update_temporal_order(
+                        tournament_start=edition.start_date,
+                        tournament_end=edition.end_date,
+                    )
+                    stats.matches_updated += 1
+
                 continue
 
             # Skip entries with missing players (TBD / qualifier placeholders)
@@ -360,6 +412,19 @@ def ingest_draw(
     stats.timings["propagation"] = perf_counter() - propagation_start
     stats.propagations_created = propagated
     stats.timings["total"] = perf_counter() - started_at
+
+    # -------------------------------------------------------------------------
+    # Phase 3: Tournament forecast auto-build (ATP/WTA main tour only)
+    # -------------------------------------------------------------------------
+    try:
+        from teelo.services.tournament_forecast import build_forecast_run, is_draw_forecast_ready
+
+        if is_draw_forecast_ready(session, edition):
+            # All-or-nothing forecast policy: failures mark the run failed.
+            # Draw ingestion should remain robust, so we log and continue.
+            build_forecast_run(session, edition_id=edition.id, force=False, build_reason="draw_change")
+    except Exception as exc:
+        logger.warning("Forecast auto-build failed for edition %s: %s", edition.id, exc)
 
     logger.info(stats.summary())
     return stats

@@ -724,6 +724,31 @@ async def api_tournament_draw(
     return JSONResponse({"has_draw": bool(rounds_payload), "rounds": rounds_payload})
 
 
+@router.get("/api/tournaments/{tour}/{tournament_code}/{year}/forecast")
+async def api_tournament_forecast(
+    tour: str,
+    tournament_code: str,
+    year: int,
+    db: Session = Depends(get_db),
+):
+    edition = _get_tournament_edition_or_404(db, tour, tournament_code, year)
+    tournament = (
+        db.query(Tournament)
+        .filter(Tournament.id == edition.tournament_id)
+        .first()
+    )
+    if tournament is None:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+
+    from teelo.services.tournament_forecast import compute_probabilities, is_forecast_eligible_tournament
+
+    if not is_forecast_eligible_tournament(tournament):
+        return JSONResponse({"has_forecast": False, "status": "unsupported"})
+
+    payload = compute_probabilities(db, edition_id=edition.id)
+    return JSONResponse(payload)
+
+
 @router.get("/api/tournaments/{tour}/{tournament_code}/editions")
 async def api_tournament_editions(
     tour: str,
