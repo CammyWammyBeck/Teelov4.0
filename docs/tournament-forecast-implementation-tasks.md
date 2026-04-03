@@ -1,8 +1,103 @@
 # Tournament Forecast Implementation Tasks
 
+
+## Handoff checklist
+
+Before implementation starts, the engineer should confirm they understand these non-negotiable rules:
+
+- only build/apply this system for ATP Tour and WTA Tour events
+- use the normal live feature set
+- synthetic hypothetical scoreline default is `6-4 6-4`
+- synthetic hypothetical records also assume:
+  - no tiebreak
+  - no comeback
+  - no first-set-lost
+  - no close-match flag
+- hypothetical ELO updates use the same logic as real completed matches
+- forecast predictions are not authoritative once a matchup becomes real
+- real known matchups must be repredicted through the normal live pipeline
+- forecast auto-build uses the unified draw-readiness rule
+- public read API does not lazily build forecasts in v1
+- probability outputs are computed on demand, not persisted
+- failure policy is all-or-nothing
+
+If any code plan conflicts with the list above, the docs win.
+
+
 This is the concrete build order for the tournament forecast system.
 
+
+## Final implementation decisions
+
+These implementation policies are locked in:
+
+1. Use the normal live feature set
+- Forecast uses the same maintained feature set/model path as live Teelo predictions.
+- No separate forecast-only model is introduced.
+- Any forecast approximations should be handled at the scenario-state / synthetic-match layer, not by maintaining a second model.
+
+2. Synthetic default scoreline for hypothetical matches
+- Use a simple default like `6-4 6-4` for forecast-only hypothetical matches.
+- This provides consistent values for score-derived fields without leaving them blank.
+
+3. Hypothetical ELO updates use normal calculations
+- When a hypothetical prior match is processed in the forecast path, update ELO exactly as if that match had completed.
+- Use the same ELO update logic/calculations as the real system.
+
+4. Forecast builds automatically once the draw is full
+- Forecast should auto-build when the main draw is considered full/ready.
+- In practice this is typically after qualifying is complete.
+- Implementation needs a concrete readiness check to decide when a draw is full enough to build.
+
+5. API behaviour when no forecast exists
+- If a forecast is possible, it should already have been built by the automatic trigger.
+- Therefore returning `not built yet` / no forecast is acceptable when no active run exists.
+- The read API does not need to lazily build forecasts on request in v1.
+
+
+## Draw readiness / auto-build rule
+
+Forecast auto-build should use one unified readiness rule for all draw types.
+
+### Unified rule
+Determine the tournament's effective entry round, then inspect the round immediately after it.
+
+A draw is forecast-ready when **every slot in the round after the entry round is resolvable**.
+
+A slot is resolvable if both incoming paths are known via either:
+- a complete feeder match in the entry round, or
+- a propagated bye / auto-advance player already materialised into that next-round slot
+
+### Why this single rule works
+It handles both cases without branching into separate systems:
+- non-bye draws
+- bye draws
+
+For a normal draw, every next-round slot is only resolvable once both feeder matches are fully populated.
+For a bye draw, the same logic works because one side may already be known from a propagated bye path.
+
+### Practical algorithm
+1. determine the effective entry round for the edition
+2. determine the round immediately after that entry round
+3. iterate every slot in that next round
+4. for each slot, inspect:
+   - the two feeder entry-round positions
+   - the next-round match row itself, if present
+5. mark the slot resolvable if both incoming sides are known through feeder matches or propagated byes
+6. auto-build only when all next-round slots are resolvable
+
+### Notes / edge cases
+- qualifying placeholders should not count as ready unless they resolve to real player IDs
+- `TBD` / null player slots are not ready
+- if ingestion has already propagated bye winners into the next round, use that as readiness evidence
+- this is a structural readiness check, not a schedule check
 ## Phase 1 — Schema + run lifecycle
+
+### Scope guard
+Before any build work, enforce tournament eligibility:
+- allowed: ATP Tour, WTA Tour
+- excluded: Challenger, WTA 125, ITF
+
 
 ### 1. Add DB models + migration
 Create:
@@ -18,6 +113,10 @@ Include:
 - stored prediction value/model version
 
 ### 2. Add run lifecycle service shell
+Also implement draw-readiness detection:
+- determine when a draw is full/ready enough to auto-build
+- target behaviour is to build automatically once the full main draw is known
+
 Create:
 - `src/teelo/services/tournament_forecast.py`
 
@@ -77,6 +176,7 @@ Implement:
 Locked v1 rules:
 - winner-only scenario updates
 - use simple synthetic defaults for forecast-only hypothetical match score-derived fields
+- default synthetic scoreline is `6-4 6-4` unless a later explicit rule replaces it
 - path-sensitive updates for:
   - fatigue/activity
   - confidence/form
@@ -85,6 +185,11 @@ Locked v1 rules:
   - score-derived groups via forecast-only synthetic defaults where needed
 
 ### 8. Lock forecast feature approximation policy
+Use these v1 defaults:
+- same live feature set as normal Teelo predictions
+- synthetic hypothetical scoreline default: `6-4 6-4`
+- hypothetical ELO updates use the same completed-match calculation path as real matches
+
 Document and implement the forecast-only synthetic defaults used for hypothetical matches.
 
 Examples to define explicitly:
@@ -180,6 +285,7 @@ Tests:
 ### 17. Add tournament forecast endpoint
 Add:
 - `GET /api/tournaments/{tour}/{tournament_code}/{year}/forecast`
+- return `not built yet` / equivalent empty state if no active forecast exists
 
 Return:
 - forecast run metadata
@@ -187,13 +293,11 @@ Return:
 - optional slot distributions
 - warnings/build status if relevant
 
-### 18. Decide API build behaviour
-Pick one:
-- build lazily on first request
-- require prebuild/manual trigger
-
-Recommended for dev:
-- allow lazy build initially
+### 18. API build behaviour
+Locked v1 behaviour:
+- no lazy build on public read API
+- if a forecast is possible, it should already have been auto-built
+- otherwise return `not built yet` / equivalent empty state
 
 ### 19. Add endpoint tests
 Tests:
@@ -225,6 +329,9 @@ Need to support:
 When structure changes:
 - invalidate active run
 - trigger rebuild
+
+Also add the initial auto-build trigger:
+- when the main draw becomes full/ready after qualifying is complete, build the forecast automatically
 
 ### 23. Hook probability recompute into result updates
 When results/statuses change without structural draw changes:

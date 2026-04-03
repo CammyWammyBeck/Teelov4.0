@@ -1,5 +1,79 @@
 # Tournament Forecast System Spec
 
+
+## Implementation contract (read this first)
+
+This section is the authoritative handoff summary for implementation. An engineer should be able to start from this section alone.
+
+### Core goal
+Build a tournament forecast system that:
+- materialises all possible future draw matchups
+- stores forecast scenario state, features, and predictions
+- computes player advancement/title probabilities on demand
+- preserves Teelo's existing live prediction quality for real matches
+
+### Locked implementation decisions
+0. **Tournament scope is limited**
+   - This system is only for ATP Tour and WTA Tour events in v1.
+   - Do not build forecast runs for Challenger, WTA 125, or ITF events.
+
+1. **Use the normal live feature set**
+   - Forecast uses the same maintained feature/model path as live Teelo match prediction.
+   - Do not create or maintain a separate forecast-only model in v1.
+
+2. **Use forecast-only synthetic defaults for hypothetical matches**
+   - Forecast scenarios are allowed to use simple synthetic match-result defaults so score-derived features are not blank.
+   - Default synthetic scoreline: `6-4 6-4`.
+   - Default assumptions also include:
+     - no tiebreak
+     - no comeback
+     - no first-set-lost
+     - no close-match flag
+
+3. **Hypothetical ELO updates use the normal real calculation path**
+   - When a hypothetical prior match is processed in the forecast tree, update ELO exactly as if the match had completed in the real system.
+   - Use the same ELO update logic as real completed matches.
+
+4. **Real match prediction remains authoritative**
+   - Forecast/scenario predictions are acceptable approximations for title/path forecasting.
+   - Once a matchup becomes real/known in `matches`, regenerate its features and prediction via the normal live pipeline.
+   - The real `matches` prediction overrides any earlier forecast approximation for user-facing/live surfaces.
+
+5. **Forecast auto-build is structural and automatic**
+   - Build automatically once the draw is forecast-ready.
+   - Do not rely on manual build as the normal v1 workflow.
+
+6. **Unified draw readiness rule**
+   - Determine the effective entry round.
+   - Inspect the round immediately after it.
+   - The draw is ready when every slot in that next round is resolvable from either:
+     - a complete feeder match, or
+     - a propagated bye / auto-advance player.
+
+7. **API does not lazily build forecasts in v1**
+   - If a forecast is possible, it should already have been auto-built.
+   - Otherwise return `not built yet` / equivalent empty state.
+
+8. **Probability outputs are computed on demand, not persisted**
+   - Persist the expensive scenario artefacts.
+   - Compute reach-round/title probabilities when requested.
+
+9. **All-or-nothing failure policy**
+   - If a required forecast node cannot be generated or predicted, mark the run failed.
+   - Do not serve partial/degraded public forecast output in v1.
+
+### Required implementation behaviour
+- keep `matches` as actual tournament reality
+- keep forecast scenario data in forecast tables
+- reuse actual match predictions when valid
+- repredict real matches when they become known
+- reuse stored scenario predictions for probability recomputation when structure has not changed
+
+### Biggest engineering risk
+The hardest part is feature-engine integration for hypothetical path-dependent states.
+Not the bracket maths.
+
+
 ## Goal
 
 Build a tournament forecast subsystem that:
@@ -17,6 +91,7 @@ Build a tournament forecast subsystem that:
 
 ### In scope for v1
 - Single-elimination main draw only
+- Only ATP Tour and WTA Tour events in v1
 - Supported rounds:
   - `R128`, `R64`, `R32`, `R16`, `QF`, `SF`, `F`
 - Byes supported
@@ -28,6 +103,9 @@ Build a tournament forecast subsystem that:
 - Qualifying
 - Round robin
 - Mixed doubles / team events
+- Challenger events
+- WTA 125 events
+- ITF events
 - Historical tracking of changing public odds over time
 - Precomputed/persisted player advancement summaries
 
@@ -72,6 +150,71 @@ These decisions are locked in for the first implementation:
   - Do not implement aggressive state/path deduplication yet.
   - Future optimisation may deduplicate nodes by canonical state fingerprint if needed.
 
+
+## Final implementation decisions
+
+These implementation policies are locked in:
+
+1. Use the normal live feature set
+- Forecast uses the same maintained feature set/model path as live Teelo predictions.
+- No separate forecast-only model is introduced.
+- Any forecast approximations should be handled at the scenario-state / synthetic-match layer, not by maintaining a second model.
+
+2. Synthetic default scoreline for hypothetical matches
+- Use a simple default like `6-4 6-4` for forecast-only hypothetical matches.
+- This provides consistent values for score-derived fields without leaving them blank.
+
+3. Hypothetical ELO updates use normal calculations
+- When a hypothetical prior match is processed in the forecast path, update ELO exactly as if that match had completed.
+- Use the same ELO update logic/calculations as the real system.
+
+4. Forecast builds automatically once the draw is full
+- Forecast should auto-build when the main draw is considered full/ready.
+- In practice this is typically after qualifying is complete.
+- Implementation needs a concrete readiness check to decide when a draw is full enough to build.
+
+5. API behaviour when no forecast exists
+- If a forecast is possible, it should already have been built by the automatic trigger.
+- Therefore returning `not built yet` / no forecast is acceptable when no active run exists.
+- The read API does not need to lazily build forecasts on request in v1.
+
+
+## Draw readiness / auto-build rule
+
+Forecast auto-build should use one unified readiness rule for all draw types.
+
+### Unified rule
+Determine the tournament's effective entry round, then inspect the round immediately after it.
+
+A draw is forecast-ready when **every slot in the round after the entry round is resolvable**.
+
+A slot is resolvable if both incoming paths are known via either:
+- a complete feeder match in the entry round, or
+- a propagated bye / auto-advance player already materialised into that next-round slot
+
+### Why this single rule works
+It handles both cases without branching into separate systems:
+- non-bye draws
+- bye draws
+
+For a normal draw, every next-round slot is only resolvable once both feeder matches are fully populated.
+For a bye draw, the same logic works because one side may already be known from a propagated bye path.
+
+### Practical algorithm
+1. determine the effective entry round for the edition
+2. determine the round immediately after that entry round
+3. iterate every slot in that next round
+4. for each slot, inspect:
+   - the two feeder entry-round positions
+   - the next-round match row itself, if present
+5. mark the slot resolvable if both incoming sides are known through feeder matches or propagated byes
+6. auto-build only when all next-round slots are resolvable
+
+### Notes / edge cases
+- qualifying placeholders should not count as ready unless they resolve to real player IDs
+- `TBD` / null player slots are not ready
+- if ingestion has already propagated bye winners into the next round, use that as readiness evidence
+- this is a structural readiness check, not a schedule check
 ## High-level architecture
 
 ### Existing tables/services used
@@ -94,10 +237,15 @@ These decisions are locked in for the first implementation:
 
 #### Web/API
 - `GET /api/tournaments/{tour}/{tournament_code}/{year}/forecast`
+- return `not built yet` / equivalent empty state if no active forecast exists
 
 #### Optional CLI/admin later
 - `teelo forecast build --edition-id X`
 - `teelo forecast inspect --edition-id X`
+
+Forecast auto-build policy:
+- build automatically once the draw is determined to be full/ready
+- no lazy build on public read API in v1
 
 ---
 
@@ -308,6 +456,7 @@ Responsibilities:
 
 Hard requirement:
 - no ELO-only fallback path
+- hypothetical ELO updates should use the same calculation path as real completed matches
 - if feature generation fails, the node/run should fail loudly rather than silently degrade
 - v1 failure policy is all-or-nothing: if any required node cannot be generated or predicted, mark the run failed
 - when a forecasted future matchup becomes a real known matchup, recompute the real match features/prediction and treat that real prediction as authoritative
@@ -328,6 +477,8 @@ Includes:
 - draw topology / byes
 - feature set name
 - model version
+
+Forecast uses the normal live feature set; no separate forecast-only model is introduced in v1.
 
 Use this to determine whether nodes must be rebuilt.
 
@@ -507,6 +658,7 @@ Helper logic should understand:
 
 ### Route
 - `GET /api/tournaments/{tour}/{tournament_code}/{year}/forecast`
+- return `not built yet` / equivalent empty state if no active forecast exists
 
 ### Response shape
 
