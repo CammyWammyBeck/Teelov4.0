@@ -63,6 +63,7 @@ Build a tournament forecast system that:
    - Do not serve partial/degraded public forecast output in v1.
 
 ### Required implementation behaviour
+- enforce one shared tournament eligibility filter before build/read paths
 - keep `matches` as actual tournament reality
 - keep forecast scenario data in forecast tables
 - reuse actual match predictions when valid
@@ -215,6 +216,39 @@ For a bye draw, the same logic works because one side may already be known from 
 - `TBD` / null player slots are not ready
 - if ingestion has already propagated bye winners into the next round, use that as readiness evidence
 - this is a structural readiness check, not a schedule check
+
+### Tournament eligibility filter
+
+Forecast generation must enforce tournament eligibility before doing any other work.
+
+Allowed in v1:
+- ATP Tour main-tour events
+- WTA Tour main-tour events
+
+Excluded in v1:
+- Challenger
+- WTA 125
+- ITF
+
+Implementation requirement:
+- add a single eligibility helper (for example `is_forecast_eligible_tournament(...)`) and use it consistently everywhere
+- do not duplicate ad hoc filtering rules across multiple call sites
+
+Suggested checks:
+- tournament belongs to ATP or WTA tour only
+- tournament level is a main-tour forecast-eligible level
+- explicitly reject Challenger / 125 / ITF even if other fields are ambiguous
+
+Recommended usage points:
+- forecast auto-build trigger
+- forecast build service entrypoint
+- forecast API endpoint
+- any CLI/admin/manual build command
+
+If a tournament is not eligible:
+- do not build a forecast run
+- API should return no forecast / not supported for that event
+
 ## High-level architecture
 
 ### Existing tables/services used
@@ -238,6 +272,7 @@ For a bye draw, the same logic works because one side may already be known from 
 #### Web/API
 - `GET /api/tournaments/{tour}/{tournament_code}/{year}/forecast`
 - return `not built yet` / equivalent empty state if no active forecast exists
+- return unsupported / no forecast for ineligible events outside ATP/WTA main tour scope
 
 #### Optional CLI/admin later
 - `teelo forecast build --edition-id X`
@@ -659,6 +694,7 @@ Helper logic should understand:
 ### Route
 - `GET /api/tournaments/{tour}/{tournament_code}/{year}/forecast`
 - return `not built yet` / equivalent empty state if no active forecast exists
+- return unsupported / no forecast for ineligible events outside ATP/WTA main tour scope
 
 ### Response shape
 

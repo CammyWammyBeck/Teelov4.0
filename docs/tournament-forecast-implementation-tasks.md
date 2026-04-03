@@ -91,12 +91,51 @@ For a bye draw, the same logic works because one side may already be known from 
 - `TBD` / null player slots are not ready
 - if ingestion has already propagated bye winners into the next round, use that as readiness evidence
 - this is a structural readiness check, not a schedule check
+
+### Tournament eligibility filter
+
+Forecast generation must enforce tournament eligibility before doing any other work.
+
+Allowed in v1:
+- ATP Tour main-tour events
+- WTA Tour main-tour events
+
+Excluded in v1:
+- Challenger
+- WTA 125
+- ITF
+
+Implementation requirement:
+- add a single eligibility helper (for example `is_forecast_eligible_tournament(...)`) and use it consistently everywhere
+- do not duplicate ad hoc filtering rules across multiple call sites
+
+Suggested checks:
+- tournament belongs to ATP or WTA tour only
+- tournament level is a main-tour forecast-eligible level
+- explicitly reject Challenger / 125 / ITF even if other fields are ambiguous
+
+Recommended usage points:
+- forecast auto-build trigger
+- forecast build service entrypoint
+- forecast API endpoint
+- any CLI/admin/manual build command
+
+If a tournament is not eligible:
+- do not build a forecast run
+- API should return no forecast / not supported for that event
+
 ## Phase 1 — Schema + run lifecycle
 
 ### Scope guard
-Before any build work, enforce tournament eligibility:
+Before any build work, enforce tournament eligibility via one shared helper:
 - allowed: ATP Tour, WTA Tour
 - excluded: Challenger, WTA 125, ITF
+
+This helper should be used by:
+- auto-build trigger
+- forecast build service
+- forecast API endpoint
+- any CLI/admin/manual build path
 
 
 ### 1. Add DB models + migration
@@ -113,7 +152,8 @@ Include:
 - stored prediction value/model version
 
 ### 2. Add run lifecycle service shell
-Also implement draw-readiness detection:
+Also implement tournament eligibility + draw-readiness detection:
+- determine whether the event is forecast-eligible (ATP/WTA main tour only)
 - determine when a draw is full/ready enough to auto-build
 - target behaviour is to build automatically once the full main draw is known
 
@@ -286,6 +326,7 @@ Tests:
 Add:
 - `GET /api/tournaments/{tour}/{tournament_code}/{year}/forecast`
 - return `not built yet` / equivalent empty state if no active forecast exists
+- return unsupported / no forecast for ineligible events outside ATP/WTA main tour scope
 
 Return:
 - forecast run metadata
@@ -301,6 +342,7 @@ Locked v1 behaviour:
 
 ### 19. Add endpoint tests
 Tests:
+- returns unsupported / no forecast for ineligible events
 - returns `has_forecast=false` or build status cleanly when unavailable
 - returns player probabilities correctly when ready
 - handles failed/building states cleanly
