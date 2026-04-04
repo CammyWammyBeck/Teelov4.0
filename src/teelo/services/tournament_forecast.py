@@ -19,23 +19,7 @@ from teelo.db.models import (
     TournamentForecastRun,
 )
 from teelo.draw import ROUND_PROGRESSION, get_expected_matches_in_round, get_feeder_positions, get_next_round
-from teelo.elo.constants import get_level_code
-from teelo.features.state import MatchContext
 from teelo.match_statuses import get_status_group
-from teelo.ml.versioning import latest_feature_set
-from teelo.services.forecast_prediction import (
-    ForecastModel,
-    build_features_for_states,
-    load_forecast_model,
-    predict_probability_a,
-    reuse_or_predict_real_match,
-)
-from teelo.services.forecast_state_builder import (
-    build_base_states_for_players,
-    derive_winner_state,
-    player_state_from_json,
-    player_state_to_json,
-)
 
 logger = structlog.get_logger(__name__)
 
@@ -200,7 +184,7 @@ def _hash_dict(payload: Any) -> str:
     return hashlib.sha256(raw).hexdigest()[:64]
 
 
-def compute_structure_signature(session: Session, edition: TournamentEdition, model: ForecastModel) -> str:
+def compute_structure_signature(session: Session, edition: TournamentEdition, model) -> str:
     entry_round = determine_entry_round(session, edition)
     rounds = ROUND_PROGRESSION[ROUND_PROGRESSION.index(entry_round) :] if entry_round in ROUND_PROGRESSION else list(MAIN_DRAW_ROUNDS)
 
@@ -283,6 +267,23 @@ def build_forecast_run(
     force: bool = False,
     build_reason: str = "initial",
 ) -> TournamentForecastRun:
+    # ML stack imports — only needed for building, not reading forecasts.
+    from teelo.elo.constants import get_level_code  # noqa: F401
+    from teelo.features.state import MatchContext  # noqa: F401
+    from teelo.ml.versioning import latest_feature_set
+    from teelo.services.forecast_prediction import (
+        ForecastModel,  # noqa: F401
+        build_features_for_states,
+        load_forecast_model,
+        predict_probability_a,
+        reuse_or_predict_real_match,
+    )
+    from teelo.services.forecast_state_builder import (
+        build_base_states_for_players,
+        derive_winner_state,
+        player_state_to_json,
+    )
+
     edition = session.execute(
         select(TournamentEdition)
         .options(joinedload(TournamentEdition.tournament))
@@ -637,7 +638,9 @@ def _materialise_nodes(
             winner_outcomes[slot] = outs
 
 
-def _make_synthetic_context(edition: TournamentEdition, tournament: Tournament, round_code: str) -> MatchContext:
+def _make_synthetic_context(edition: TournamentEdition, tournament: Tournament, round_code: str):
+    from teelo.elo.constants import get_level_code
+    from teelo.features.state import MatchContext
     level_code = get_level_code(tournament.level, tournament.tour)
     match_date = edition.start_date
     return MatchContext(
@@ -661,7 +664,9 @@ def _make_synthetic_context(edition: TournamentEdition, tournament: Tournament, 
     )
 
 
-def _make_match_context(edition: TournamentEdition, tournament: Tournament, match: Match, round_code: str) -> MatchContext:
+def _make_match_context(edition: TournamentEdition, tournament: Tournament, match: Match, round_code: str):
+    from teelo.elo.constants import get_level_code
+    from teelo.features.state import MatchContext
     level_code = get_level_code(tournament.level, tournament.tour)
     return MatchContext(
         match_id=match.id,
