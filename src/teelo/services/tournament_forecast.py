@@ -693,6 +693,69 @@ class ForecastProbabilities:
     title: dict[int, float]
 
 
+def sync_forecast_nodes(session: Session, *, edition_id: int) -> int:
+    """Promote scenario nodes to actual nodes when a real match now exists for them.
+
+    Called hourly after results and predictions are processed. When a QF result
+    comes in, the SF match becomes a known real match in the draw. This function
+    links the corresponding scenario node to that match (source_match_id +
+    node_type="actual") so that compute_probabilities reads match.prediction_a
+    directly — keeping P(win current round) == P(reach next round) throughout
+    the day without a full forecast rebuild.
+
+    Returns the number of nodes updated.
+    """
+    run = get_active_run(session, edition_id)
+    if run is None:
+        return 0
+
+    # Only unlinked scenario nodes need processing.
+    nodes = (
+        session.query(TournamentForecastNode)
+        .filter(
+            TournamentForecastNode.forecast_run_id == run.id,
+            TournamentForecastNode.node_type == "scenario",
+            TournamentForecastNode.source_match_id.is_(None),
+        )
+        .all()
+    )
+    if not nodes:
+        return 0
+
+    # Load all draw matches for this edition.
+    matches = (
+        session.query(Match)
+        .filter(
+            Match.tournament_edition_id == edition_id,
+            Match.draw_position.isnot(None),
+            Match.round.in_(MAIN_DRAW_ROUNDS),
+            Match.player_a_id.isnot(None),
+            Match.player_b_id.isnot(None),
+        )
+        .all()
+    )
+
+    # Index by (round, draw_position, frozenset of player ids) for O(1) lookup.
+    match_index: dict[tuple[str, int, frozenset], Match] = {}
+    for m in matches:
+        key = (m.round, int(m.draw_position), frozenset([int(m.player_a_id), int(m.player_b_id)]))
+        match_index[key] = m
+
+    updated = 0
+    for node in nodes:
+        key = (node.round, int(node.draw_position), frozenset([int(node.player_a_id), int(node.player_b_id)]))
+        match = match_index.get(key)
+        if match is None:
+            continue
+
+        node.source_match_id = match.id
+        node.node_type = "actual"
+        session.add(node)
+        updated += 1
+
+    return updated
+
+
 def get_top_player(session: Session, *, edition_id: int) -> dict[str, Any] | None:
     """Return the favourite player and their win probability, or None if no forecast."""
     result = compute_probabilities(session, edition_id=edition_id)

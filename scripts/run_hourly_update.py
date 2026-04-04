@@ -240,6 +240,45 @@ def _run_predictions_stage(ctx: StageContext) -> StageResult:
         )
 
 
+def _run_forecast_node_sync_stage(ctx: StageContext) -> StageResult:
+    """Promote scenario forecast nodes to actual nodes when real matches are now known."""
+    started_at = _utc_now()
+    try:
+        from teelo.db import get_session
+        from teelo.db.models import TournamentForecastRun
+        from teelo.services.tournament_forecast import sync_forecast_nodes
+
+        total_updated = 0
+        with get_session() as session:
+            active_runs = (
+                session.query(TournamentForecastRun)
+                .filter(
+                    TournamentForecastRun.is_active.is_(True),
+                    TournamentForecastRun.status == "ready",
+                )
+                .all()
+            )
+            for run in active_runs:
+                updated = sync_forecast_nodes(session, edition_id=run.tournament_edition_id)
+                total_updated += updated
+                if updated:
+                    logger.info("forecast_node_sync.updated", edition_id=run.tournament_edition_id, updated=updated)
+            session.commit()
+
+        logger.info("stage.forecast_node_sync_done", total_updated=total_updated)
+        return StageResult(
+            stage_name=ctx.stage_name, status="success",
+            started_at=started_at, ended_at=_utc_now(),
+            metrics={"nodes_promoted": total_updated},
+        )
+    except Exception as exc:
+        logger.error("stage.forecast_node_sync_failed", error=str(exc))
+        return StageResult(
+            stage_name=ctx.stage_name, status="failed",
+            started_at=started_at, ended_at=_utc_now(), error=str(exc),
+        )
+
+
 def _run_metrics_snapshot_stage(ctx: StageContext) -> StageResult:
     """Compute and store prediction accuracy metrics."""
     started_at = _utc_now()
@@ -453,6 +492,14 @@ def _build_registry() -> StageRegistry:
             name="predictions",
             runner=_run_predictions_stage,
             description="Run ML predictions on upcoming/scheduled matches.",
+            enabled_by_default=True,
+        )
+    )
+    registry.register(
+        StageDefinition(
+            name="forecast_node_sync",
+            runner=_run_forecast_node_sync_stage,
+            description="Promote scenario forecast nodes to actual nodes when real matches are now known.",
             enabled_by_default=True,
         )
     )
