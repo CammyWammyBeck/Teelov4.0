@@ -175,16 +175,11 @@ def main() -> int:
                     print(f"- NOT READY  {label}")
                     continue
 
-                active = get_active_run(session, edition.id)
-                if active is not None and (not args.force):
-                    skipped_existing += 1
-                    print(f"- SKIP       {label}  active_run_id={active.id}")
-                    continue
-
                 if args.dry_run:
                     print(f"- WOULD BUILD {label}")
                     continue
 
+                active_before = get_active_run(session, edition.id)
                 t0 = perf_counter()
                 run = build_forecast_run(
                     session,
@@ -193,9 +188,14 @@ def main() -> int:
                     build_reason="cron_daily",
                 )
                 session.commit()
-                built += 1
                 dt = perf_counter() - t0
-                print(f"- BUILT      {label}  run_id={run.id}  status={run.status}  {dt:.2f}s")
+
+                if active_before and run.id == active_before.id:
+                    skipped_existing += 1
+                    print(f"- SKIP       {label}  active_run_id={run.id}  no_change")
+                else:
+                    built += 1
+                    print(f"- BUILT      {label}  run_id={run.id}  status={run.status}  {dt:.2f}s")
 
             except Exception as exc:
                 failed += 1

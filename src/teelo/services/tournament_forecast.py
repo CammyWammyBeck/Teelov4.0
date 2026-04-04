@@ -240,6 +240,8 @@ def compute_state_signature(session: Session, edition: TournamentEdition) -> str
                 "pos": m.draw_position,
                 "status": m.status,
                 "winner_id": m.winner_id,
+                "prediction_a": float(m.prediction_a) if m.prediction_a is not None else None,
+                "prediction_model_version": m.prediction_model_version,
             }
             for m in matches
         ],
@@ -308,11 +310,7 @@ def build_forecast_run(
         )
         .first()
     )
-    if existing and (not force) and existing.structure_signature == structure_sig:
-        # Keep state_signature updated for result-only recompute.
-        if existing.state_signature != state_sig:
-            existing.state_signature = state_sig
-            session.add(existing)
+    if existing and (not force) and existing.structure_signature == structure_sig and existing.state_signature == state_sig:
         return existing
 
     # Stale old active runs.
@@ -766,7 +764,10 @@ def compute_probabilities(session: Session, *, edition_id: int) -> dict[str, Any
                 if m is not None and m.status in get_status_group("historical_default") and m.winner_id:
                     entrant_mass[slot] = {(int(m.winner_id), int(actual_node.id)): 1.0}
                 else:
-                    pa = float(actual_node.prediction_a or 0.5)
+                    pa = float(
+                        m.prediction_a if m is not None and m.prediction_a is not None
+                        else actual_node.prediction_a or 0.5
+                    )
                     entrant_mass[slot] = {
                         (int(actual_node.player_a_id), int(actual_node.id)): pa,
                         (int(actual_node.player_b_id), int(actual_node.id)): 1.0 - pa,
