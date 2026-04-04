@@ -158,7 +158,7 @@ def _serialize_browse_edition(
     completed_results: int = 0,
     final_count: int = 0,
     winner: dict | None = None,
-    favourite: dict | None = None,
+    is_forecast_eligible: bool = False,
 ) -> dict:
     badge_label, badge_color = _badge_for_tournament(tournament)
     surface = edition.surface or tournament.surface
@@ -194,8 +194,7 @@ def _serialize_browse_edition(
             if winner and winner.get("id") is not None
             else None
         ),
-        "favourite_name": favourite["name"] if favourite else None,
-        "favourite_win_pct": favourite["win_pct"] if favourite else None,
+        "is_forecast_eligible": is_forecast_eligible,
     }
 
 
@@ -425,16 +424,7 @@ async def api_tournaments(
             for edition_id, player_id, player_name in finals
         }
 
-    from teelo.services.tournament_forecast import get_top_player, is_forecast_eligible_tournament
-    forecast_edition_ids = [
-        edition.id for edition, tournament_row, status_key, _, _ in rows
-        if status_key in ("current", "upcoming") and is_forecast_eligible_tournament(tournament_row)
-    ]
-    favourites_map: dict[int, dict] = {}
-    for eid in forecast_edition_ids:
-        top = get_top_player(db, edition_id=eid)
-        if top:
-            favourites_map[eid] = top
+    from teelo.services.tournament_forecast import is_forecast_eligible_tournament
 
     payload = [
         _serialize_browse_edition(
@@ -444,7 +434,9 @@ async def api_tournaments(
             completed_results=completed_results,
             final_count=final_count,
             winner=winners_map.get(edition.id),
-            favourite=favourites_map.get(edition.id),
+            is_forecast_eligible=(
+                status_key in ("current", "upcoming") and is_forecast_eligible_tournament(tournament_row)
+            ),
         )
         for edition, tournament_row, status_key, completed_results, final_count in rows
     ]
@@ -458,6 +450,15 @@ async def api_tournaments(
             "has_more": (offset + per_page) < total,
         }
     )
+
+
+@router.get("/api/editions/{edition_id}/favourite")
+def api_edition_favourite(edition_id: int, db: Session = Depends(get_db)):
+    from teelo.services.tournament_forecast import get_top_player
+    top = get_top_player(db, edition_id=edition_id)
+    if not top:
+        return JSONResponse({})
+    return JSONResponse({"name": top["name"], "win_pct": top["win_pct"]})
 
 
 @router.get("/tournaments/{tour}/{tournament_code}")

@@ -78,6 +78,30 @@ function updateStats(stats) {
   if (daysEl) daysEl.textContent = statValue(stats?.days_of_data);
 }
 
+function favouriteBadgeHtml(name, winPct) {
+  return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-teelo-ink bg-teelo-lime rounded-full px-2 py-0.5 leading-none">
+           <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+           ${name} ${winPct}%
+         </span>`;
+}
+
+async function loadFavourites(containerEl) {
+  const placeholders = containerEl.querySelectorAll('[data-favourite-placeholder]');
+  await Promise.allSettled(Array.from(placeholders).map(async (el) => {
+    const editionId = el.dataset.favouritePlaceholder;
+    try {
+      const data = await getJson(`/api/editions/${editionId}/favourite`);
+      if (data?.name) {
+        el.outerHTML = favouriteBadgeHtml(data.name, data.win_pct);
+      } else {
+        el.remove();
+      }
+    } catch {
+      el.remove();
+    }
+  }));
+}
+
 function renderTournamentList(listEl, sectionEl, editions) {
   if (!editions || editions.length === 0) {
     toggleHidden(sectionEl, true);
@@ -93,10 +117,10 @@ function renderTournamentList(listEl, sectionEl, editions) {
     const badge = t.badge_label
       ? `<span class="inline-flex items-center justify-center text-[9px] font-bold text-content-inverse px-1.5 py-0.5 rounded ${t.badge_color} mr-1.5 leading-none">${t.badge_label}</span>`
       : '';
-    const favouriteHtml = t.favourite_name
-      ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-teelo-ink bg-teelo-lime rounded-full px-2 py-0.5 leading-none">
+    const favouriteHtml = t.is_forecast_eligible
+      ? `<span data-favourite-placeholder="${t.edition_id}" class="inline-flex items-center gap-1 text-[11px] font-semibold text-content-faint bg-surface-muted rounded-full px-2 py-0.5 leading-none animate-pulse">
            <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-           ${t.favourite_name} ${t.favourite_win_pct}%
+           predicting...
          </span>`
       : '';
     return `
@@ -116,6 +140,7 @@ function renderTournamentList(listEl, sectionEl, editions) {
         </div>
       </li>`;
   }).join('');
+  loadFavourites(listEl);
 }
 
 function renderTournaments(data) {

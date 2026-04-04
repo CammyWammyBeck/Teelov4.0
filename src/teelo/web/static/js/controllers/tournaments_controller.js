@@ -157,6 +157,31 @@ function formatDateRange(startDate, endDate) {
   return `${parts[0]} - ${parts[1]}`;
 }
 
+function favouriteBadgeHtml(name, winPct) {
+  return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-teelo-ink bg-teelo-lime rounded-full px-2 py-0.5 leading-none mt-1">
+           <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+           ${escapeHtml(name)} ${winPct}%
+         </span>`;
+}
+
+async function loadFavourites(containerEl) {
+  const placeholders = containerEl.querySelectorAll('[data-favourite-placeholder]');
+  await Promise.allSettled(Array.from(placeholders).map(async (el) => {
+    const editionId = el.dataset.favouritePlaceholder;
+    const style = el.dataset.favouriteStyle || 'badge';
+    try {
+      const data = await getJson(`/api/editions/${editionId}/favourite`);
+      if (data?.name) {
+        el.outerHTML = style === 'bar' ? favouriteBarResolved(data.name, data.win_pct) : favouriteBadgeHtml(data.name, data.win_pct);
+      } else {
+        el.remove();
+      }
+    } catch {
+      el.remove();
+    }
+  }));
+}
+
 function renderFeaturedList(prefix, items) {
   const loading = byId(`featured-${prefix}-loading`);
   const list = byId(`featured-${prefix}-list`);
@@ -171,10 +196,10 @@ function renderFeaturedList(prefix, items) {
   }
 
   list.innerHTML = items.map((item) => {
-    const favouriteHtml = item.favourite_name
-      ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-teelo-ink bg-teelo-lime rounded-full px-2 py-0.5 leading-none mt-1">
+    const favouriteHtml = item.is_forecast_eligible
+      ? `<span data-favourite-placeholder="${item.edition_id}" class="inline-flex items-center gap-1 text-[11px] font-semibold text-content-faint bg-surface-muted rounded-full px-2 py-0.5 leading-none animate-pulse mt-1">
            <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-           ${escapeHtml(item.favourite_name)} ${item.favourite_win_pct}%
+           predicting...
          </span>`
       : '';
     return `
@@ -199,16 +224,29 @@ function renderFeaturedList(prefix, items) {
 
   list.classList.remove('hidden');
   empty.classList.add('hidden');
+  loadFavourites(list);
 }
 
 function favouriteBar(item) {
-  if (!item.favourite_name) return '';
-  const pct = Number(item.favourite_win_pct) || 0;
+  if (item.is_forecast_eligible) {
+    return `<div data-favourite-placeholder="${item.edition_id}" data-favourite-style="bar" class="flex items-center gap-2 mt-1.5 animate-pulse">
+      <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-content-faint bg-surface-muted rounded-full px-2 py-0.5 leading-none shrink-0">
+        <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        predicting...
+      </span>
+      <div class="flex-1 h-1.5 rounded-full bg-surface-muted overflow-hidden"></div>
+    </div>`;
+  }
+  return '';
+}
+
+function favouriteBarResolved(name, winPct) {
+  const pct = Number(winPct) || 0;
   return `
     <div class="flex items-center gap-2 mt-1.5">
       <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-teelo-ink bg-teelo-lime rounded-full px-2 py-0.5 leading-none shrink-0">
         <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-        ${escapeHtml(item.favourite_name)}
+        ${escapeHtml(name)}
       </span>
       <div class="flex-1 h-1.5 rounded-full bg-surface-muted overflow-hidden">
         <div class="h-full rounded-full bg-teelo-lime" style="width:${pct}%"></div>
@@ -351,6 +389,8 @@ export function initTournamentsPage() {
         els.tableBody.innerHTML = rowsHtml;
         els.cardsContainer.innerHTML = cardsHtml;
       }
+      loadFavourites(els.tableBody);
+      loadFavourites(els.cardsContainer);
     }
 
     state.has_more = Boolean(data?.has_more);
