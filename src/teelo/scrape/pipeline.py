@@ -949,8 +949,9 @@ async def update_tournament_metadata(
         if not tournament.surface or tournament.surface == "Hard":
             tournament.surface = new_surface
 
-        # Always update edition surface to match actual event
-        edition.surface = new_surface
+        # Only update edition surface if not already set to a specific surface
+        if not edition.surface or edition.surface == "Hard":
+            edition.surface = new_surface
 
     session.flush()
 
