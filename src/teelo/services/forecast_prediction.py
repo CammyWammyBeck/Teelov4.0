@@ -101,13 +101,13 @@ def reuse_or_predict_real_match(
     normal feature/model path (same feature set/model as live).
     """
 
-    # Always defer to an existing prediction — the hourly pipeline is the
-    # authoritative source and must never be overwritten by the forecast.
+    # If the hourly pipeline has already predicted this match, use it.
+    # The pipeline is the sole authoritative writer to match.prediction_a.
     if match.prediction_a is not None:
         return {}, float(match.prediction_a), match.prediction_model_version or model.model_version
 
-    # No prediction yet — compute one and persist it as a fallback so the
-    # forecast has something to work with until the pipeline catches up.
+    # No pipeline prediction yet — compute for the forecast node only.
+    # Do NOT write back to the match; leave it for the pipeline to fill.
     feature_set = session.execute(
         select(FeatureSet).where(FeatureSet.name == model.feature_set_name)
     ).scalar_one_or_none()
@@ -119,10 +119,4 @@ def reuse_or_predict_real_match(
     )
     prediction_a = predict_probability_a(model, features)
 
-    match.prediction_a = prediction_a
-    match.prediction_model_version = model.model_version
-    match.prediction_updated_at = datetime.utcnow()
-    match.prediction_source = "forecast_live"
-
-    session.add(match)
     return features, prediction_a, model.model_version
