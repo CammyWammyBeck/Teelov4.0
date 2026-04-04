@@ -690,6 +690,21 @@ class ForecastProbabilities:
     title: dict[int, float]
 
 
+def get_top_player(session: Session, *, edition_id: int) -> dict[str, Any] | None:
+    """Return the favourite player and their win probability, or None if no forecast."""
+    result = compute_probabilities(session, edition_id=edition_id)
+    if not result.get("has_forecast"):
+        return None
+    players = result.get("players") or []
+    if not players:
+        return None
+    top = players[0]
+    win_pct = top.get("win_title")
+    if win_pct is None:
+        return None
+    return {"name": top["name"], "win_pct": round(win_pct * 100, 1)}
+
+
 def compute_probabilities(session: Session, *, edition_id: int) -> dict[str, Any]:
     run = get_active_run(session, edition_id)
     if run is None:

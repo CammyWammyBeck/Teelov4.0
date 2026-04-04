@@ -170,7 +170,14 @@ function renderFeaturedList(prefix, items) {
     return;
   }
 
-  list.innerHTML = items.map((item) => `
+  list.innerHTML = items.map((item) => {
+    const favouriteHtml = item.favourite_name
+      ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-teelo-ink bg-teelo-lime rounded-full px-2 py-0.5 leading-none mt-1">
+           <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+           ${escapeHtml(item.favourite_name)} ${item.favourite_win_pct}%
+         </span>`
+      : '';
+    return `
     <li class="px-5 py-3 hover:bg-surface-hover transition-colors">
       <a href="${escapeHtml(item.url || '#')}" class="block">
         <div class="flex items-start justify-between gap-3">
@@ -182,15 +189,32 @@ function renderFeaturedList(prefix, items) {
             <p class="text-xs text-content-faint mt-1">${escapeHtml(item.city || '')}${item.city && item.year ? ' · ' : ''}${escapeHtml(item.year || '')}</p>
             <p class="text-xs text-content-muted mt-1">${escapeHtml(formatDateRange(item.start_date, item.end_date))}</p>
             ${item.winner_name ? `<p class="text-xs text-content-muted mt-1">Winner: <span class="font-semibold text-teelo-dark">${escapeHtml(item.winner_name)}</span></p>` : ''}
+            ${favouriteHtml}
           </div>
           <div class="shrink-0">${surfaceBadge(item.surface)}</div>
         </div>
       </a>
-    </li>
-  `).join('');
+    </li>`;
+  }).join('');
 
   list.classList.remove('hidden');
   empty.classList.add('hidden');
+}
+
+function favouriteBar(item) {
+  if (!item.favourite_name) return '';
+  const pct = Number(item.favourite_win_pct) || 0;
+  return `
+    <div class="flex items-center gap-2 mt-1.5">
+      <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-teelo-ink bg-teelo-lime rounded-full px-2 py-0.5 leading-none shrink-0">
+        <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        ${escapeHtml(item.favourite_name)}
+      </span>
+      <div class="flex-1 h-1.5 rounded-full bg-surface-muted overflow-hidden">
+        <div class="h-full rounded-full bg-teelo-lime" style="width:${pct}%"></div>
+      </div>
+      <span class="text-xs font-bold text-teelo-dark shrink-0">${pct}%</span>
+    </div>`;
 }
 
 function renderTournamentRows(items) {
@@ -204,6 +228,7 @@ function renderTournamentRows(items) {
           </div>
           <p class="text-xs text-content-faint mt-1">${escapeHtml(item.location || 'Location TBC')}</p>
           ${item.winner_name ? `<p class="text-xs text-content-muted mt-1">Winner: <span class="font-semibold text-teelo-dark">${escapeHtml(item.winner_name)}</span></p>` : ''}
+          ${favouriteBar(item)}
         </div>
       </td>
       <td class="px-5 py-4">
@@ -230,6 +255,7 @@ function renderTournamentCards(items) {
           <div class="text-[11px] text-content-muted mt-1">${escapeHtml(item.location || 'Location TBC')}</div>
           <div class="text-[11px] text-content-muted mt-1">${escapeHtml(formatDateRange(item.start_date, item.end_date))}</div>
           ${item.winner_name ? `<div class="text-[11px] text-content-muted mt-1">Winner: <span class="font-semibold text-teelo-dark">${escapeHtml(item.winner_name)}</span></div>` : ''}
+          ${favouriteBar(item)}
         </div>
         <div class="flex flex-col items-end gap-2 shrink-0">
           ${statusBadge(item.status)}

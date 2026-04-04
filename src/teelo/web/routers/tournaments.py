@@ -158,6 +158,7 @@ def _serialize_browse_edition(
     completed_results: int = 0,
     final_count: int = 0,
     winner: dict | None = None,
+    favourite: dict | None = None,
 ) -> dict:
     badge_label, badge_color = _badge_for_tournament(tournament)
     surface = edition.surface or tournament.surface
@@ -193,6 +194,8 @@ def _serialize_browse_edition(
             if winner and winner.get("id") is not None
             else None
         ),
+        "favourite_name": favourite["name"] if favourite else None,
+        "favourite_win_pct": favourite["win_pct"] if favourite else None,
     }
 
 
@@ -422,6 +425,17 @@ async def api_tournaments(
             for edition_id, player_id, player_name in finals
         }
 
+    from teelo.services.tournament_forecast import get_top_player, is_forecast_eligible_tournament
+    forecast_edition_ids = [
+        edition.id for edition, tournament_row, status_key, _, _ in rows
+        if status_key in ("current", "upcoming") and is_forecast_eligible_tournament(tournament_row)
+    ]
+    favourites_map: dict[int, dict] = {}
+    for eid in forecast_edition_ids:
+        top = get_top_player(db, edition_id=eid)
+        if top:
+            favourites_map[eid] = top
+
     payload = [
         _serialize_browse_edition(
             edition,
@@ -430,6 +444,7 @@ async def api_tournaments(
             completed_results=completed_results,
             final_count=final_count,
             winner=winners_map.get(edition.id),
+            favourite=favourites_map.get(edition.id),
         )
         for edition, tournament_row, status_key, completed_results, final_count in rows
     ]
@@ -569,6 +584,12 @@ async def tournament_detail_page(
 
     years = [edition.year for edition in _filter_editions_with_finals(editions, finals_by_edition)]
 
+    from teelo.services.tournament_forecast import is_forecast_eligible_tournament, get_active_run
+    has_forecast = (
+        is_forecast_eligible_tournament(tournament)
+        and get_active_run(db, edition.id) is not None
+    )
+
     return templates.TemplateResponse(
         "tournament_detail.html",
         {
@@ -587,6 +608,7 @@ async def tournament_detail_page(
             "draw_size": draw_size,
             "has_draw": has_draw,
             "has_upcoming": has_upcoming,
+            "has_forecast": has_forecast,
             "champion": {"name": champion_name, "score": champion_score},
             "years": years,
         },

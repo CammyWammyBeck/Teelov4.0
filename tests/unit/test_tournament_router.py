@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 
-from teelo.db.models import Match, Player, Tournament, TournamentEdition
+from teelo.db.models import Match, Player, Tournament, TournamentEdition, TournamentForecastNode, TournamentForecastRun
 from teelo.web.routers.tournaments import (
     _build_edition_history_payload,
     _filter_editions_with_finals,
@@ -96,6 +96,8 @@ def test_api_tournaments_supports_status_and_year_filters():
     TournamentEdition.__table__.create(engine)
     Player.__table__.create(engine)
     Match.__table__.create(engine)
+    TournamentForecastRun.__table__.create(engine)
+    TournamentForecastNode.__table__.create(engine)
     session_factory = sessionmaker(bind=engine)
     db_session = session_factory()
 

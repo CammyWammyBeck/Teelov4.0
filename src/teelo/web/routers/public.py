@@ -492,9 +492,27 @@ def home_api_tournaments(
     else:
         winners_map = {}
 
+    from teelo.services.tournament_forecast import get_top_player, is_forecast_eligible_tournament
+    forecast_edition_ids = [
+        te.id for te, t in (in_progress + upcoming)
+        if is_forecast_eligible_tournament(t)
+    ]
+    favourites_map: dict[int, dict] = {}
+    for eid in forecast_edition_ids:
+        top = get_top_player(db, edition_id=eid)
+        if top:
+            favourites_map[eid] = top
+
+    def _with_favourite(te: TournamentEdition, item: dict) -> dict:
+        fav = favourites_map.get(te.id)
+        if fav:
+            item["favourite_name"] = fav["name"]
+            item["favourite_win_pct"] = fav["win_pct"]
+        return item
+
     payload = {
-        "in_progress": [_serialize_edition(te, t) for te, t in in_progress],
-        "upcoming": [_serialize_edition(te, t) for te, t in upcoming],
+        "in_progress": [_with_favourite(te, _serialize_edition(te, t)) for te, t in in_progress],
+        "upcoming": [_with_favourite(te, _serialize_edition(te, t)) for te, t in upcoming],
         "recently_completed": [_serialize_edition(te, t, winners_map.get(te.id)) for te, t in completed],
     }
     _tournaments_cache = payload

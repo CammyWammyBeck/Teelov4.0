@@ -31,6 +31,7 @@
     data-tournament-code="{{ tournament.tournament_code }}"
     data-year="{{ edition.year }}"
     data-has-draw="{{ 'true' if has_draw else 'false' }}"
+    data-has-forecast="{{ 'true' if has_forecast else 'false' }}"
 >
     <section class="bg-surface rounded-2xl shadow-soft border border-line-subtle overflow-hidden">
         <div class="border-l-4 border-teelo-lime px-6 py-6 space-y-5">
@@ -106,6 +107,15 @@
                     Draw
                 </button>
                 {% endif %}
+                {% if has_forecast %}
+                <button
+                    type="button"
+                    data-tab="forecast"
+                    class="tournament-tab pb-2.5 border-b-2 border-transparent text-content-muted hover:text-content-secondary"
+                >
+                    Forecast
+                </button>
+                {% endif %}
             </div>
         </div>
 
@@ -151,6 +161,41 @@
             </div>
             <div id="draw-content" class="hidden">
                 <div id="bracket-container" class="min-h-[12rem]"></div>
+            </div>
+        </div>
+        {% endif %}
+        {% if has_forecast %}
+        <div id="tab-panel-forecast" class="p-6 hidden">
+            <div id="forecast-loading" class="flex justify-center py-8">
+                <div class="loading-spinner"></div>
+            </div>
+            <div id="forecast-content" class="hidden space-y-5">
+                <div>
+                    <h2 class="text-base font-bold text-teelo-dark">Tournament Forecast</h2>
+                    <p class="text-xs text-content-muted mt-0.5">Model-estimated probability of winning the tournament. Updated after each round.</p>
+                </div>
+                <div id="forecast-spotlight" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-surface-alt/50 text-content-faint text-[10px] uppercase tracking-wider font-bold border-b border-line-subtle">
+                                <th class="px-4 py-2.5 w-6">#</th>
+                                <th class="px-4 py-2.5">Player</th>
+                                <th class="px-4 py-2.5 text-center hidden sm:table-cell">QF</th>
+                                <th class="px-4 py-2.5 text-center hidden sm:table-cell">SF</th>
+                                <th class="px-4 py-2.5 text-center hidden sm:table-cell">Final</th>
+                                <th class="px-4 py-2.5 text-right">Win</th>
+                            </tr>
+                        </thead>
+                        <tbody id="forecast-table-body" class="divide-y divide-line-subtle/70"></tbody>
+                    </table>
+                </div>
+                <div id="forecast-meta" class="flex items-center justify-between pt-3 border-t border-line-subtle gap-3 flex-wrap">
+                </div>
+            </div>
+            <div id="forecast-empty" class="hidden text-center py-10">
+                <p class="text-sm font-semibold text-content-faint">Forecast not yet available</p>
+                <p class="text-xs text-content-faint mt-1">Check back once the draw has been released.</p>
             </div>
         </div>
         {% endif %}

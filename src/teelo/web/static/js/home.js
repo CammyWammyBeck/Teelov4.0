@@ -93,13 +93,22 @@ function renderTournamentList(listEl, sectionEl, editions) {
     const badge = t.badge_label
       ? `<span class="inline-flex items-center justify-center text-[9px] font-bold text-content-inverse px-1.5 py-0.5 rounded ${t.badge_color} mr-1.5 leading-none">${t.badge_label}</span>`
       : '';
+    const favouriteHtml = t.favourite_name
+      ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold text-teelo-ink bg-teelo-lime rounded-full px-2 py-0.5 leading-none">
+           <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+           ${t.favourite_name} ${t.favourite_win_pct}%
+         </span>`
+      : '';
     return `
       <li class="px-5 py-3 flex items-center justify-between gap-2 hover:bg-surface-hover transition-colors">
         <div class="min-w-0">
           <div class="flex items-center">
             ${badge}<a href="${href}" class="text-sm font-semibold text-teelo-dark hover:underline decoration-teelo-lime decoration-2 truncate">${t.tournament_name}</a>
           </div>
-          <p class="text-xs text-content-faint mt-0.5">${t.city || ''} &middot; ${dates}</p>
+          <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+            <p class="text-xs text-content-faint">${t.city || ''} &middot; ${dates}</p>
+            ${favouriteHtml}
+          </div>
           ${winnerHtml}
         </div>
         <div class="flex items-center gap-1.5 shrink-0">

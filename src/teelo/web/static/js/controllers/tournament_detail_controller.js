@@ -33,6 +33,7 @@ export function initTournamentDetailPage() {
   const tournamentCode = root.dataset.tournamentCode || '';
   const year = root.dataset.year || '';
   const hasDraw = root.dataset.hasDraw === 'true';
+  const hasForecast = root.dataset.hasForecast === 'true';
   if (!tour || !tournamentCode || !year) return;
 
   const state = {
@@ -40,6 +41,7 @@ export function initTournamentDetailPage() {
     matchStatus: 'completed',
     matchPage: 1,
     drawLoaded: false,
+    forecastLoaded: false,
     editionsLoaded: false,
     matchesLoading: false,
   };
@@ -51,7 +53,9 @@ export function initTournamentDetailPage() {
   }
 
   function setActiveTab(tab) {
-    const normalized = tab === 'draw' && hasDraw ? 'draw' : 'matches';
+    let normalized = 'matches';
+    if (tab === 'draw' && hasDraw) normalized = 'draw';
+    else if (tab === 'forecast' && hasForecast) normalized = 'forecast';
     state.activeTab = normalized;
 
     queryAll('[data-tab]', root).forEach((button) => {
@@ -62,9 +66,15 @@ export function initTournamentDetailPage() {
     if (hasDraw) {
       toggleHidden(byId('tab-panel-draw'), normalized !== 'draw');
     }
+    if (hasForecast) {
+      toggleHidden(byId('tab-panel-forecast'), normalized !== 'forecast');
+    }
 
     if (normalized === 'draw' && hasDraw && !state.drawLoaded) {
       loadDraw();
+    }
+    if (normalized === 'forecast' && hasForecast && !state.forecastLoaded) {
+      loadForecast();
     }
   }
 
@@ -202,6 +212,126 @@ export function initTournamentDetailPage() {
       }
     } finally {
       setSectionLoading('draw-loading', ['draw-content'], false);
+    }
+  }
+
+  function renderForecast(data) {
+    const loading = byId('forecast-loading');
+    const content = byId('forecast-content');
+    const empty = byId('forecast-empty');
+    if (!loading || !content || !empty) return;
+
+    loading.classList.add('hidden');
+
+    if (!data?.has_forecast || !data?.players?.length) {
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    const players = data.players;
+    const spotlight = byId('forecast-spotlight');
+    const tableBody = byId('forecast-table-body');
+    const meta = byId('forecast-meta');
+
+    function fmtPct(v) {
+      if (v == null) return '—';
+      return `${Math.round(v * 100)}%`;
+    }
+
+    function probBar(v) {
+      const pct = v != null ? Math.round(v * 100) : 0;
+      return `
+        <div class="flex items-center gap-2">
+          <div class="flex-1 h-1 rounded-full bg-surface-muted overflow-hidden">
+            <div class="h-full rounded-full bg-teelo-lime" style="width:${pct}%"></div>
+          </div>
+          <span class="text-[11px] font-semibold text-content-secondary w-7 text-right shrink-0">${fmtPct(v)}</span>
+        </div>`;
+    }
+
+    // Spotlight: top 3 players
+    const top3 = players.slice(0, 3);
+    const rest = players.slice(3);
+
+    if (spotlight) {
+      spotlight.innerHTML = top3.map((p, i) => {
+        const isFav = i === 0;
+        const cardBorder = isFav ? 'border-teelo-lime/40 bg-teelo-lime/5' : 'border-line-subtle bg-surface-alt/40';
+        const rankBadge = isFav
+          ? `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-teelo-ink bg-teelo-lime rounded-full px-2 py-0.5 leading-none">
+               <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+               #1
+             </span>`
+          : `<span class="text-[10px] font-bold text-content-faint bg-surface-muted rounded-full px-2 py-0.5">#${i + 1}</span>`;
+        const roleLabel = isFav ? 'Favourite' : 'Contender';
+
+        const rows = [
+          { label: 'QF', val: p.reach_qf },
+          { label: 'SF', val: p.reach_sf },
+          { label: 'F', val: p.reach_f },
+          { label: 'Win', val: p.win_title, bold: true },
+        ].filter((r) => r.val != null);
+
+        return `
+          <div class="rounded-xl border ${cardBorder} p-4 relative overflow-hidden">
+            <div class="absolute top-2 right-2">${rankBadge}</div>
+            <p class="text-[10px] uppercase tracking-wider text-content-faint font-bold mb-1">${escapeHtml(roleLabel)}</p>
+            <p class="text-base font-bold text-teelo-dark pr-10">${escapeHtml(p.name || '—')}</p>
+            <div class="space-y-1.5 mt-3">
+              ${rows.map((r) => `
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] ${r.bold ? 'font-bold text-teelo-dark' : 'text-content-faint'} w-7 shrink-0">${r.label}</span>
+                  ${probBar(r.val)}
+                </div>`).join('')}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // Remaining players table
+    if (tableBody) {
+      tableBody.innerHTML = rest.map((p, i) => {
+        const rank = i + 4;
+        return `
+          <tr class="hover:bg-surface-hover/50 transition-colors duration-75">
+            <td class="px-4 py-2.5 text-xs font-bold text-content-faintest">${rank}</td>
+            <td class="px-4 py-2.5 text-sm font-semibold text-teelo-dark">${escapeHtml(p.name || '—')}</td>
+            <td class="px-4 py-2.5 text-center text-xs text-content-secondary hidden sm:table-cell">${fmtPct(p.reach_qf)}</td>
+            <td class="px-4 py-2.5 text-center text-xs text-content-secondary hidden sm:table-cell">${fmtPct(p.reach_sf)}</td>
+            <td class="px-4 py-2.5 text-center text-xs text-content-secondary hidden sm:table-cell">${fmtPct(p.reach_f)}</td>
+            <td class="px-4 py-2.5 text-right text-sm font-bold text-teelo-dark">${fmtPct(p.win_title)}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    // Metadata footer
+    if (meta && data.forecast_run) {
+      const run = data.forecast_run;
+      const generatedAt = run.generated_at ? new Date(run.generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+      meta.innerHTML = `
+        <p class="text-[11px] text-content-faint">Generated ${generatedAt} · run #${escapeHtml(String(run.id))} · <span class="text-status-success font-semibold">${escapeHtml(run.status)}</span></p>
+        <p class="text-[11px] text-content-faint italic">Probabilities do not account for withdrawals or walkovers.</p>`;
+    }
+
+    content.classList.remove('hidden');
+    state.forecastLoaded = true;
+  }
+
+  async function loadForecast() {
+    const loading = byId('forecast-loading');
+    const content = byId('forecast-content');
+    loading?.classList.remove('hidden');
+    content?.classList.add('hidden');
+    try {
+      const data = await getJson(
+        `/api/tournaments/${encodeURIComponent(tour)}/${encodeURIComponent(tournamentCode)}/${encodeURIComponent(year)}/forecast`
+      );
+      renderForecast(data);
+    } catch (error) {
+      console.error(error);
+      renderForecast(null);
+    } finally {
+      loading?.classList.add('hidden');
     }
   }
 
