@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forecast UI Mock — Teelo</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          'teelo-lime':  '#CCFF00',
+          'teelo-dark':  '#1a1a1a',
+          'teelo-ink':   '#1a1a1a',
+          'teelo-light': '#fafafa',
+          'tour-atp':    '#002865',
+          'tour-wta':    '#E30066',
+          'tour-gsl':    '#D4AF37',
+        },
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+        },
+        boxShadow: {
+          soft: '0 4px 20px -2px rgba(0,0,0,0.08)',
+        },
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --surface: #ffffff;
+    --surface-alt: #f9fafb;
+    --surface-muted: #f3f4f6;
+    --surface-hover: #f9fafb;
+    --content: #111827;
+    --content-secondary: #4b5563;
+    --content-muted: #6b7280;
+    --content-faint: #9ca3af;
+    --content-faintest: #d1d5db;
+    --line: #e5e7eb;
+    --line-subtle: #f3f4f6;
+    --line-strong: #d1d5db;
+  }
+  body { background: #f3f4f6; font-family: 'Inter', sans-serif; color: #111827; }
+
+  /* Replicate .filter-chip */
+  .filter-chip {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    border: 1px solid var(--line);
+    color: var(--content-muted);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-chip.active {
+    background: #CCFF00;
+    color: #1a1a1a;
+    border-color: #CCFF00;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transform: scale(1.02);
+  }
+
+  /* Forecast bar */
+  .prob-bar-track {
+    height: 5px;
+    border-radius: 9999px;
+    background: #f3f4f6;
+    overflow: hidden;
+  }
+  .prob-bar-fill {
+    height: 100%;
+    border-radius: 9999px;
+    background: #CCFF00;
+    transition: width 0.4s ease;
+  }
+  .prob-bar-fill.muted { background: #d1d5db; }
+
+  /* Favourite chip (list/card context) */
+  .fav-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #1a1a1a;
+    background: #CCFF00;
+    border-radius: 9999px;
+    padding: 2px 8px;
+    white-space: nowrap;
+  }
+  .fav-chip svg { width: 10px; height: 10px; }
+
+  /* Annotation labels */
+  .mock-label {
+    display: inline-block;
+    background: #7c3aed;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body class="p-8 space-y-12">
+
+<div class="max-w-5xl mx-auto">
+  <h1 class="text-2xl font-extrabold text-teelo-dark mb-1">Forecast UI Mock</h1>
+  <p class="text-sm text-gray-500 mb-10">Three contexts: tournament list item (home), tournament grid card, and tournament detail page.</p>
+
+  <!-- ============================================================
+       SECTION 1: Home page — tournament list item
+       ============================================================ -->
+  <div class="mock-label">Context 1 — Home page: tournament list card</div>
+  <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden mb-3">
+    <div class="p-5 border-b border-gray-100">
+      <h2 class="text-base font-bold text-teelo-dark flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+        Tournaments
+      </h2>
+    </div>
+    <!-- In Progress section -->
+    <div>
+      <div class="px-5 pt-3 pb-1">
+        <span class="text-[10px] uppercase tracking-wider font-bold text-green-600">In Progress</span>
+      </div>
+      <ul class="divide-y divide-gray-50">
+
+        <!-- OPTION A: favourite chip inline under name -->
+        <li class="px-5 py-3 hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="inline-flex items-center justify-center text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-tour-atp mr-0.5 leading-none">ATP</span>
+                <a href="#" class="text-sm font-semibold text-teelo-dark hover:underline decoration-teelo-lime decoration-2">Monte-Carlo Masters</a>
+              </div>
+              <div class="flex items-center gap-2 mt-1 flex-wrap">
+                <p class="text-xs text-gray-400">Monaco · Apr 6 – 13</p>
+                <!-- OPTION A: chip on its own line -->
+                <span class="fav-chip">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  Sinner 31%
+                </span>
+              </div>
+            </div>
+            <div class="shrink-0">
+              <!-- surface badge -->
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">Clay</span>
+            </div>
+          </div>
+        </li>
+
+        <!-- OPTION B: favourite on right side -->
+        <li class="px-5 py-3 hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="inline-flex items-center justify-center text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-tour-wta mr-0.5 leading-none">WTA</span>
+                <a href="#" class="text-sm font-semibold text-teelo-dark hover:underline decoration-teelo-lime decoration-2">Charleston Open</a>
+              </div>
+              <p class="text-xs text-gray-400 mt-0.5">Charleston · Apr 1 – 7</p>
+            </div>
+            <!-- OPTION B: chip on the right next to surface -->
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="fav-chip">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                Swiatek 28%
+              </span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">Clay</span>
+            </div>
+          </div>
+        </li>
+
+        <!-- No forecast (upcoming, not yet ready) -->
+        <li class="px-5 py-3 hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="inline-flex items-center justify-center text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-tour-atp mr-0.5 leading-none">ATP</span>
+                <a href="#" class="text-sm font-semibold text-teelo-dark hover:underline decoration-teelo-lime decoration-2">Madrid Open</a>
+              </div>
+              <p class="text-xs text-gray-400 mt-0.5">Madrid · Apr 21 – 27</p>
+            </div>
+            <div class="shrink-0">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">Clay</span>
+            </div>
+          </div>
+        </li>
+
+      </ul>
+    </div>
+    <div class="px-5 py-3 border-t border-gray-100 bg-gray-50/40">
+      <a href="#" class="text-sm text-teelo-dark font-bold flex items-center gap-1">Browse all tournaments →</a>
+    </div>
+  </div>
+  <p class="text-xs text-gray-400 mb-10">
+    <strong>Option A</strong> (second row, inline): favourite chip appears below tournament name — visible but not distracting.<br>
+    <strong>Option B</strong> (right side): favourite chip sits alongside surface badge on the right — compact but may crowd on mobile.
+  </p>
+
+
+  <!-- ============================================================
+       SECTION 2: Tournaments list page — grid card
+       ============================================================ -->
+  <div class="mock-label">Context 2 — Tournaments list page: grid card</div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-3">
+
+    <!-- Card with forecast -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-soft overflow-hidden hover:shadow-md transition-shadow">
+      <div class="border-l-4 border-teelo-lime px-4 py-4 space-y-3">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <span class="inline-flex items-center justify-center text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-tour-atp leading-none mb-1.5">ATP 1000</span>
+            <h3 class="text-sm font-bold text-teelo-dark leading-snug">Monte-Carlo Masters</h3>
+            <p class="text-xs text-gray-400 mt-0.5">Monaco · Apr 6 – 13</p>
+          </div>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 shrink-0 mt-0.5">Clay</span>
+        </div>
+        <!-- Favourite strip -->
+        <div class="flex items-center gap-2 pt-1 border-t border-gray-50">
+          <span class="fav-chip">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            Sinner
+          </span>
+          <div class="flex-1 prob-bar-track">
+            <div class="prob-bar-fill" style="width: 31%"></div>
+          </div>
+          <span class="text-xs font-bold text-teelo-dark">31%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card with forecast, WTA -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-soft overflow-hidden hover:shadow-md transition-shadow">
+      <div class="border-l-4 border-teelo-lime px-4 py-4 space-y-3">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <span class="inline-flex items-center justify-center text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-tour-wta leading-none mb-1.5">WTA 500</span>
+            <h3 class="text-sm font-bold text-teelo-dark leading-snug">Credit One Charleston</h3>
+            <p class="text-xs text-gray-400 mt-0.5">Charleston · Apr 1 – 7</p>
+          </div>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 shrink-0 mt-0.5">Clay</span>
+        </div>
+        <div class="flex items-center gap-2 pt-1 border-t border-gray-50">
+          <span class="fav-chip">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            Swiatek
+          </span>
+          <div class="flex-1 prob-bar-track">
+            <div class="prob-bar-fill" style="width: 28%"></div>
+          </div>
+          <span class="text-xs font-bold text-teelo-dark">28%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card without forecast (draw not ready) -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-soft overflow-hidden hover:shadow-md transition-shadow opacity-80">
+      <div class="border-l-4 border-gray-200 px-4 py-4 space-y-3">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <span class="inline-flex items-center justify-center text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-tour-atp leading-none mb-1.5">ATP 1000</span>
+            <h3 class="text-sm font-bold text-teelo-dark leading-snug">Madrid Open</h3>
+            <p class="text-xs text-gray-400 mt-0.5">Madrid · Apr 21 – 27</p>
+          </div>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 shrink-0 mt-0.5">Clay</span>
+        </div>
+        <div class="pt-1 border-t border-gray-50">
+          <p class="text-[11px] text-gray-400 italic">Forecast not yet available</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="text-xs text-gray-400 mb-10">Cards with a forecast show the favourite's name + win probability bar. Cards without a forecast show a quiet "not yet available" note. The lime left border is only shown when a forecast is available.</p>
+
+
+  <!-- ============================================================
+       SECTION 3: Tournament detail page — forecast panel
+       ============================================================ -->
+  <div class="mock-label">Context 3 — Tournament detail page: forecast section</div>
+
+  <!-- Detail page header (abbreviated for context) -->
+  <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden mb-4">
+    <div class="border-l-4 border-teelo-lime px-6 py-5">
+      <div class="flex items-center gap-2.5 mb-4">
+        <h1 class="text-3xl font-extrabold text-teelo-dark">Monte-Carlo Masters</h1>
+        <span class="inline-flex items-center justify-center text-[10px] font-bold text-white px-1.5 py-0.5 rounded bg-tour-atp leading-none">ATP 1000</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+          <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Location</p>
+          <p class="text-sm font-semibold text-teelo-dark mt-1">Monaco</p>
+        </div>
+        <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+          <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Surface</p>
+          <p class="text-sm font-semibold mt-1 text-orange-600">Clay · Outdoor</p>
+        </div>
+        <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+          <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Draw Size</p>
+          <p class="text-sm font-semibold text-teelo-dark mt-1">56</p>
+        </div>
+        <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+          <p class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">Date Range</p>
+          <p class="text-sm font-semibold text-teelo-dark mt-1">Apr 6 – Apr 13, 2026</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab bar (Matches | Draw | Forecast) -->
+  <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden mb-4">
+    <div class="px-6 pt-4 border-b border-gray-100">
+      <div class="flex items-center gap-6">
+        <button class="pb-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-600 text-sm">Matches</button>
+        <button class="pb-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-600 text-sm">Draw</button>
+        <!-- Active tab -->
+        <button class="pb-2.5 border-b-2 border-teelo-lime text-teelo-dark font-semibold text-sm">Forecast</button>
+      </div>
+    </div>
+
+    <div class="p-6 space-y-5">
+
+      <!-- Forecast header row -->
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 class="text-base font-bold text-teelo-dark">Title Contenders</h2>
+          <p class="text-xs text-gray-400 mt-0.5">Model-estimated probability of winning the tournament. Updated after each round.</p>
+        </div>
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <button class="filter-chip active">All</button>
+          <button class="filter-chip">Top 10</button>
+          <button class="filter-chip">Seeds</button>
+        </div>
+      </div>
+
+      <!-- OPTION A: Compact ranked table with per-round mini bars -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50/60 text-gray-400 text-[10px] uppercase tracking-wider font-bold border-b border-gray-100">
+              <th class="px-4 py-2.5 w-6">#</th>
+              <th class="px-4 py-2.5">Player</th>
+              <th class="px-4 py-2.5 text-center hidden sm:table-cell">QF</th>
+              <th class="px-4 py-2.5 text-center hidden sm:table-cell">SF</th>
+              <th class="px-4 py-2.5 text-center hidden sm:table-cell">Final</th>
+              <th class="px-4 py-2.5 text-right">Win</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+
+            <!-- Row 1 — favourite -->
+            <tr class="hover:bg-gray-50/60 transition-colors duration-75">
+              <td class="px-4 py-3 text-xs font-bold text-gray-300">1</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-[10px] font-bold flex items-center justify-center shrink-0">ITA</div>
+                  <div>
+                    <p class="text-sm font-semibold text-teelo-dark">Jannik Sinner</p>
+                    <div class="w-24 prob-bar-track mt-1">
+                      <div class="prob-bar-fill" style="width: 100%"></div>
+                    </div>
+                  </div>
+                  <span class="fav-chip ml-1 hidden sm:inline-flex">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Favourite
+                  </span>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell">
+                <span class="text-xs font-semibold text-gray-600">71%</span>
+              </td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell">
+                <span class="text-xs font-semibold text-gray-600">53%</span>
+              </td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell">
+                <span class="text-xs font-semibold text-gray-600">41%</span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <span class="text-sm font-bold text-teelo-dark">31%</span>
+              </td>
+            </tr>
+
+            <tr class="hover:bg-gray-50/60 transition-colors duration-75">
+              <td class="px-4 py-3 text-xs font-bold text-gray-300">2</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-5 h-5 rounded-full bg-red-50 text-red-600 text-[10px] font-bold flex items-center justify-center shrink-0">ESP</div>
+                  <div>
+                    <p class="text-sm font-semibold text-teelo-dark">Carlos Alcaraz</p>
+                    <div class="w-24 prob-bar-track mt-1">
+                      <div class="prob-bar-fill" style="width: 61%"></div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">64%</span></td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">44%</span></td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">27%</span></td>
+              <td class="px-4 py-3 text-right"><span class="text-sm font-bold text-teelo-dark">19%</span></td>
+            </tr>
+
+            <tr class="hover:bg-gray-50/60 transition-colors duration-75">
+              <td class="px-4 py-3 text-xs font-bold text-gray-300">3</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-5 h-5 rounded-full bg-red-50 text-red-600 text-[10px] font-bold flex items-center justify-center shrink-0">ESP</div>
+                  <div>
+                    <p class="text-sm font-semibold text-teelo-dark">Rafael Nadal</p>
+                    <div class="w-24 prob-bar-track mt-1">
+                      <div class="prob-bar-fill" style="width: 42%"></div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">51%</span></td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">32%</span></td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">18%</span></td>
+              <td class="px-4 py-3 text-right"><span class="text-sm font-bold text-teelo-dark">13%</span></td>
+            </tr>
+
+            <tr class="hover:bg-gray-50/60 transition-colors duration-75">
+              <td class="px-4 py-3 text-xs font-bold text-gray-300">4</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold flex items-center justify-center shrink-0">GER</div>
+                  <div>
+                    <p class="text-sm font-semibold text-teelo-dark">Alexander Zverev</p>
+                    <div class="w-24 prob-bar-track mt-1">
+                      <div class="prob-bar-fill" style="width: 32%"></div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">44%</span></td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">24%</span></td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">14%</span></td>
+              <td class="px-4 py-3 text-right"><span class="text-sm font-bold text-teelo-dark">10%</span></td>
+            </tr>
+
+            <tr class="hover:bg-gray-50/60 transition-colors duration-75">
+              <td class="px-4 py-3 text-xs font-bold text-gray-300">5</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold flex items-center justify-center shrink-0">RUS</div>
+                  <div>
+                    <p class="text-sm font-semibold text-teelo-dark">Daniil Medvedev</p>
+                    <div class="w-24 prob-bar-track mt-1">
+                      <div class="prob-bar-fill" style="width: 22%"></div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">35%</span></td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">17%</span></td>
+              <td class="px-4 py-3 text-center hidden sm:table-cell"><span class="text-xs font-semibold text-gray-600">8%</span></td>
+              <td class="px-4 py-3 text-right"><span class="text-sm font-bold text-teelo-dark">7%</span></td>
+            </tr>
+
+            <!-- Collapsed rows indicator -->
+            <tr class="hover:bg-gray-50/60 transition-colors duration-75">
+              <td colspan="6" class="px-4 py-2.5 text-center">
+                <button class="text-xs font-semibold text-gray-400 hover:text-teelo-dark flex items-center gap-1 mx-auto">
+                  Show 51 more players
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Forecast metadata footer -->
+      <div class="flex items-center justify-between pt-3 border-t border-gray-100 gap-3 flex-wrap">
+        <p class="text-[11px] text-gray-400">
+          Generated 2026-04-04 · <span class="font-medium">run #265</span> · <span class="text-green-600 font-semibold">ready</span>
+        </p>
+        <p class="text-[11px] text-gray-400 italic">Probabilities do not account for withdrawals or walkovers.</p>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- OPTION B: Player detail card (alternative full-detail layout) -->
+  <div class="mock-label mt-8">Context 3B — Alternative: player spotlight card (top of forecast tab)</div>
+  <div class="bg-white rounded-2xl shadow-soft border border-gray-100 overflow-hidden mb-4">
+    <div class="p-6 space-y-5">
+      <h2 class="text-base font-bold text-teelo-dark">Tournament Forecast</h2>
+
+      <!-- Top 3 spotlight row -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <!-- #1 Favourite -->
+        <div class="rounded-xl border border-teelo-lime/40 bg-teelo-lime/5 p-4 relative overflow-hidden">
+          <div class="absolute top-2 right-2">
+            <span class="fav-chip text-[10px]">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              #1
+            </span>
+          </div>
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Favourite</p>
+          <p class="text-base font-bold text-teelo-dark">Jannik Sinner</p>
+          <p class="text-xs text-gray-400 mb-3">ITA · Seed 1</p>
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400 w-7">QF</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:71%"></div></div>
+              <span class="text-[11px] font-semibold text-gray-600 w-7 text-right">71%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400 w-7">SF</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:53%"></div></div>
+              <span class="text-[11px] font-semibold text-gray-600 w-7 text-right">53%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400 w-7">F</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:41%"></div></div>
+              <span class="text-[11px] font-semibold text-gray-600 w-7 text-right">41%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold text-teelo-dark w-7">Win</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:100%"></div></div>
+              <span class="text-sm font-bold text-teelo-dark w-7 text-right">31%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- #2 -->
+        <div class="rounded-xl border border-gray-100 bg-gray-50/40 p-4 relative overflow-hidden">
+          <div class="absolute top-2 right-2">
+            <span class="text-[10px] font-bold text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">#2</span>
+          </div>
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Contender</p>
+          <p class="text-base font-bold text-teelo-dark">Carlos Alcaraz</p>
+          <p class="text-xs text-gray-400 mb-3">ESP · Seed 2</p>
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400 w-7">QF</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:64%"></div></div>
+              <span class="text-[11px] font-semibold text-gray-600 w-7 text-right">64%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400 w-7">SF</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:44%"></div></div>
+              <span class="text-[11px] font-semibold text-gray-600 w-7 text-right">44%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400 w-7">F</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:28%"></div></div>
+              <span class="text-[11px] font-semibold text-gray-600 w-7 text-right">27%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold text-teelo-dark w-7">Win</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width: 61%"></div></div>
+              <span class="text-sm font-bold text-teelo-dark w-7 text-right">19%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- #3 -->
+        <div class="rounded-xl border border-gray-100 bg-gray-50/40 p-4 relative overflow-hidden">
+          <div class="absolute top-2 right-2">
+            <span class="text-[10px] font-bold text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">#3</span>
+          </div>
+          <p class="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Contender</p>
+          <p class="text-base font-bold text-teelo-dark">Rafael Nadal</p>
+          <p class="text-xs text-gray-400 mb-3">ESP · Seed 3</p>
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400 w-7">QF</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:51%"></div></div>
+              <span class="text-[11px] font-semibold text-gray-600 w-7 text-right">51%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400 w-7">SF</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:32%"></div></div>
+              <span class="text-[11px] font-semibold text-gray-600 w-7 text-right">32%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-400 w-7">F</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:18%"></div></div>
+              <span class="text-[11px] font-semibold text-gray-600 w-7 text-right">18%</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold text-teelo-dark w-7">Win</span>
+              <div class="flex-1 prob-bar-track"><div class="prob-bar-fill" style="width:42%"></div></div>
+              <span class="text-sm font-bold text-teelo-dark w-7 text-right">13%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compact table for the rest -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50/60 text-gray-400 text-[10px] uppercase tracking-wider font-bold border-b border-gray-100">
+              <th class="px-4 py-2.5 w-6">#</th>
+              <th class="px-4 py-2.5">Player</th>
+              <th class="px-4 py-2.5 text-center hidden sm:table-cell">QF</th>
+              <th class="px-4 py-2.5 text-center hidden sm:table-cell">SF</th>
+              <th class="px-4 py-2.5 text-center hidden sm:table-cell">F</th>
+              <th class="px-4 py-2.5 text-right">Win</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr class="hover:bg-gray-50/60 transition-colors">
+              <td class="px-4 py-2.5 text-xs font-bold text-gray-300">4</td>
+              <td class="px-4 py-2.5 text-sm font-semibold text-teelo-dark">A. Zverev <span class="text-xs text-gray-400 font-normal">GER</span></td>
+              <td class="px-4 py-2.5 text-center text-xs text-gray-500 hidden sm:table-cell">44%</td>
+              <td class="px-4 py-2.5 text-center text-xs text-gray-500 hidden sm:table-cell">24%</td>
+              <td class="px-4 py-2.5 text-center text-xs text-gray-500 hidden sm:table-cell">14%</td>
+              <td class="px-4 py-2.5 text-right text-sm font-bold text-teelo-dark">10%</td>
+            </tr>
+            <tr class="hover:bg-gray-50/60 transition-colors">
+              <td class="px-4 py-2.5 text-xs font-bold text-gray-300">5</td>
+              <td class="px-4 py-2.5 text-sm font-semibold text-teelo-dark">D. Medvedev <span class="text-xs text-gray-400 font-normal">RUS</span></td>
+              <td class="px-4 py-2.5 text-center text-xs text-gray-500 hidden sm:table-cell">35%</td>
+              <td class="px-4 py-2.5 text-center text-xs text-gray-500 hidden sm:table-cell">17%</td>
+              <td class="px-4 py-2.5 text-center text-xs text-gray-500 hidden sm:table-cell">8%</td>
+              <td class="px-4 py-2.5 text-right text-sm font-bold text-teelo-dark">7%</td>
+            </tr>
+            <tr class="hover:bg-gray-50/60 transition-colors">
+              <td class="px-4 py-2.5 text-xs font-bold text-gray-300">6</td>
+              <td class="px-4 py-2.5 text-sm font-semibold text-teelo-dark">H. Hurkacz <span class="text-xs text-gray-400 font-normal">POL</span></td>
+              <td class="px-4 py-2.5 text-center text-xs text-gray-500 hidden sm:table-cell">28%</td>
+              <td class="px-4 py-2.5 text-center text-xs text-gray-500 hidden sm:table-cell">12%</td>
+              <td class="px-4 py-2.5 text-center text-xs text-gray-500 hidden sm:table-cell">5%</td>
+              <td class="px-4 py-2.5 text-right text-sm font-bold text-teelo-dark">5%</td>
+            </tr>
+            <tr>
+              <td colspan="6" class="px-4 py-2.5 text-center">
+                <button class="text-xs font-semibold text-gray-400 hover:text-teelo-dark flex items-center gap-1 mx-auto">
+                  Show 50 more ↓
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-gray-100 gap-3 flex-wrap">
+        <p class="text-[11px] text-gray-400">Generated 2026-04-04 · run #265 · <span class="text-green-600 font-semibold">ready</span></p>
+        <p class="text-[11px] text-gray-400 italic">Probabilities do not account for withdrawals or walkovers.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

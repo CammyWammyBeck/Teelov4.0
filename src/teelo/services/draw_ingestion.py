@@ -268,58 +268,6 @@ def ingest_draw(
 
                 bye_positions[(entry.round, entry.draw_position)] = bye_player_id
                 stats.byes_processed += 1
-
-                # Materialise the bye as a synthetic completed match (player vs BYE).
-                # This keeps player_a_id/player_b_id non-nullable and allows forecast readiness
-                # to be based on structural resolvability, without waiting for propagation.
-                existing = context.matches_by_slot.get((entry.round, entry.draw_position))
-
-                bye_player = session.get(Player, int(bye_player_id))
-                bye_gender = (getattr(bye_player, "gender", None) or "men") if bye_player else "men"
-                bye_dummy = (
-                    session.query(Player)
-                    .filter(Player.canonical_name == "BYE")
-                    .filter(Player.gender == bye_gender)
-                    .first()
-                )
-                if bye_dummy is None:
-                    bye_dummy = Player(canonical_name="BYE", gender=bye_gender)
-                    session.add(bye_dummy)
-                    session.flush()
-
-                if existing is None:
-                    m = Match(
-                        source=entry.source,
-                        tournament_edition_id=edition.id,
-                        round=entry.round,
-                        draw_position=entry.draw_position,
-                        player_a_id=int(bye_player_id),
-                        player_b_id=int(bye_dummy.id),
-                        status="completed",
-                        winner_id=int(bye_player_id),
-                        score="BYE",
-                        score_structured=None,
-                    )
-                    m.update_temporal_order(
-                        tournament_start=edition.start_date,
-                        tournament_end=edition.end_date,
-                    )
-                    session.add(m)
-                    context.matches_by_slot[(entry.round, entry.draw_position)] = m
-                    stats.matches_created += 1
-                elif overwrite and existing.status not in set(get_status_group("terminal")):
-                    existing.player_a_id = int(bye_player_id)
-                    existing.player_b_id = int(bye_dummy.id)
-                    existing.status = "completed"
-                    existing.winner_id = int(bye_player_id)
-                    existing.score = "BYE"
-                    existing.score_structured = None
-                    existing.update_temporal_order(
-                        tournament_start=edition.start_date,
-                        tournament_end=edition.end_date,
-                    )
-                    stats.matches_updated += 1
-
                 continue
 
             # Skip entries with missing players (TBD / qualifier placeholders)
