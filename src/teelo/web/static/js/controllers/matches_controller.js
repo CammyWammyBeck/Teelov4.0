@@ -77,8 +77,30 @@ export function initMatchesPage() {
   if (els.playerSearch && state.player_name) els.playerSearch.value = state.player_name;
   if (els.tournamentSearch && state.tournament) els.tournamentSearch.value = state.tournament;
 
-  // Bug 1: Sync chip active states from hydrated URL state
+  // Sync chip active states from hydrated URL state
+  const UPCOMING_STATUSES = new Set(['upcoming', 'scheduled']);
+  const COMPLETED_STATUSES = new Set(['completed', 'retired', 'walkover', 'default']);
+
+  function toggleCustomDateRows(show) {
+    byId('custom-date-row')?.classList.toggle('hidden', !show);
+    byId('drawer-custom-date-row')?.classList.toggle('hidden', !show);
+  }
+
+  // Fix 4: Dim category chips incompatible with the selected gender
+  function updateCategoryChipAvailability() {
+    queryAll('.filter-chip[data-role="subcategory"]').forEach(chip => {
+      const chipGender = chip.dataset.gender;
+      const incompatible = (state.gender === 'men' && chipGender === 'women') ||
+                           (state.gender === 'women' && chipGender === 'men');
+      chip.classList.toggle('opacity-40', incompatible);
+      chip.classList.toggle('pointer-events-none', incompatible);
+    });
+  }
+
   function syncChipsFromState() {
+    const hasUpcoming = state.status.some(s => UPCOMING_STATUSES.has(s));
+    const isCompletedActive = state.status.length === 0 ||
+      (state.status.length > 0 && state.status.every(s => COMPLETED_STATUSES.has(s)));
     queryAll('.filter-chip').forEach((chip) => {
       const { filter, value } = chip.dataset;
       let isActive = false;
@@ -86,27 +108,18 @@ export function initMatchesPage() {
         isActive = state.gender === value;
       } else if (filter === 'date_preset') {
         isActive = state.date_preset === value;
+      } else if (filter === 'status_group') {
+        isActive = value === 'upcoming' ? hasUpcoming : isCompletedActive;
       } else if (MULTI_VALUE_FILTERS.includes(filter)) {
         isActive = state[filter].includes(value);
       }
       chip.classList.toggle('active', isActive);
     });
-    // Show custom date row if needed
-    const customRow = byId('custom-date-row');
-    if (customRow && state.date_preset === 'custom') {
-      customRow.classList.remove('hidden');
-    }
+    toggleCustomDateRows(state.date_preset === 'custom');
+    updateCategoryChipAvailability();
   }
   syncChipsFromState();
 
-  // Bug 4: Show/hide default status hint
-  function updateStatusHint() {
-    const statusHint = byId('default-status-hint');
-    if (statusHint) {
-      statusHint.classList.toggle('hidden', state.status.length > 0);
-    }
-  }
-  updateStatusHint();
 
   function syncUrl() {
     const qs = toUrlQuery(state);
@@ -116,7 +129,7 @@ export function initMatchesPage() {
   function summaryTags() {
     const tags = [];
     if (state.gender) tags.push({ label: `Gender: ${state.gender}`, removeKey: 'gender:' });
-    MULTI_VALUE_FILTERS.forEach((k) => state[k].forEach((v) => tags.push({ label: v, removeKey: `${k}:${v}` })));
+    MULTI_VALUE_FILTERS.filter(k => k !== 'status').forEach((k) => state[k].forEach((v) => tags.push({ label: v, removeKey: `${k}:${v}` })));
     if (state.player_name) tags.push({ label: `Player: ${state.player_name}`, removeKey: 'player:' });
     if (state.tournament) tags.push({ label: `Tournament: ${state.tournament}`, removeKey: 'tournament:' });
     return tags;
@@ -168,7 +181,7 @@ export function initMatchesPage() {
   function onFilterChange() {
     syncUrl();
     renderSummaryTags(els, summaryTags(), removeFilter);
-    updateStatusHint();
+    syncChipsFromState();
     fetchMatches(false);
   }
 
@@ -186,22 +199,20 @@ export function initMatchesPage() {
   queryAll('.filter-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       const { filter, value } = chip.dataset;
-      if (filter === 'gender') {
+      if (filter === 'status_group') {
+        // Fix 5: set explicit statuses so the URL is always bookmarkable
+        state.status = value === 'upcoming' ? ['upcoming', 'scheduled'] : ['completed', 'retired', 'walkover', 'default'];
+      } else if (filter === 'gender') {
         state.gender = state.gender === value ? '' : value;
-        // Clear sibling gender chips so only one can appear active
-        queryAll('.filter-chip[data-filter="gender"]').forEach((c) => c.classList.remove('active'));
-        if (state.gender) chip.classList.add('active');
+        // Fix 4: dim incompatible category chips
+        updateCategoryChipAvailability();
       } else if (filter === 'date_preset') {
         // Single-select toggle — clear sibling date_preset chips
         const wasActive = state.date_preset === value;
         state.date_preset = wasActive ? '' : value;
         state.date_from = '';
         state.date_to = '';
-        queryAll('.filter-chip[data-filter="date_preset"]').forEach((c) => c.classList.remove('active'));
-        if (!wasActive) chip.classList.add('active');
-        // Show/hide custom date row
-        const customRow = byId('custom-date-row');
-        if (customRow) customRow.classList.toggle('hidden', state.date_preset !== 'custom');
+        toggleCustomDateRows(!wasActive && value === 'custom');
       } else if (MULTI_VALUE_FILTERS.includes(filter)) {
         state[filter] = toggleValue(state[filter], value);
         chip.classList.toggle('active');
@@ -210,48 +221,63 @@ export function initMatchesPage() {
     });
   });
 
-  // Wire up custom date apply button (Bug 3)
-  byId('apply-custom-date')?.addEventListener('click', () => {
-    const from = byId('date-from')?.value || '';
-    const to = byId('date-to')?.value || '';
-    state.date_from = from;
-    state.date_to = to;
+  // Wire up custom date apply buttons (main bar + drawer)
+  function applyCustomDate(fromId, toId) {
+    state.date_from = byId(fromId)?.value || '';
+    state.date_to = byId(toId)?.value || '';
     state.date_preset = '';
-    queryAll('.filter-chip[data-filter="date_preset"]').forEach((c) => c.classList.remove('active'));
     onFilterChange();
-  });
+  }
+  byId('apply-custom-date')?.addEventListener('click', () => applyCustomDate('date-from', 'date-to'));
+  byId('drawer-apply-custom-date')?.addEventListener('click', () => applyCustomDate('drawer-date-from', 'drawer-date-to'));
 
   // Bug 2: Wire "More Filters" drawer open/close/apply with state isolation
   const drawerOverlay = byId('filter-drawer-overlay');
   let drawerSnapshot = null;
 
   byId('more-filters-btn')?.addEventListener('click', () => {
-    // Snapshot state before drawer opens
+    // Snapshot full state before drawer opens (Fix 3)
     drawerSnapshot = {
+      gender: state.gender,
+      tour: [...state.tour],
+      surface: [...state.surface],
       level: [...state.level],
       round: [...state.round],
       status: [...state.status],
+      date_preset: state.date_preset,
+      date_from: state.date_from,
+      date_to: state.date_to,
       tournament: state.tournament,
     };
+    // Sync drawer date inputs to current state
+    const drawerDateFrom = byId('drawer-date-from');
+    const drawerDateTo = byId('drawer-date-to');
+    if (drawerDateFrom) drawerDateFrom.value = state.date_from;
+    if (drawerDateTo) drawerDateTo.value = state.date_to;
     drawerOverlay?.classList.add('open');
+    syncChipsFromState(); // Fix 3: ensure drawer chips reflect current state
     window.lucide?.createIcons?.();
   });
   byId('close-drawer-btn')?.addEventListener('click', () => {
-    // Restore snapshot on cancel
+    // Restore full snapshot on cancel
     if (drawerSnapshot) {
+      state.gender = drawerSnapshot.gender;
+      state.tour = drawerSnapshot.tour;
+      state.surface = drawerSnapshot.surface;
       state.level = drawerSnapshot.level;
       state.round = drawerSnapshot.round;
       state.status = drawerSnapshot.status;
+      state.date_preset = drawerSnapshot.date_preset;
+      state.date_from = drawerSnapshot.date_from;
+      state.date_to = drawerSnapshot.date_to;
       state.tournament = drawerSnapshot.tournament;
       if (els.tournamentSearch) els.tournamentSearch.value = state.tournament;
-      // Re-sync drawer chips to restored state
-      queryAll('.filter-drawer .filter-chip').forEach((chip) => {
-        const { filter, value } = chip.dataset;
-        if (MULTI_VALUE_FILTERS.includes(filter)) {
-          chip.classList.toggle('active', state[filter].includes(value));
-        }
-      });
+      const drawerDateFrom = byId('drawer-date-from');
+      const drawerDateTo = byId('drawer-date-to');
+      if (drawerDateFrom) drawerDateFrom.value = state.date_from;
+      if (drawerDateTo) drawerDateTo.value = state.date_to;
       drawerSnapshot = null;
+      onFilterChange(); // re-fetch with restored state
     }
     drawerOverlay?.classList.remove('open');
   });
@@ -276,14 +302,11 @@ export function initMatchesPage() {
     Object.assign(state, createMatchesState());
     if (els.playerSearch) els.playerSearch.value = '';
     if (els.tournamentSearch) els.tournamentSearch.value = '';
-    queryAll('.filter-chip').forEach((chip) => chip.classList.remove('active'));
-    // Bug 3: Clear date inputs and hide custom date row
-    const dateFrom = byId('date-from');
-    const dateTo = byId('date-to');
-    if (dateFrom) dateFrom.value = '';
-    if (dateTo) dateTo.value = '';
-    const customRow = byId('custom-date-row');
-    if (customRow) customRow.classList.add('hidden');
+    ['date-from', 'date-to', 'drawer-date-from', 'drawer-date-to'].forEach(id => {
+      const el = byId(id); if (el) el.value = '';
+    });
+    toggleCustomDateRows(false);
+    syncChipsFromState(); // re-syncs all chips including status_group + category availability
     onFilterChange();
   });
 
@@ -392,12 +415,6 @@ export function initMatchesPage() {
     }
   }, { rootMargin: '240px' });
   if (els.scrollSentinel) io.observe(els.scrollSentinel);
-
-  // Bug 4: Wire the "More Filters" link inside the status hint
-  byId('show-all-statuses-btn')?.addEventListener('click', () => {
-    drawerOverlay?.classList.add('open');
-    window.lucide?.createIcons?.();
-  });
 
   // Wire retry button in error state
   document.getElementById('retry-btn')?.addEventListener('click', () => {

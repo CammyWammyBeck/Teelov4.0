@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from teelo.db.models import Match, MatchFeatures, Player, PlayerAlias, Tournament, TournamentEdition
@@ -33,7 +33,8 @@ async def api_matches(db: Session = Depends(get_db), tour: Optional[str] = Query
     def _apply_filters(q, player_subquery=None):
         q = q.filter(Match.status.in_(statuses))
         if tour:
-            q = q.filter(Tournament.tour.in_([t.strip() for t in tour.split(',')]))
+            tour_lower = [t.strip().lower() for t in tour.split(',')]
+            q = q.filter(func.lower(Tournament.tour).in_(tour_lower))
         if gender:
             q = q.filter(Tournament.gender.in_([g.strip().lower() for g in gender.split(',') if g.strip()]))
         if surface:

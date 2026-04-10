@@ -96,7 +96,16 @@
             <button id="apply-custom-date" class="px-3 py-1.5 text-sm bg-teelo-dark text-content-inverse rounded-lg font-semibold hover:bg-surface-inverse transition-colors">Apply</button>
         </div>
 
-        <!-- Row 5: Player search + More Filters button -->
+        <!-- Row 5: Status chips -->
+        <div class="matches-filter-block matches-filter-block--group">
+            <h3 class="text-xs text-content-faint uppercase tracking-wider font-bold mb-2">Status</h3>
+            <div class="flex flex-nowrap gap-2 hide-scrollbar overflow-x-auto pb-1">
+                <button class="filter-chip" data-filter="status_group" data-value="completed" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Completed</button>
+                <button class="filter-chip" data-filter="status_group" data-value="upcoming" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Upcoming</button>
+            </div>
+        </div>
+
+        <!-- Row 6: Player search + More Filters button -->
         <div class="flex items-center gap-3 pt-1 matches-filter-block matches-filter-block--full">
             <div class="relative flex-1 max-w-sm">
                 <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-faint"></i>
@@ -118,10 +127,6 @@
                 </div>
                 <button id="clear-all-btn" class="text-xs text-content-faint hover:text-teelo-dark font-medium ml-2 transition-colors">Clear all</button>
             </div>
-        </div>
-        <div id="default-status-hint" class="text-xs text-content-faint flex items-center gap-1.5 matches-filter-block matches-filter-block--full">
-            <i data-lucide="info" class="w-3.5 h-3.5"></i>
-            <span>Showing completed matches by default. Use <button id="show-all-statuses-btn" class="text-teelo-dark font-semibold hover:underline">More Filters</button> to include upcoming matches.</span>
         </div>
     </div>
 
@@ -244,6 +249,67 @@
 
         <!-- Drawer Body -->
         <div class="flex-grow p-5 space-y-6 overflow-y-auto">
+            <!-- Status section -->
+            <div>
+                <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Status</label>
+                <div class="flex flex-wrap gap-2">
+                    <button class="filter-chip" data-filter="status_group" data-value="completed" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Completed</button>
+                    <button class="filter-chip" data-filter="status_group" data-value="upcoming" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Upcoming</button>
+                </div>
+            </div>
+
+            <!-- Gender section -->
+            <div>
+                <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Gender</label>
+                <div class="flex flex-wrap gap-2">
+                    <button class="filter-chip" data-filter="gender" data-value="men" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Men</button>
+                    <button class="filter-chip" data-filter="gender" data-value="women" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Women</button>
+                </div>
+            </div>
+
+            <!-- Category section -->
+            <div>
+                <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Category</label>
+                <div class="flex flex-wrap gap-2">
+                    <button class="filter-chip" data-role="subcategory" data-gender="men" data-filter="tour" data-value="ATP" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">ATP</button>
+                    <button class="filter-chip" data-role="subcategory" data-gender="men" data-filter="tour" data-value="CHALLENGER" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">ATP Challenger</button>
+                    <button class="filter-chip" data-role="subcategory" data-gender="women" data-filter="tour" data-value="WTA" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">WTA</button>
+                    <button class="filter-chip" data-role="subcategory" data-gender="women" data-filter="tour" data-value="WTA_125" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">WTA 125</button>
+                    <button class="filter-chip" data-role="subcategory" data-gender="all" data-filter="tour" data-value="ITF" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">ITF</button>
+                    <button class="filter-chip" data-role="subcategory" data-gender="all" data-filter="level" data-value="Grand Slam" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Grand Slam</button>
+                </div>
+            </div>
+
+            <!-- Surface section -->
+            <div>
+                <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Surface</label>
+                <div class="flex flex-wrap gap-2">
+                    <button class="filter-chip" data-filter="surface" data-value="Hard" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Hard</button>
+                    <button class="filter-chip" data-filter="surface" data-value="Clay" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Clay</button>
+                    <button class="filter-chip" data-filter="surface" data-value="Grass" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Grass</button>
+                </div>
+            </div>
+
+            <!-- Date Range section -->
+            <div>
+                <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Date Range</label>
+                <div class="flex flex-wrap gap-2">
+                    <button class="filter-chip" data-filter="date_preset" data-value="7d" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Last 7 days</button>
+                    <button class="filter-chip" data-filter="date_preset" data-value="30d" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Last 30 days</button>
+                    <button class="filter-chip" data-filter="date_preset" data-value="90d" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Last 90 days</button>
+                    <button class="filter-chip" data-filter="date_preset" data-value="ytd" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">This Year</button>
+                    <button class="filter-chip" data-filter="date_preset" data-value="2024" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">2024</button>
+                    <button class="filter-chip" data-filter="date_preset" data-value="2023" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">2023</button>
+                    <button class="filter-chip" data-filter="date_preset" data-value="custom" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">Custom...</button>
+                </div>
+                <div id="drawer-custom-date-row" class="hidden mt-3 flex flex-wrap items-center gap-3">
+                    <input type="date" id="drawer-date-from" class="px-3 py-1.5 text-sm border border-line rounded-lg focus:outline-none focus:border-teelo-dark">
+                    <span class="text-content-faint text-sm">to</span>
+                    <input type="date" id="drawer-date-to" class="px-3 py-1.5 text-sm border border-line rounded-lg focus:outline-none focus:border-teelo-dark">
+                    <button id="drawer-apply-custom-date" class="px-3 py-1.5 text-sm bg-teelo-dark text-content-inverse rounded-lg font-semibold hover:bg-surface-inverse transition-colors">Apply</button>
+                </div>
+            </div>
+
             <!-- Level section -->
             <div>
                 <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Level</label>
@@ -260,16 +326,6 @@
                 <div class="flex flex-wrap gap-2">
                     {% for rnd in ["F", "SF", "QF", "R16", "R32", "R64", "R128", "Q3", "Q2", "Q1", "RR"] %}
                     <button class="filter-chip" data-filter="round" data-value="{{ rnd }}" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">{{ rnd }}</button>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- Status section -->
-            <div>
-                <label class="text-xs text-content-faint uppercase tracking-wider font-bold mb-3 block">Status</label>
-                <div class="flex flex-wrap gap-2">
-                    {% for match_status in status_filters %}
-                    <button class="filter-chip" data-filter="status" data-value="{{ match_status }}" data-active-class="bg-teelo-lime text-teelo-dark border-teelo-lime">{{ match_status.replace('_', ' ').title() }}</button>
                     {% endfor %}
                 </div>
             </div>
