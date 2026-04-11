@@ -3,6 +3,9 @@ import asyncio
 import pytest
 from teelo.scrape.itf import ITFScraper
 
+pytestmark = pytest.mark.integration
+
+
 @pytest.mark.asyncio
 async def test_itf_monastir_perfection():
     url = "https://www.itftennis.com/en/tournament/m15-monastir/tun/2026/m-itf-tun-2026-009/"

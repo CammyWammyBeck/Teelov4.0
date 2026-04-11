@@ -85,7 +85,10 @@ teelo = ["py.typed"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -m 'not integration'"
+markers = [
+    "integration: hits live external services (ITF/ATP sites); brittle, run manually with -m integration",
+]
 
 [tool.black]
 line-length = 100
