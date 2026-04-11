@@ -55,6 +55,7 @@ Teelov3.0/
 
 # Temporary debug scripts
 debug_*.py
+claude_testing.py
 
 # Scratchpad
 scratchpad/
