@@ -877,6 +877,9 @@ class WTAScraper(BaseScraper):
         if len(rows) < 2:
             return None
 
+        if not self._match_table_is_finished(table):
+            return None
+
         row_a, row_b = rows[0], rows[1]
 
         # Extract player info from each row
@@ -1520,6 +1523,78 @@ class WTAScraper(BaseScraper):
             header = match_div.select_one(".tennis-match__header")
             if header and "live" in header.get_text(" ", strip=True).lower():
                 return True
+        except Exception:
+            pass
+        return False
+
+    def _match_table_is_finished(self, table) -> bool:
+        """
+        Return True only when a WTA match-table represents a finished match.
+
+        The WTA scores/draws/OOP pages all share the same card template, so
+        upcoming, warm-up and live matches appear with the same ``table.match-table``
+        shape as finished ones. Without a gate, ``_parse_match_table`` would
+        stamp those as ``completed`` (or ``walkover`` when the score cells are
+        placeholder dots), silently ingesting garbage rows such as the
+        scheduled-but-not-yet-started final as "W/O, no winner".
+
+        Finished signals (any one is sufficient):
+        - outer ``div.tennis-match[data-status="F"]`` wrapper
+        - ``table[data-completed="true"]``
+        - ``table.match-table--winner-a`` / ``match-table--winner-b``
+        - ancestor ``div.match-table__container.match-table__finished``
+        - per-set ``is-winner`` cells giving one player ≥2 sets (best-of-3 WTA)
+
+        An explicit non-finished ``data-status`` (``U``/``W``/``L``/``I``/``P``/``IP``)
+        on the outer wrapper overrides the set-count fallback so live matches
+        with a first set already "won" don't look finished.
+        """
+        try:
+            table_cls = " ".join(table.get("class", []))
+            if "match-table--winner-a" in table_cls or "match-table--winner-b" in table_cls:
+                return True
+            if (table.get("data-completed") or "").lower() == "true":
+                return True
+
+            container = table.find_parent(class_=lambda c: c and "match-table__container" in c)
+            if container:
+                cc = " ".join(container.get("class", []))
+                if "match-table__finished" in cc:
+                    return True
+
+            outer_status = ""
+
+            def _is_tennis_match_wrapper(c):
+                if not c:
+                    return False
+                return "tennis-match" in c and "tennis-match__" not in " ".join(c)
+
+            outer = table.find_parent("div", class_=_is_tennis_match_wrapper)
+            if outer is not None:
+                outer_status = (outer.get("data-status") or "").upper()
+                if outer_status == "F":
+                    return True
+                if outer_status in {"U", "W", "L", "I", "P", "IP"}:
+                    return False
+
+            # Fallback: derive from per-set is-winner markers. Only treat as
+            # finished when one side has won at least two sets (WTA is best-of-3).
+            rows = table.select("tr.match-table__row")
+            if len(rows) >= 2:
+                sets_a = sum(
+                    1
+                    for c in rows[0].select("td.match-table__score-cell")
+                    if "is-winner" in " ".join(c.get("class", []))
+                    and not c.select_one("span.match-table__dot")
+                )
+                sets_b = sum(
+                    1
+                    for c in rows[1].select("td.match-table__score-cell")
+                    if "is-winner" in " ".join(c.get("class", []))
+                    and not c.select_one("span.match-table__dot")
+                )
+                if max(sets_a, sets_b) >= 2:
+                    return True
         except Exception:
             pass
         return False
