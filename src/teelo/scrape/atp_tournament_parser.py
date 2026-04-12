@@ -254,7 +254,7 @@ def _parse_single_tournament(entry, year: int) -> Optional[dict]:
         "name": name,
         "number": tournament_number,
         "level": level,
-        "surface": "Hard",  # Can't determine from archive page, will be set later
+        "surface": None,  # Archive page doesn't expose surface; fill later from overview/DB
         "location": location,
         "start_date": start_date,
         "end_date": end_date,

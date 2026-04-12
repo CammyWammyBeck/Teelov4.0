@@ -217,7 +217,7 @@ class ATPScraper(BaseScraper):
                     "id": tourney_id,
                     "name": name,
                     "level": level,
-                    "surface": "Hard",  # Default
+                    "surface": None,  # Schedule/archive fallback doesn't reliably expose surface
                     "location": "",
                     "start_date": None,
                     "year": year,
@@ -278,7 +278,7 @@ class ATPScraper(BaseScraper):
         location = location_elem.get_text(strip=True) if location_elem else ""
 
         # Get surface
-        surface = "Hard"  # Default
+        surface = None
         surface_elem = elem.select_one(".tourney-details, .surface, [class*='surface']")
         if surface_elem:
             surface_text = surface_elem.get_text().lower()
@@ -935,7 +935,7 @@ class ATPScraper(BaseScraper):
             "name": params.tournament_name or params.tournament_id.replace("-", " ").title(),
             "year": params.year,
             "level": params.tournament_level or self._detect_level_from_id(params.tournament_id, tour_type),
-            "surface": params.tournament_surface or "Hard",
+            "surface": params.tournament_surface,
             "location": params.tournament_location or "",
             "country_ioc": None,
             "start_date": params.start_date,
@@ -968,7 +968,7 @@ class ATPScraper(BaseScraper):
         """
         cache_key = (tournament_id, year, tour_type, tournament_number)
         cached = self._tournament_info_cache.get(cache_key)
-        if cached is not None:
+        if cached is not None and cached.get("surface"):
             return dict(cached)
 
         # Get initial level from known tournament sets
@@ -980,12 +980,14 @@ class ATPScraper(BaseScraper):
             "name": tournament_id.replace("-", " ").title(),
             "year": year,
             "level": initial_level,
-            "surface": "Hard",
+            "surface": None,
             "location": "",
             "country_ioc": None,
             "start_date": None,
             "end_date": None,
         }
+        if cached is not None:
+            info.update({k: v for k, v in cached.items() if v not in (None, "")})
 
         # Try to get from tournament page
         # URL requires tournament number: /en/tournaments/{slug}/{number}/overview
@@ -1470,6 +1472,15 @@ class ATPScraper(BaseScraper):
                 print(f"Could not find tournament number for {tournament_id} fixtures")
                 return
 
+            tournament_info = await self._get_tournament_info(
+                page,
+                tournament_id,
+                year,
+                tour_type="main",
+                tournament_number=tournament_number,
+            )
+            tournament_info["number"] = tournament_number
+
             # Navigate to tournament schedule/order of play
             # URL: /en/scores/current/{slug}/{number}/daily-schedule
             url = f"{self.BASE_URL}/en/scores/current/{tournament_id}/{tournament_number}/daily-schedule"
@@ -1480,15 +1491,6 @@ class ATPScraper(BaseScraper):
 
             html = await page.content()
             soup = BeautifulSoup(html, "lxml")
-
-            # Get tournament info
-            tournament_info = {
-                "id": tournament_id,
-                "name": tournament_id.replace("-", " ").title(),
-                "year": year,
-                "level": "ATP 250",
-                "surface": "Hard",
-            }
 
             # Find match entries
             # New structure (2025/2026): div.schedule contains match info

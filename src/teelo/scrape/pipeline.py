@@ -172,7 +172,7 @@ async def get_or_create_edition(
             tour=tour,
             gender=gender,
             level=task_params.tournament_level or "ATP 250",
-            surface=task_params.tournament_surface or "Hard",
+            surface=task_params.tournament_surface,
             city=task_params.tournament_location.split(",")[0].strip().title()
             if task_params.tournament_location
             else None,
@@ -194,7 +194,7 @@ async def get_or_create_edition(
         edition = TournamentEdition(
             tournament_id=tournament.id,
             year=year,
-            surface=task_params.tournament_surface or tournament.surface or "Hard",
+            surface=task_params.tournament_surface or tournament.surface,
         )
         session.add(edition)
 
