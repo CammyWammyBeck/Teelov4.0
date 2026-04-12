@@ -114,11 +114,10 @@ async def discover_tour_tasks(
     """Discover current tournaments for one tour."""
     scraper_cls = _get_scraper_class(tour_key)
     window_start = today - timedelta(days=lookback_days)
-    # Extend window_end to end of year to discover all upcoming tournaments,
-    # not just those starting within the next week. This enables proactive
-    # tournament discovery while pipeline.py date gates still control when
-    # draw/schedule/results scraping actually occurs.
-    window_end = date(today.year, 12, 31)
+    # Current-events discovery should stay narrow. End-of-year discovery creates
+    # hundreds of future tasks, bloats scrape_queue dedupe work, and can stall
+    # the hourly pipeline before it ever reaches actual match ingestion.
+    window_end = today + timedelta(days=7)
 
     print(f"\n[{tour_key}] Starting tour discovery...")
 

@@ -757,23 +757,39 @@ def compute_probabilities(session: Session, *, edition_id: int) -> dict[str, Any
     ).scalar_one()
     tournament = edition.tournament
 
-    nodes = (
-        session.query(TournamentForecastNode)
-        .filter(TournamentForecastNode.forecast_run_id == run.id)
-        .all()
-    )
+    # Important: only load the lightweight columns needed for probability aggregation.
+    # Loading full ORM nodes pulls large JSON state blobs/features for every scenario node,
+    # which can make forecast reads unacceptably slow for larger draws.
+    node_rows = session.execute(
+        select(
+            TournamentForecastNode.id,
+            TournamentForecastNode.round,
+            TournamentForecastNode.draw_position,
+            TournamentForecastNode.player_a_id,
+            TournamentForecastNode.player_b_id,
+            TournamentForecastNode.source_match_id,
+            TournamentForecastNode.node_type,
+            TournamentForecastNode.prediction_a,
+        ).where(TournamentForecastNode.forecast_run_id == run.id)
+    ).all()
 
-    # Load actual matches for completed/winner info.
-    match_ids = [n.source_match_id for n in nodes if n.source_match_id]
-    matches_by_id: dict[int, Match] = {}
+    # Load actual matches for completed/winner info (again, only the fields we use).
+    match_ids = [int(row.source_match_id) for row in node_rows if row.source_match_id]
+    matches_by_id: dict[int, dict[str, Any]] = {}
     if match_ids:
-        for m in session.query(Match).filter(Match.id.in_(match_ids)).all():
-            matches_by_id[m.id] = m
+        for m in session.execute(
+            select(Match.id, Match.status, Match.winner_id, Match.prediction_a).where(Match.id.in_(match_ids))
+        ):
+            matches_by_id[int(m.id)] = {
+                "status": m.status,
+                "winner_id": m.winner_id,
+                "prediction_a": m.prediction_a,
+            }
 
     # Group nodes by slot.
-    nodes_by_slot: dict[tuple[str, int], list[TournamentForecastNode]] = defaultdict(list)
-    for n in nodes:
-        nodes_by_slot[(n.round, int(n.draw_position))].append(n)
+    nodes_by_slot: dict[tuple[str, int], list[Any]] = defaultdict(list)
+    for row in node_rows:
+        nodes_by_slot[(row.round, int(row.draw_position))].append(row)
 
     # Winner (reach-next-round) probability mass per slot, keyed by *path*.
     #
@@ -799,12 +815,12 @@ def compute_probabilities(session: Session, *, edition_id: int) -> dict[str, Any
                 None,
             )
             if actual_node is not None:
-                m = matches_by_id.get(actual_node.source_match_id)
-                if m is not None and m.status in get_status_group("historical_default") and m.winner_id:
-                    entrant_mass[slot] = {(int(m.winner_id), int(actual_node.id)): 1.0}
+                m = matches_by_id.get(int(actual_node.source_match_id))
+                if m is not None and m["status"] in get_status_group("historical_default") and m["winner_id"]:
+                    entrant_mass[slot] = {(int(m["winner_id"]), int(actual_node.id)): 1.0}
                 else:
                     pa = float(
-                        m.prediction_a if m is not None and m.prediction_a is not None
+                        m["prediction_a"] if m is not None and m["prediction_a"] is not None
                         else actual_node.prediction_a or 0.5
                     )
                     entrant_mass[slot] = {
