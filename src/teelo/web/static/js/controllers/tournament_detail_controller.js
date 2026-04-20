@@ -2,6 +2,7 @@ import { byId, queryAll, setSectionLoading, toggleHidden } from '../lib/dom.js';
 import { getJson } from '../lib/http.js';
 import { escapeHtml, slugifyName } from '../lib/format.js';
 import { hydrateMatchTimes } from '../lib/time.js';
+import { enableMatchRowNavigation } from '../lib/match_row_nav.js';
 import { buildFallbackCards, buildFallbackTableRows } from '../renderers/matches.js';
 import { renderBracket } from '../renderers/bracket.js';
 
@@ -444,5 +445,6 @@ export function initTournamentDetailPage() {
   setActiveTab('matches');
   loadMatches();
   loadEditions();
+  enableMatchRowNavigation();
   window.lucide?.createIcons?.();
 }

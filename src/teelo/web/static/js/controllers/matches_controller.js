@@ -1,6 +1,7 @@
 import { byId, queryAll } from '../lib/dom.js';
 import { getJson } from '../lib/http.js';
 import { MULTI_VALUE_FILTERS, removeByKey, toggleValue } from '../lib/filters.js';
+import { enableMatchRowNavigation } from '../lib/match_row_nav.js';
 import { createMatchesState, hydrateFromUrl, toApiQuery, toUrlQuery } from '../state/matches_state.js';
 import { renderMatchesView, renderSummaryTags } from '../renderers/matches.js';
 
@@ -425,28 +426,9 @@ export function initMatchesPage() {
   renderSummaryTags(els, summaryTags(), removeFilter);
   fetchMatches(false);
 
-    // Match row click-to-detail navigation
-    function handleMatchRowClick(e) {
-        // Don't navigate if user clicked a link or betting input inside the row
-        if (e.target.closest('a') || e.target.closest('.betting-odds-input')) return;
-        const row = e.target.closest('[data-match-url]');
-        if (row) {
-            window.location.href = row.dataset.matchUrl;
-        }
-    }
-    function handleMatchRowKeydown(e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            const row = e.target.closest('[data-match-url]');
-            if (row) {
-                window.location.href = row.dataset.matchUrl;
-            }
-        }
-    }
     const matchesWrapper = document.getElementById('matches-results-wrapper');
     if (matchesWrapper) {
-        matchesWrapper.addEventListener('click', handleMatchRowClick);
-        matchesWrapper.addEventListener('keydown', handleMatchRowKeydown);
+        enableMatchRowNavigation(matchesWrapper);
 
         // Betting odds input — EV calculation and localStorage persistence
         matchesWrapper.addEventListener('input', (e) => {

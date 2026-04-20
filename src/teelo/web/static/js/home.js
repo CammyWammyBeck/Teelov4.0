@@ -1,6 +1,7 @@
 import { byId, toggleHidden } from './lib/dom.js';
 import { getJson } from './lib/http.js';
 import { hydrateMatchTimes } from './lib/time.js';
+import { enableMatchRowNavigation } from './lib/match_row_nav.js';
 import { buildFallbackCards, buildFallbackTableRows } from './renderers/matches.js';
 
 function statValue(value) {
@@ -346,18 +347,7 @@ export async function initHomePage() {
   // Equalize after all sections are rendered and laid out
   requestAnimationFrame(() => equalizeBlogHeight());
 
-  // Click-to-detail navigation for match rows
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('a')) return;
-    const row = e.target.closest('[data-match-url]');
-    if (row) window.location.href = row.dataset.matchUrl;
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      const row = e.target.closest('[data-match-url]');
-      if (row) { e.preventDefault(); window.location.href = row.dataset.matchUrl; }
-    }
-  });
+  enableMatchRowNavigation();
 }
 
 document.addEventListener('DOMContentLoaded', initHomePage);
