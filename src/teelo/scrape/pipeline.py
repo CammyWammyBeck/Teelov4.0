@@ -597,11 +597,13 @@ async def _execute_current_task(
                     results_ingest_start = perf_counter()
                     stats = ingest_results(session, matches, edition, identity_service)
                     results_ingest_stats = stats  # captured for inline ELO update below
+                    session.commit()
                     results_ingest_elapsed = perf_counter() - results_ingest_start
                     timings["phases"]["results"]["ingest"] += results_ingest_elapsed
                     timings["ingestion"] += results_ingest_elapsed
                     results["results"] = stats.summary()
                     _write_checkpoint_fingerprint(session, results_key, results_fp, len(matches))
+                    session.commit()
                     if verbose:
                         print(f"  Results: {results['results']}")
 
@@ -617,6 +619,7 @@ async def _execute_current_task(
         # This runs unconditionally (outside the results scrape gate) so it fires
         # even when fast_mode skips results re-ingestion for completed tournaments.
         cancelled = cancel_stale_pending_matches(session, edition)
+        session.commit()
         if cancelled > 0:
             results["cancelled_stale"] = f"Cancelled {cancelled} stale pending matches"
             if verbose:
