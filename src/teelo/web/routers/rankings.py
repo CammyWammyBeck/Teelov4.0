@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from teelo.web.services import legacy_main_handlers as legacy
+from teelo.web.services import main_handlers as handlers
 
 router = APIRouter()
-router.add_api_route('/rankings', legacy.rankings_page, methods=['GET'], response_class=legacy.HTMLResponse)
-router.add_api_route('/api/rankings', legacy.api_rankings, methods=['GET'])
+router.add_api_route('/rankings', handlers.rankings_page, methods=['GET'], response_class=handlers.HTMLResponse)
+router.add_api_route('/api/rankings', handlers.api_rankings, methods=['GET'])

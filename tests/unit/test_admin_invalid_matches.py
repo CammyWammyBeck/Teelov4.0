@@ -1,5 +1,5 @@
 from teelo.db.models import Match
-from teelo.web.services.legacy_main_handlers import _invalid_match_reasons
+from teelo.web.services.main_handlers import _invalid_match_reasons
 
 
 def _match(**overrides):

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from teelo.web.services import legacy_main_handlers as legacy
+from teelo.web.services import main_handlers as handlers
 
 router = APIRouter()
-router.add_api_route('/blog', legacy.blog_list, methods=['GET'], response_class=legacy.HTMLResponse)
-router.add_api_route('/blog/{slug}', legacy.blog_detail, methods=['GET'], response_class=legacy.HTMLResponse)
+router.add_api_route('/blog', handlers.blog_list, methods=['GET'], response_class=handlers.HTMLResponse)
+router.add_api_route('/blog/{slug}', handlers.blog_detail, methods=['GET'], response_class=handlers.HTMLResponse)
