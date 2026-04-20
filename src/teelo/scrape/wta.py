@@ -682,11 +682,8 @@ class WTAScraper(BaseScraper):
             if "tennis-match__" in classes:
                 continue
 
-            # Filter: only singles (-LS), skip doubles (-LD)
-            if "-LD" in classes:
-                continue
-            if "-LS" not in classes:
-                # If neither -LS nor -LD, skip (shouldn't happen but be safe)
+            # Filter: skip doubles (-LD, -RD), accept any singles (-LS main draw, -RS qualifying)
+            if "-LD" in classes or "-RD" in classes:
                 continue
 
             # Extract round from tennis-match__round div
@@ -1567,7 +1564,7 @@ class WTAScraper(BaseScraper):
             def _is_tennis_match_wrapper(c):
                 if not c:
                     return False
-                return "tennis-match" in c and "tennis-match__" not in " ".join(c)
+                return "tennis-match" in c and "tennis-match__" not in c
 
             outer = table.find_parent("div", class_=_is_tennis_match_wrapper)
             if outer is not None:

@@ -204,6 +204,41 @@ def test_parse_match_table_accepts_finished_outer_status_without_winner_class():
     assert match.score_raw == "4-6 2-6"
 
 
+def test_parse_match_table_accepts_finished_with_intermediate_tennis_match_wrapper():
+    # Regression for _is_tennis_match_wrapper bug: ' '.join(c) was joining
+    # characters of the class string rather than a list, so 'tennis-match__'
+    # was never found in the joined output. This caused tennis-match__container
+    # (and similar inner divs) to match the predicate, so find_parent latched
+    # onto the wrong ancestor instead of the outer div.tennis-match[data-status="F"].
+    match = _parse_single_table(
+        """
+        <div class="tennis-match" data-status="F">
+          <div class="tennis-match__container js-match-container">
+            <table class="match-table js-match-status">
+              <tr class="match-table__row">
+                <td class="match-table__player-cell">
+                  <a class="match-table__player--link" href="/players/100001/player-a">Player A</a>
+                </td>
+                <td class="match-table__score-cell">3</td>
+                <td class="match-table__score-cell">4</td>
+              </tr>
+              <tr class="match-table__row">
+                <td class="match-table__player-cell">
+                  <a class="match-table__player--link" href="/players/100002/player-b">Player B</a>
+                </td>
+                <td class="match-table__score-cell is-winner">6</td>
+                <td class="match-table__score-cell is-winner">6</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        """
+    )
+    assert match is not None
+    assert match.winner_name == "Player B"
+    assert match.score_raw == "3-6 4-6"
+
+
 def test_parse_draw_entry_marks_explicit_bye_as_bye():
     entry = _parse_single_draw_table(
         """

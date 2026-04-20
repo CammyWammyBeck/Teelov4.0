@@ -287,8 +287,13 @@ class ITFScraper(BaseScraper):
         """Click "More Matches" button repeatedly to load all tournaments."""
         consecutive_failures = 0
         total_clicks = 0
+        max_clicks = 50
 
         while consecutive_failures < 3:
+            if total_clicks >= max_clicks:
+                print(f"  WARNING: reached max click limit ({max_clicks}), stopping pagination")
+                break
+
             try:
                 more_button = await page.wait_for_selector(
                     self.MORE_MATCHES_XPATH, timeout=4000
@@ -297,13 +302,25 @@ class ITFScraper(BaseScraper):
                     consecutive_failures += 1
                     continue
 
+                rows_before = await page.eval_on_selector_all(
+                    "a[href*='/tournament/']", "els => els.length"
+                )
+
                 await more_button.click()
                 total_clicks += 1
-                consecutive_failures = 0
                 try:
                     await page.wait_for_load_state("networkidle", timeout=4000)
                 except PlaywrightTimeout:
                     pass
+
+                rows_after = await page.eval_on_selector_all(
+                    "a[href*='/tournament/']", "els => els.length"
+                )
+
+                if rows_after <= rows_before:
+                    consecutive_failures += 1
+                else:
+                    consecutive_failures = 0
 
                 if total_clicks % 10 == 0:
                     print(f"  Clicked 'More Matches' {total_clicks} times...")
