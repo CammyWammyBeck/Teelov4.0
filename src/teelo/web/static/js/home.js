@@ -2,7 +2,6 @@ import { byId, toggleHidden } from './lib/dom.js';
 import { getJson } from './lib/http.js';
 import { hydrateMatchTimes } from './lib/time.js';
 import { enableMatchRowNavigation } from './lib/match_row_nav.js';
-import { buildFallbackCards, buildFallbackTableRows } from './renderers/matches.js';
 
 function statValue(value) {
   const numeric = Number(value ?? 0);
@@ -41,16 +40,8 @@ function renderSection(prefix, sectionData) {
   const cardsHtml = (sectionData.cards_html || '').trim();
   const hasMatches = matches.length > 0 || tableRowsHtml.length > 0 || cardsHtml.length > 0;
 
-  if (tableBodyEl) {
-    tableBodyEl.innerHTML = hasMatches
-      ? (tableRowsHtml || buildFallbackTableRows(matches))
-      : '';
-  }
-  if (cardsEl) {
-    cardsEl.innerHTML = hasMatches
-      ? (cardsHtml || buildFallbackCards(matches))
-      : '';
-  }
+  if (tableBodyEl) tableBodyEl.innerHTML = hasMatches ? tableRowsHtml : '';
+  if (cardsEl) cardsEl.innerHTML = hasMatches ? cardsHtml : '';
 
   if (tableBodyEl) hydrateMatchTimes(tableBodyEl);
   if (cardsEl) hydrateMatchTimes(cardsEl);

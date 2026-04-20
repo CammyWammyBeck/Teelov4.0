@@ -6,15 +6,14 @@ import { createMatchesState, hydrateFromUrl, toApiQuery, toUrlQuery } from '../s
 import { renderMatchesView, renderSummaryTags } from '../renderers/matches.js';
 
 function toggleBettingColumns(enabled) {
-  document.querySelectorAll('.betting-col, .betting-section').forEach(el => {
+  queryAll('.betting-col, .betting-section').forEach(el => {
     el.classList.toggle('hidden', !enabled);
   });
-  const bettingTh = document.getElementById('betting-th');
-  if (bettingTh) bettingTh.classList.toggle('hidden', !enabled);
+  byId('betting-th')?.classList.toggle('hidden', !enabled);
 }
 
 function updateEv(matchId, player, odds) {
-  document.querySelectorAll(`[data-match-id="${matchId}"][data-ev-player="${player}"]`).forEach(evEl => {
+  queryAll(`[data-match-id="${matchId}"][data-ev-player="${player}"]`).forEach(evEl => {
     const input = evEl.closest('[data-prediction-a]') || evEl.closest('tr[data-prediction-a]') || evEl.closest('div[data-prediction-a]');
     if (!input) { evEl.textContent = ''; return; }
 
@@ -40,7 +39,7 @@ function restoreBettingOdds() {
     const parts = key.split('_');
     const player = parts.pop();
     const matchId = parts.join('_');
-    document.querySelectorAll(`.betting-odds-input[data-match-id="${matchId}"][data-player="${player}"]`).forEach(input => {
+    queryAll(`.betting-odds-input[data-match-id="${matchId}"][data-player="${player}"]`).forEach(input => {
       input.value = odds;
     });
     updateEv(matchId, player, odds);
@@ -161,9 +160,8 @@ export function initMatchesPage() {
     } catch (e) {
       if (e.name === 'AbortError') return; // superseded by newer request
       console.error(e);
-      const skeleton = document.getElementById('skeleton-loading');
-      if (skeleton) skeleton.classList.add('hidden');
-      const errorState = document.getElementById('error-state');
+      byId('skeleton-loading')?.classList.add('hidden');
+      const errorState = byId('error-state');
       if (errorState) {
         errorState.classList.remove('hidden');
         els.emptyState.classList.add('hidden');
@@ -333,7 +331,7 @@ export function initMatchesPage() {
           `<div class="autocomplete-item px-3 py-2 text-sm cursor-pointer hover:bg-surface-hover" data-id="${p.id}" data-name="${p.name}">${p.name}${p.nationality ? ` <span class="text-content-faint text-xs">(${p.nationality})</span>` : ''}</div>`
         ).join('');
         dropdownEl.classList.remove('hidden');
-        dropdownEl.querySelectorAll('.autocomplete-item').forEach(item => {
+        queryAll('.autocomplete-item', dropdownEl).forEach(item => {
           item.addEventListener('click', () => {
             state[stateKey] = Number(item.dataset.id);
             inputEl.value = item.dataset.name;
@@ -418,35 +416,34 @@ export function initMatchesPage() {
   if (els.scrollSentinel) io.observe(els.scrollSentinel);
 
   // Wire retry button in error state
-  document.getElementById('retry-btn')?.addEventListener('click', () => {
-    document.getElementById('error-state')?.classList.add('hidden');
+  byId('retry-btn')?.addEventListener('click', () => {
+    byId('error-state')?.classList.add('hidden');
     fetchMatches(false);
   });
 
   renderSummaryTags(els, summaryTags(), removeFilter);
   fetchMatches(false);
 
-    const matchesWrapper = document.getElementById('matches-results-wrapper');
-    if (matchesWrapper) {
-        enableMatchRowNavigation(matchesWrapper);
+  if (els.matchesWrapper) {
+    enableMatchRowNavigation(els.matchesWrapper);
 
-        // Betting odds input — EV calculation and localStorage persistence
-        matchesWrapper.addEventListener('input', (e) => {
-            if (!e.target.classList.contains('betting-odds-input')) return;
-            const input = e.target;
-            const matchId = input.dataset.matchId;
-            const player = input.dataset.player;
-            const odds = parseFloat(input.value);
+    // Betting odds input — EV calculation and localStorage persistence
+    els.matchesWrapper.addEventListener('input', (e) => {
+      if (!e.target.classList.contains('betting-odds-input')) return;
+      const input = e.target;
+      const matchId = input.dataset.matchId;
+      const player = input.dataset.player;
+      const odds = parseFloat(input.value);
 
-            const saved = JSON.parse(localStorage.getItem('teelo_betting_odds') || '{}');
-            if (odds && odds >= 1) {
-                saved[`${matchId}_${player}`] = odds;
-            } else {
-                delete saved[`${matchId}_${player}`];
-            }
-            localStorage.setItem('teelo_betting_odds', JSON.stringify(saved));
+      const saved = JSON.parse(localStorage.getItem('teelo_betting_odds') || '{}');
+      if (odds && odds >= 1) {
+        saved[`${matchId}_${player}`] = odds;
+      } else {
+        delete saved[`${matchId}_${player}`];
+      }
+      localStorage.setItem('teelo_betting_odds', JSON.stringify(saved));
 
-            updateEv(matchId, player, odds);
-        });
-    }
+      updateEv(matchId, player, odds);
+    });
+  }
 }

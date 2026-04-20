@@ -3,7 +3,6 @@ import { getJson } from '../lib/http.js';
 import { escapeHtml, formatShortDate, slugifyName } from '../lib/format.js';
 import { hydrateMatchTimes } from '../lib/time.js';
 import { enableMatchRowNavigation } from '../lib/match_row_nav.js';
-import { buildFallbackCards, buildFallbackTableRows } from '../renderers/matches.js';
 
 export function initPlayerDetailPage() {
   const root = byId('player-page-root');
@@ -271,12 +270,8 @@ export function initPlayerDetailPage() {
       countEl.textContent = `${total} match${total === 1 ? '' : 'es'}`;
     }
 
-    let tableHtml = data?.table_rows_html || '';
-    let cardHtml = data?.cards_html || '';
-    if (matches.length && (!tableHtml.trim() || !cardHtml.trim())) {
-      if (!tableHtml.trim()) tableHtml = buildFallbackTableRows(matches);
-      if (!cardHtml.trim()) cardHtml = buildFallbackCards(matches);
-    }
+    const tableHtml = data?.table_rows_html || '';
+    const cardHtml = data?.cards_html || '';
 
     if (append) {
       tableBody.insertAdjacentHTML('beforeend', tableHtml);

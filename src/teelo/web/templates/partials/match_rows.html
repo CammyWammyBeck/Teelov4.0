@@ -63,7 +63,7 @@
             {% if m.player_a.nationality_ioc is defined and m.player_a.nationality_ioc %}
             <span class="text-[9px] text-content-faint font-medium flex-shrink-0 w-6 text-center">{{ m.player_a.nationality_ioc }}</span>
             {% endif %}
-            <a href="{{ player_a_url }}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_a else ('text-content-faint' if has_winner else 'text-teelo-dark font-medium') }}" onclick="event.stopPropagation()">{{ m.player_a.name }}</a>
+            <a href="{{ player_a_url }}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_a else ('text-content-faint' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_a.name }}</a>
             {{ elo_compact(m.player_a) }}
         </div>
         <div class="flex items-center flex-shrink-0">
@@ -97,7 +97,7 @@
             {% if m.player_b.nationality_ioc is defined and m.player_b.nationality_ioc %}
             <span class="text-[9px] text-content-faint font-medium flex-shrink-0 w-6 text-center">{{ m.player_b.nationality_ioc }}</span>
             {% endif %}
-            <a href="{{ player_b_url }}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_b else ('text-content-faint' if has_winner else 'text-teelo-dark font-medium') }}" onclick="event.stopPropagation()">{{ m.player_b.name }}</a>
+            <a href="{{ player_b_url }}" class="text-[11px] truncate hover:underline decoration-teelo-lime decoration-2 {{ 'font-bold text-teelo-dark' if is_winner_b else ('text-content-faint' if has_winner else 'text-teelo-dark font-medium') }}">{{ m.player_b.name }}</a>
             {{ elo_compact(m.player_b) }}
         </div>
         <div class="flex items-center flex-shrink-0">
@@ -137,7 +137,7 @@
 {% set pred_b = (1 - pred_a) if pred_a is not none else none %}
 {% set pred_a_pct = (pred_a * 100) | round(0) | int if pred_a is not none else none %}
 {% set pred_b_pct = (100 - pred_a_pct) if pred_a_pct is not none else none %}
-<tr class="hover:bg-surface-hover/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime cursor-pointer" data-match-url="{{ m.match_url if m.match_url is defined else '/matches/' ~ m.id }}" role="link" tabindex="0">
+<tr class="hover:bg-surface-hover/50 transition-colors duration-75 group border-l-4 border-transparent hover:border-teelo-lime cursor-pointer" data-match-url="{{ m.match_url if m.match_url is defined else '/matches/' ~ m.id }}">
     {% if m.player_result is defined and m.player_result %}
     <td class="pl-5 pr-2 py-3 w-8">
         <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold leading-none {% if m.player_result == 'W' %}bg-teelo-lime text-teelo-dark{% else %}bg-[var(--status-danger-bg)] text-status-danger{% endif %}">
@@ -150,7 +150,7 @@
             <span class="{{ circuit_bg(m.tour, m.tournament_level) }} text-content-inverse text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ circuit_label(m.tour, m.tournament_level) }}</span>
             <div class="min-w-0">
                 {% if m.tournament_url %}
-                <a href="{{ m.tournament_url }}" class="text-sm font-semibold text-teelo-dark truncate block hover:underline decoration-teelo-lime decoration-2" title="{{ m.tournament_name or 'Unknown' }}" onclick="event.stopPropagation()">{{ m.tournament_name or 'Unknown' }}</a>
+                <a href="{{ m.tournament_url }}" class="text-sm font-semibold text-teelo-dark truncate block hover:underline decoration-teelo-lime decoration-2" title="{{ m.tournament_name or 'Unknown' }}">{{ m.tournament_name or 'Unknown' }}</a>
                 {% else %}
                 <span class="text-sm font-semibold text-teelo-dark truncate block" title="{{ m.tournament_name or 'Unknown' }}">{{ m.tournament_name or 'Unknown' }}</span>
                 {% endif %}
@@ -183,7 +183,7 @@
         {% endif %}
     </td>
     <td class="pr-3 py-3 w-8">
-        <a href="{{ m.match_url if m.match_url is defined else '/matches/' ~ m.id }}" class="text-content-faintest group-hover:text-teelo-lime transition-colors" onclick="event.stopPropagation()" aria-label="View match details">
+        <a href="{{ m.match_url if m.match_url is defined else '/matches/' ~ m.id }}" class="text-content-faintest group-hover:text-teelo-lime transition-colors" aria-label="View match details">
             <i data-lucide="chevron-right" class="w-4 h-4"></i>
         </a>
     </td>
@@ -202,16 +202,16 @@
 {% set pred_b = (1 - pred_a) if pred_a is not none else none %}
 {% set pred_a_pct = (pred_a * 100) | round(0) | int if pred_a is not none else none %}
 {% set pred_b_pct = (100 - pred_a_pct) if pred_a_pct is not none else none %}
-<div class="px-4 py-3 border-b border-line-subtle last:border-b-0 cursor-pointer hover:bg-surface-hover/50 transition-colors" data-match-url="{{ m.match_url if m.match_url is defined else '/matches/' ~ m.id }}" role="link" tabindex="0">
+<div class="px-4 py-3 border-b border-line-subtle last:border-b-0 cursor-pointer hover:bg-surface-hover/50 transition-colors" data-match-url="{{ m.match_url if m.match_url is defined else '/matches/' ~ m.id }}">
     {# Tournament header — badge + name get full width #}
     <div class="flex items-center gap-2 mb-0.5">
         <span class="{{ circuit_bg(m.tour, m.tournament_level) }} text-content-inverse text-[10px] px-1.5 py-0.5 rounded font-bold tracking-tight flex-shrink-0">{{ circuit_label(m.tour, m.tournament_level) }}</span>
         {% if m.tournament_url %}
-        <a href="{{ m.tournament_url }}" class="text-[13px] font-semibold text-teelo-dark truncate hover:underline decoration-teelo-lime decoration-2" onclick="event.stopPropagation()">{{ m.tournament_name or 'Unknown' }}</a>
+        <a href="{{ m.tournament_url }}" class="text-[13px] font-semibold text-teelo-dark truncate hover:underline decoration-teelo-lime decoration-2">{{ m.tournament_name or 'Unknown' }}</a>
         {% else %}
         <span class="text-[13px] font-semibold text-teelo-dark truncate">{{ m.tournament_name or 'Unknown' }}</span>
         {% endif %}
-        <a href="{{ m.match_url if m.match_url is defined else '/matches/' ~ m.id }}" class="ml-auto text-content-faintest flex-shrink-0" onclick="event.stopPropagation()" aria-label="View match details">
+        <a href="{{ m.match_url if m.match_url is defined else '/matches/' ~ m.id }}" class="ml-auto text-content-faintest flex-shrink-0" aria-label="View match details">
             <i data-lucide="chevron-right" class="w-4 h-4"></i>
         </a>
     </div>

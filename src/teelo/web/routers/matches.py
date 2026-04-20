@@ -99,7 +99,16 @@ async def api_matches(db: Session = Depends(get_db), tour: Optional[str] = Query
     matches = rows[:per_page] if has_more else rows
     payload = [serialize_match(m) for m in matches]
     total = None if has_more else offset + len(matches)
-    return JSONResponse({"matches": payload, "total": total, "page": page, "per_page": per_page, "has_more": has_more})
+    match_rows_module = templates.get_template("partials/match_rows.html").module
+    return JSONResponse({
+        "matches": payload,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "has_more": has_more,
+        "table_rows_html": match_rows_module.render_table_rows(payload),
+        "cards_html": match_rows_module.render_cards(payload),
+    })
 
 
 @router.get('/api/players/search')

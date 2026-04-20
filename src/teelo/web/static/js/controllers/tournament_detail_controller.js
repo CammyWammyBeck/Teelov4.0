@@ -3,7 +3,6 @@ import { getJson } from '../lib/http.js';
 import { escapeHtml, slugifyName } from '../lib/format.js';
 import { hydrateMatchTimes } from '../lib/time.js';
 import { enableMatchRowNavigation } from '../lib/match_row_nav.js';
-import { buildFallbackCards, buildFallbackTableRows } from '../renderers/matches.js';
 import { renderBracket } from '../renderers/bracket.js';
 
 const TAB_ACTIVE_CLASSES = ['border-b-2', 'border-teelo-lime', 'text-teelo-dark', 'font-semibold'];
@@ -98,13 +97,8 @@ export function initTournamentDetailPage() {
       emptyState.classList.remove('hidden');
     } else {
       emptyState.classList.add('hidden');
-      let tableHtml = data?.table_rows_html || '';
-      let cardHtml = data?.cards_html || '';
-      if (!tableHtml.trim()) tableHtml = buildFallbackTableRows(matches);
-      if (!cardHtml.trim()) cardHtml = buildFallbackCards(matches);
-
-      tableBody.innerHTML = tableHtml;
-      cardsContainer.innerHTML = cardHtml;
+      tableBody.innerHTML = data?.table_rows_html || '';
+      cardsContainer.innerHTML = data?.cards_html || '';
     }
 
     if (!showPagination) {

@@ -1,9 +1,6 @@
-const cache = new Map();
-
 export function byId(id) {
   if (!id) return null;
-  if (!cache.has(id)) cache.set(id, document.getElementById(id));
-  return cache.get(id);
+  return document.getElementById(id);
 }
 
 export function query(selector, root = document) {
@@ -22,8 +19,4 @@ export function toggleHidden(el, hidden) {
 export function setSectionLoading(spinnerId, contentIds, isLoading) {
   toggleHidden(byId(spinnerId), !isLoading);
   contentIds.forEach((id) => toggleHidden(byId(id), isLoading));
-}
-
-export function clearDomCache() {
-  cache.clear();
 }
