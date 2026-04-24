@@ -52,7 +52,7 @@ def load_forecast_model(
         metadata = json.load(handle)
 
     feature_names = list(metadata.get("feature_names", []))
-    model_version = str(metadata.get("created_at") or path.name)
+    model_version = path.name
     return ForecastModel(
         model=model,
         feature_names=feature_names,

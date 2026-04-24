@@ -329,6 +329,8 @@ class ModelTrainer:
         min_year = int(years.min())
         max_year = int(years.max())
         metadata = {
+            "model_artifact": output.name,
+            "feature_set_name": self.feature_set_name,
             "feature_names": self.feature_names,
             "params": params,
             "cv_scores": self.cv_scores,

@@ -94,6 +94,7 @@ teelo retrain
 
 - `docs/feature-reference.md`: complete ML feature catalog and feature semantics.
 - `docs/elo-operations.md`: ELO tuning, activation, and live-state rebuild operations.
+- `docs/prediction-explainability.md`: per-match prediction explanations stored on `Match.prediction_explanation`.
 - `docs/server-setup-arch.md`: Arch server setup for headless scraper/backfill workers.
 - `docs/server-setup-docker.md`: Docker-based server setup and update flow.
 - `src/teelo/web/README.md`: module boundaries and ownership rules for the web layer.

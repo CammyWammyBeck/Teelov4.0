@@ -122,6 +122,66 @@
         {% endif %}
     </div>
 
+    {# ── Key Factors (per-feature attribution) ── #}
+    {% if prediction_explanation and prediction_explanation.paired_rows %}
+    {% set drivers_for_a = prediction_explanation.paired_rows | selectattr('pp', '>', 0) | list %}
+    {% set drivers_for_b = prediction_explanation.paired_rows | selectattr('pp', '<', 0) | list %}
+    <div class="bg-surface rounded-2xl shadow-soft border border-line-subtle p-5 md:p-6 mb-6">
+        <div class="flex items-baseline justify-between mb-4">
+            <h2 class="text-lg font-bold text-teelo-dark">Key Factors</h2>
+            <span class="text-[11px] uppercase tracking-wider text-content-faintest">Contribution to predicted probability</span>
+        </div>
+        <div class="grid md:grid-cols-2 gap-6">
+            <div>
+                <div class="text-xs uppercase tracking-wider text-content-faint mb-2">Toward {{ match.player_a.name.split(' ')[-1] }}</div>
+                {% if drivers_for_a %}
+                <ul class="space-y-1.5">
+                    {% for r in drivers_for_a[:8] %}
+                    <li class="flex items-center justify-between text-sm">
+                        <span class="text-content-muted">{{ r.display_name }}</span>
+                        <span class="font-mono font-semibold text-status-success">+{{ '%.1f' % r.pp }}pp</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-xs text-content-faintest">No features favor this side.</p>
+                {% endif %}
+            </div>
+            <div>
+                <div class="text-xs uppercase tracking-wider text-content-faint mb-2">Toward {{ match.player_b.name.split(' ')[-1] }}</div>
+                {% if drivers_for_b %}
+                <ul class="space-y-1.5">
+                    {% for r in drivers_for_b[:8] %}
+                    <li class="flex items-center justify-between text-sm">
+                        <span class="text-content-muted">{{ r.display_name }}</span>
+                        <span class="font-mono font-semibold text-status-danger">{{ '%.1f' % r.pp }}pp</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-xs text-content-faintest">No features favor this side.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% if prediction_explanation.groups %}
+        <details class="mt-5 border-t border-line-subtle pt-3">
+            <summary class="cursor-pointer text-xs uppercase tracking-wider text-content-faint">Group totals</summary>
+            <ul class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                {% for g in prediction_explanation.groups %}
+                <li class="flex items-center justify-between">
+                    <span class="text-content-muted">{{ g.display_name }}</span>
+                    <span class="font-mono {% if g.pp > 0 %}text-status-success{% elif g.pp < 0 %}text-status-danger{% else %}text-content-faint{% endif %}">{{ '%+.1f' % g.pp }}pp</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+        <p class="mt-4 text-[11px] text-content-faintest leading-relaxed">
+            Contributions are model attributions, not causal effects. Values sum to the predicted probability's distance from 50%.
+        </p>
+    </div>
+    {% endif %}
+
     {# ── Feature Comparison ── #}
     {% if feature_groups %}
     <div class="space-y-4">
@@ -143,19 +203,30 @@
                     </thead>
                     <tbody class="divide-y divide-line-subtle/50">
                         {% for row in group.rows %}
+                        {% set row_pp = row_pp_lookup.get(row.key) %}
                         {% if row.type == 'paired' %}
                         {% set va = row.value_a %}
                         {% set vb = row.value_b %}
                         {% set a_better = va is not none and vb is not none and va > vb %}
                         {% set b_better = va is not none and vb is not none and vb > va %}
                         <tr class="hover:bg-surface-hover/30">
-                            <td class="px-5 py-2 text-content-muted">{{ row.display_name }}</td>
+                            <td class="px-5 py-2 text-content-muted">
+                                <span>{{ row.display_name }}</span>
+                                {% if row_pp is not none %}
+                                <span class="ml-2 inline-block font-mono text-[11px] {% if row_pp > 0 %}text-status-success{% elif row_pp < 0 %}text-status-danger{% else %}text-content-faintest{% endif %}">{{ '%+.1f' % row_pp }}pp</span>
+                                {% endif %}
+                            </td>
                             <td class="px-5 py-2 text-right font-medium {% if not group.neutral %}{{ 'text-status-success' if a_better else ('text-status-danger' if b_better else '') }}{% endif %}">{{ format_value(va, row.key + '_a') }}</td>
                             <td class="px-5 py-2 text-right font-medium {% if not group.neutral %}{{ 'text-status-success' if b_better else ('text-status-danger' if a_better else '') }}{% endif %}">{{ format_value(vb, row.key + '_b') }}</td>
                         </tr>
                         {% else %}
                         <tr class="hover:bg-surface-hover/30">
-                            <td class="px-5 py-2 text-content-muted">{{ row.display_name }}</td>
+                            <td class="px-5 py-2 text-content-muted">
+                                <span>{{ row.display_name }}</span>
+                                {% if row_pp is not none %}
+                                <span class="ml-2 inline-block font-mono text-[11px] {% if row_pp > 0 %}text-status-success{% elif row_pp < 0 %}text-status-danger{% else %}text-content-faintest{% endif %}">{{ '%+.1f' % row_pp }}pp</span>
+                                {% endif %}
+                            </td>
                             <td class="px-5 py-2 text-right font-medium text-content-muted" colspan="2">{{ format_value(row.value, row.key) }}</td>
                         </tr>
                         {% endif %}

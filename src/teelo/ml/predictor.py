@@ -13,6 +13,8 @@ from sqlalchemy import bindparam, select, true, update
 
 from teelo.db.models import FeatureSet, Match, MatchFeatures
 from teelo.db.session import get_session
+from teelo.features import build_registry, default_preset_for_feature_set
+from teelo.ml.explanations import build_explanations_batch
 from teelo.ml.randomize import swap_ab_features
 from teelo.ml.versioning import latest_feature_set, latest_model_path
 from teelo.storage import download_model
@@ -45,16 +47,24 @@ class BatchPredictor:
 
         model = xgb.XGBClassifier()
         model.load_model(self.model_path)
+        booster = model.get_booster()
         metadata = self._load_metadata()
         feature_names = metadata.get("feature_names", [])
-        model_version = str(metadata.get("created_at") or Path(self.model_path).name)
+        model_artifact = Path(self.model_path).name
+        model_version = model_artifact
+        feature_set_name = metadata.get("feature_set_name") or self.feature_set_name
+        try:
+            preset = default_preset_for_feature_set(feature_set_name)
+            registry = build_registry(preset)
+        except Exception:
+            registry = None
 
         with get_session() as session:
             feature_set = session.execute(
-                select(FeatureSet).where(FeatureSet.name == self.feature_set_name)
+                select(FeatureSet).where(FeatureSet.name == feature_set_name)
             ).scalar_one_or_none()
             if feature_set is None:
-                raise ValueError(f"Feature set not found: {self.feature_set_name}")
+                raise ValueError(f"Feature set not found: {feature_set_name}")
 
             if self.backfill:
                 status_filter = Match.status.in_(("completed", "retired", "walkover", "default"))
@@ -84,6 +94,7 @@ class BatchPredictor:
                     prediction_model_version=bindparam("b_prediction_model_version"),
                     prediction_updated_at=bindparam("b_prediction_updated_at"),
                     prediction_source=bindparam("b_prediction_source"),
+                    prediction_explanation=bindparam("b_prediction_explanation"),
                 )
             )
 
@@ -93,14 +104,34 @@ class BatchPredictor:
                 chunk.append(row)
                 if len(chunk) >= CHUNK_SIZE:
                     total_predicted += self._predict_chunk(
-                        chunk, model, feature_names, model_version, source, update_stmt, session
+                        chunk,
+                        model,
+                        booster,
+                        feature_names,
+                        feature_set_name,
+                        model_artifact,
+                        model_version,
+                        source,
+                        registry,
+                        update_stmt,
+                        session,
                     )
                     logger.info("batch_predictor.progress", predicted=total_predicted)
                     chunk = []
 
             if chunk:
                 total_predicted += self._predict_chunk(
-                    chunk, model, feature_names, model_version, source, update_stmt, session
+                    chunk,
+                    model,
+                    booster,
+                    feature_names,
+                    feature_set_name,
+                    model_artifact,
+                    model_version,
+                    source,
+                    registry,
+                    update_stmt,
+                    session,
                 )
 
             if total_predicted == 0:
@@ -115,7 +146,20 @@ class BatchPredictor:
         )
         return total_predicted
 
-    def _predict_chunk(self, chunk, model, feature_names, model_version, source, update_stmt, session) -> int:
+    def _predict_chunk(
+        self,
+        chunk,
+        model,
+        booster,
+        feature_names,
+        feature_set_name,
+        model_artifact,
+        model_version,
+        source,
+        registry,
+        update_stmt,
+        session,
+    ) -> int:
         raw_features = [row.features or {} for row in chunk]
 
         # Original orientation: P(A wins)
@@ -132,6 +176,16 @@ class BatchPredictor:
         # Average: P(A wins) = mean of original and (1 - swapped)
         probs = (probs_orig + (1.0 - probs_swap)) / 2.0
 
+        explanations = build_explanations_batch(
+            booster=booster,
+            feature_names=list(feature_names),
+            feature_set_name=feature_set_name,
+            model_artifact=model_artifact,
+            features_list=raw_features,
+            predictions_a=[float(p) for p in probs],
+            registry=registry,
+        )
+
         now = datetime.utcnow()
         payloads = [
             {
@@ -140,8 +194,9 @@ class BatchPredictor:
                 "b_prediction_model_version": model_version,
                 "b_prediction_updated_at": now,
                 "b_prediction_source": source,
+                "b_prediction_explanation": explanation,
             }
-            for row, prob in zip(chunk, probs)
+            for row, prob, explanation in zip(chunk, probs, explanations)
         ]
         session.connection().execute(update_stmt, payloads)
         return len(chunk)

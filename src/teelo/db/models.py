@@ -618,6 +618,11 @@ class Match(Base):
     prediction_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     prediction_source: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
+    # Per-feature contribution breakdown for the stored prediction.
+    # Shape documented in docs/prediction-explainability.md. Populated by
+    # BatchPredictor alongside prediction_a; NULL for legacy predictions.
+    prediction_explanation: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
     # ==========================================================================
     # ELO snapshots and processing metadata
     # ==========================================================================

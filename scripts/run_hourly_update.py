@@ -287,12 +287,10 @@ def _run_metrics_snapshot_stage(ctx: StageContext) -> StageResult:
         from teelo.ml.versioning import latest_model_path
 
         model_path = latest_model_path()
-        meta_path = Path(f"{model_path}_meta.json")
-        model_version = Path(model_path).stem
-        if meta_path.exists():
-            with open(meta_path) as f:
-                meta = json.load(f)
-                model_version = meta.get("created_at", model_version)
+        # Predictions are now tagged with the artifact filename
+        # (e.g. "prediction_v17.json"); metrics snapshots must match that to
+        # group rows correctly.
+        model_version = Path(model_path).name
 
         for source in ("live", "backfill", "all"):
             compute_snapshot(model_version=model_version, source_filter=source)

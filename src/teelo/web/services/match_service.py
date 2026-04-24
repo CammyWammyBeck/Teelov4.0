@@ -5,8 +5,9 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import case, func
+from sqlalchemy.orm import Session, joinedload
 
-from teelo.db.models import Match
+from teelo.db.models import FeatureSet, Match, MatchFeatures
 
 
 _SLUG_NON_ALNUM_RE = re.compile(r"[^a-z0-9\u00C0-\u024F]+")
@@ -34,6 +35,44 @@ def completed_sort_expressions():
         Match.temporal_order.desc().nullslast(),
         Match.id.desc(),
     ]
+
+
+def select_match_features_for_view(
+    db: Session,
+    match_id: int,
+    prediction_explanation: Optional[dict],
+) -> Optional[MatchFeatures]:
+    """Return the MatchFeatures row that should drive the match detail view.
+
+    Preference order:
+      1. The feature set named in ``prediction_explanation.feature_set_name``.
+      2. The newest feature snapshot for the match (legacy predictions without
+         a stored explanation).
+    """
+    target_name = None
+    if prediction_explanation and isinstance(prediction_explanation, dict):
+        target_name = prediction_explanation.get("feature_set_name")
+
+    if target_name:
+        row = (
+            db.query(MatchFeatures)
+            .join(FeatureSet, FeatureSet.id == MatchFeatures.feature_set_id)
+            .options(joinedload(MatchFeatures.feature_set))
+            .filter(MatchFeatures.match_id == match_id)
+            .filter(FeatureSet.name == target_name)
+            .order_by(MatchFeatures.computed_at.desc())
+            .first()
+        )
+        if row is not None:
+            return row
+
+    return (
+        db.query(MatchFeatures)
+        .options(joinedload(MatchFeatures.feature_set))
+        .filter(MatchFeatures.match_id == match_id)
+        .order_by(MatchFeatures.computed_at.desc())
+        .first()
+    )
 
 
 def round_elo(value: Any) -> Optional[int]:

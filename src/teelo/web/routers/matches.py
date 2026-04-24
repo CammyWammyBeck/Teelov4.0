@@ -13,10 +13,12 @@ from teelo.match_statuses import normalize_status_filter, get_status_group
 from teelo.web.app_context import templates
 from teelo.web.services.feature_display import (
     build_feature_groups,
+    build_row_pp_lookup,
     format_feature_value,
 )
 from teelo.web.services.match_service import (
     resolve_date_preset,
+    select_match_features_for_view,
     serialize_match,
     upcoming_sort_expressions,
     completed_sort_expressions,
@@ -141,14 +143,8 @@ async def match_detail(match_id: int, request: Request, db: Session = Depends(ge
 
     match_data = serialize_match(match)
 
-    # Load feature data (most recent feature set)
-    match_features = (
-        db.query(MatchFeatures)
-        .options(joinedload(MatchFeatures.feature_set))
-        .filter(MatchFeatures.match_id == match_id)
-        .order_by(MatchFeatures.computed_at.desc())
-        .first()
-    )
+    prediction_explanation = match.prediction_explanation or None
+    match_features = select_match_features_for_view(db, match_id, prediction_explanation)
 
     feature_groups = []
     feature_set_info = None
@@ -172,6 +168,8 @@ async def match_detail(match_id: int, request: Request, db: Session = Depends(ge
         "match": match_data,
         "feature_groups": feature_groups,
         "feature_set": feature_set_info,
+        "prediction_explanation": prediction_explanation,
+        "row_pp_lookup": build_row_pp_lookup(prediction_explanation),
         "format_value": format_feature_value,
         "now": datetime.utcnow(),
         "current_path": request.url.path,

@@ -245,6 +245,30 @@ def pair_features(
     return rows
 
 
+def build_row_pp_lookup(explanation: dict[str, Any] | None) -> dict[str, float]:
+    """Return a flat {row_key: pp} map for annotating the feature table.
+
+    Paired rows (e.g. 'elo') are keyed by their collapsed base name, matching
+    the 'key' set by pair_features(). Single/diff rows are keyed by their raw
+    feature name. The returned dict has a lookup for every feature the model
+    actually contributed to, so either row.key or row.key + '_a/_b' can be
+    used to query pp when rendering.
+    """
+    if not explanation:
+        return {}
+    lookup: dict[str, float] = {}
+    for r in explanation.get("paired_rows", []) or []:
+        key = r.get("key")
+        pp = r.get("pp")
+        if key is not None and pp is not None:
+            lookup[key] = float(pp)
+    for raw_key, pp in (explanation.get("contributions") or {}).items():
+        if pp is None:
+            continue
+        lookup.setdefault(raw_key, float(pp))
+    return lookup
+
+
 def build_feature_groups(
     features: dict[str, Any],
     grouped_feature_names: dict[str, list[str]],
