@@ -324,6 +324,22 @@ def _write_checkpoint_fingerprint(
     checkpoint.value_json = value
 
 
+def _should_checkpoint_results(stats: ResultsIngestionStats) -> tuple[bool, str]:
+    """Return whether the results fingerprint should be checkpointed.
+
+    Partial ingests must not advance the checkpoint, otherwise later runs with
+    the same scraped payload will skip re-ingestion and strand missing rows in
+    the database.
+    """
+    if stats.errors:
+        return False, f"results ingest had {len(stats.errors)} row errors"
+    if stats.skipped_no_player_match > 0:
+        return False, (
+            f"results ingest skipped {stats.skipped_no_player_match} matches due to unresolved players"
+        )
+    return True, ""
+
+
 def _should_scrape_schedule(task_params: TaskParams, today: date, fast_mode: bool = False) -> bool:
     end_date = _parse_date(task_params.end_date)
     if end_date and end_date < (today - timedelta(days=1)):
@@ -602,10 +618,22 @@ async def _execute_current_task(
                     timings["phases"]["results"]["ingest"] += results_ingest_elapsed
                     timings["ingestion"] += results_ingest_elapsed
                     results["results"] = stats.summary()
-                    _write_checkpoint_fingerprint(session, results_key, results_fp, len(matches))
+                    should_checkpoint, checkpoint_reason = _should_checkpoint_results(stats)
+                    if should_checkpoint:
+                        _write_checkpoint_fingerprint(session, results_key, results_fp, len(matches))
+                    else:
+                        logger.warning(
+                            "Skipping results checkpoint for %s %s %s: %s",
+                            task_params.tour_key,
+                            task_params.tournament_id,
+                            task_params.year,
+                            checkpoint_reason,
+                        )
                     session.commit()
                     if verbose:
                         print(f"  Results: {results['results']}")
+                        if not should_checkpoint:
+                            print(f"  Results Checkpoint Skipped: {checkpoint_reason}")
 
             except Exception as exc:
                 if verbose:
