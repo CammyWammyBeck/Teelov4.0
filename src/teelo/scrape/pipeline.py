@@ -489,6 +489,12 @@ async def _execute_current_task(
                 timings["ingestion"] += draw_ingest_elapsed
                 results["draw"] = stats.summary()
                 _write_checkpoint_fingerprint(session, draw_key, draw_fp, len(entries))
+                # Commit immediately so a later phase failure (schedule,
+                # results, or the forecast auto-build inside ingest_draw)
+                # cannot roll back the new draw rows or propagated next-round
+                # matches. Without this, an error downstream wipes everything
+                # added here, leaving the bracket frozen at its prior state.
+                session.commit()
                 if verbose:
                     print(f"  Draw: {results['draw']}")
         except Exception as exc:
@@ -548,6 +554,9 @@ async def _execute_current_task(
                     timings["ingestion"] += schedule_ingest_elapsed
                     results["schedule"] = stats.summary()
                     _write_checkpoint_fingerprint(session, schedule_key, schedule_fp, len(fixtures))
+                    # See draw-phase commit comment — keep schedule
+                    # changes independent of a later results-phase failure.
+                    session.commit()
                     if verbose:
                         print(f"  Schedule: {results['schedule']}")
             except Exception as exc:
