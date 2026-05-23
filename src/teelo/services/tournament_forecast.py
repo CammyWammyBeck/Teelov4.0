@@ -4,10 +4,10 @@ import hashlib
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session, joinedload
 
 from teelo.db.models import (
@@ -18,10 +18,18 @@ from teelo.db.models import (
     TournamentForecastNode,
     TournamentForecastRun,
 )
-from teelo.draw import ROUND_PROGRESSION, get_expected_matches_in_round, get_feeder_positions, get_next_round
+from teelo.draw import (
+    ROUND_PROGRESSION,
+    get_expected_matches_in_round,
+    get_feeder_positions,
+    get_next_round,
+)
 from teelo.match_statuses import get_status_group
 
 logger = structlog.get_logger(__name__)
+
+if TYPE_CHECKING:
+    from teelo.services.forecast_prediction import ForecastModel
 
 
 def _json_sanitize(value: Any) -> Any:
@@ -55,6 +63,7 @@ def _json_sanitize(value: Any) -> Any:
 
 
 MAIN_DRAW_ROUNDS: tuple[str, ...] = ("R128", "R64", "R32", "R16", "QF", "SF", "F")
+FORECAST_EXCLUDED_MATCH_STATUSES: set[str] = {"cancelled"}
 
 
 def is_forecast_eligible_tournament(tournament: Tournament) -> bool:
@@ -68,13 +77,67 @@ def is_forecast_eligible_tournament(tournament: Tournament) -> bool:
     if tournament.level in {"Challenger", "WTA 125", "ITF", "ITF Men", "ITF Women"}:
         return False
 
-    if tour == "ATP" and tournament.level in {"Grand Slam", "Masters 1000", "ATP 500", "ATP 250", "ATP Finals"}:
+    if tour == "ATP" and tournament.level in {
+        "Grand Slam",
+        "Masters 1000",
+        "ATP 500",
+        "ATP 250",
+        "ATP Finals",
+    }:
         return True
-    if tour == "WTA" and tournament.level in {"Grand Slam", "WTA 1000", "WTA 500", "WTA 250", "WTA Finals"}:
+    if tour == "WTA" and tournament.level in {
+        "Grand Slam",
+        "WTA 1000",
+        "WTA 500",
+        "WTA 250",
+        "WTA Finals",
+    }:
         return True
 
     # Default deny.
     return False
+
+
+def _forecast_match_filter() -> Any:
+    """SQL predicate for matches that should participate in a live forecast bracket."""
+
+    return and_(
+        Match.draw_position.isnot(None),
+        Match.round.in_(MAIN_DRAW_ROUNDS),
+        Match.player_a_id.isnot(None),
+        Match.player_b_id.isnot(None),
+        Match.status.notin_(FORECAST_EXCLUDED_MATCH_STATUSES),
+    )
+
+
+def _load_forecast_matches(session: Session, edition_id: int) -> list[Match]:
+    """Load the active draw rows used for forecast structure.
+
+    Scrapers can leave cancelled placeholder rows behind when qualifiers or late draw
+    replacements are resolved. Those rows share the same (round, draw_position) as the real
+    matchup and must not feed forecast generation or probability aggregation.
+    """
+
+    return (
+        session.query(Match)
+        .filter(
+            Match.tournament_edition_id == edition_id,
+            _forecast_match_filter(),
+        )
+        .options(joinedload(Match.player_a), joinedload(Match.player_b))
+        .order_by(Match.round.asc(), Match.draw_position.asc(), Match.id.desc())
+        .all()
+    )
+
+
+def _load_forecast_matches_by_slot(
+    session: Session, edition_id: int
+) -> dict[tuple[str, int], Match]:
+    matches_by_slot: dict[tuple[str, int], Match] = {}
+    for match in _load_forecast_matches(session, edition_id):
+        key = (match.round, int(match.draw_position))
+        matches_by_slot.setdefault(key, match)
+    return matches_by_slot
 
 
 def determine_entry_round(session: Session, edition: TournamentEdition) -> str | None:
@@ -92,8 +155,7 @@ def determine_entry_round(session: Session, edition: TournamentEdition) -> str |
         session.query(Match.round)
         .filter(
             Match.tournament_edition_id == edition.id,
-            Match.draw_position.isnot(None),
-            Match.round.in_(ROUND_PROGRESSION),
+            _forecast_match_filter(),
         )
         .distinct()
         .all()
@@ -140,9 +202,7 @@ def is_draw_forecast_ready(session: Session, edition: TournamentEdition) -> bool
         .filter(
             Match.tournament_edition_id == edition.id,
             Match.round == entry_round,
-            Match.draw_position.isnot(None),
-            Match.player_a_id.isnot(None),
-            Match.player_b_id.isnot(None),
+            _forecast_match_filter(),
         )
         .count()
     )
@@ -156,18 +216,15 @@ def _hash_dict(payload: Any) -> str:
 
 def compute_structure_signature(session: Session, edition: TournamentEdition, model) -> str:
     entry_round = determine_entry_round(session, edition)
-    rounds = ROUND_PROGRESSION[ROUND_PROGRESSION.index(entry_round) :] if entry_round in ROUND_PROGRESSION else list(MAIN_DRAW_ROUNDS)
-
-    matches = (
-        session.query(Match)
-        .filter(
-            Match.tournament_edition_id == edition.id,
-            Match.draw_position.isnot(None),
-            Match.round.in_(rounds),
-        )
-        .order_by(Match.round.asc(), Match.draw_position.asc(), Match.id.asc())
-        .all()
+    rounds = (
+        ROUND_PROGRESSION[ROUND_PROGRESSION.index(entry_round) :]
+        if entry_round in ROUND_PROGRESSION
+        else list(MAIN_DRAW_ROUNDS)
     )
+
+    matches = [
+        m for m in _load_forecast_matches_by_slot(session, edition.id).values() if m.round in rounds
+    ]
     structure = [
         {
             "round": m.round,
@@ -189,18 +246,15 @@ def compute_structure_signature(session: Session, edition: TournamentEdition, mo
 def compute_state_signature(session: Session, edition: TournamentEdition) -> str:
     # Results/statuses matter for probabilities.
     entry_round = determine_entry_round(session, edition)
-    rounds = ROUND_PROGRESSION[ROUND_PROGRESSION.index(entry_round) :] if entry_round in ROUND_PROGRESSION else list(MAIN_DRAW_ROUNDS)
-
-    matches = (
-        session.query(Match)
-        .filter(
-            Match.tournament_edition_id == edition.id,
-            Match.draw_position.isnot(None),
-            Match.round.in_(rounds),
-        )
-        .order_by(Match.round.asc(), Match.draw_position.asc(), Match.id.asc())
-        .all()
+    rounds = (
+        ROUND_PROGRESSION[ROUND_PROGRESSION.index(entry_round) :]
+        if entry_round in ROUND_PROGRESSION
+        else list(MAIN_DRAW_ROUNDS)
     )
+
+    matches = [
+        m for m in _load_forecast_matches_by_slot(session, edition.id).values() if m.round in rounds
+    ]
     payload = {
         "edition_id": edition.id,
         "states": [
@@ -227,7 +281,9 @@ def get_active_run(session: Session, edition_id: int) -> TournamentForecastRun |
             TournamentForecastRun.is_active.is_(True),
             TournamentForecastRun.status == "ready",
         )
-        .order_by(TournamentForecastRun.completed_at.desc().nullslast(), TournamentForecastRun.id.desc())
+        .order_by(
+            TournamentForecastRun.completed_at.desc().nullslast(), TournamentForecastRun.id.desc()
+        )
         .first()
     )
 
@@ -267,7 +323,12 @@ def build_forecast_run(
         )
         .first()
     )
-    if existing and (not force) and existing.structure_signature == structure_sig and existing.state_signature == state_sig:
+    if (
+        existing
+        and (not force)
+        and existing.structure_signature == structure_sig
+        and existing.state_signature == state_sig
+    ):
         return existing
 
     # Stale old active runs.
@@ -343,21 +404,8 @@ def _materialise_nodes(
         state: Any  # PlayerState
 
     # Load all existing main-draw matches for this edition.
-    matches = (
-        session.query(Match)
-        .filter(
-            Match.tournament_edition_id == edition.id,
-            Match.round.in_(MAIN_DRAW_ROUNDS),
-            Match.draw_position.isnot(None),
-        )
-        .options(joinedload(Match.player_a), joinedload(Match.player_b))
-        .all()
-    )
-    match_by_slot: dict[tuple[str, int], Match] = {
-        (m.round, int(m.draw_position)): m
-        for m in matches
-        if m.round and m.draw_position is not None
-    }
+    match_by_slot = _load_forecast_matches_by_slot(session, edition.id)
+    matches = list(match_by_slot.values())
 
     # Identify all players currently in the main draw.
     player_ids: set[int] = set()
@@ -409,10 +457,16 @@ def _materialise_nodes(
                     left_outs = winner_outcomes.get(left_slot) or []
                     right_outs = winner_outcomes.get(right_slot) or []
 
-                    def _maybe_unique_parent_id(outs: list[_Outcome], player_id: int | None) -> int | None:
+                    def _maybe_unique_parent_id(
+                        outs: list[_Outcome], player_id: int | None
+                    ) -> int | None:
                         if player_id is None:
                             return None
-                        ids = [int(o.parent_node_id) for o in outs if o.player_id == int(player_id) and o.parent_node_id]
+                        ids = [
+                            int(o.parent_node_id)
+                            for o in outs
+                            if o.player_id == int(player_id) and o.parent_node_id
+                        ]
                         uniq = set(ids)
                         return ids[0] if len(uniq) == 1 else None
 
@@ -420,11 +474,19 @@ def _materialise_nodes(
                     # If the prior slot was an actual node, use that. Otherwise, only attach a parent id
                     # when the winner-path is unambiguous; if ambiguous, leave it None (actual nodes don't
                     # require path-specific parent identity to be useful downstream).
-                    left_parent_id = actual_node_id_by_slot.get(left_slot) or _maybe_unique_parent_id(left_outs, match.player_a_id)
-                    right_parent_id = actual_node_id_by_slot.get(right_slot) or _maybe_unique_parent_id(right_outs, match.player_b_id)
+                    left_parent_id = actual_node_id_by_slot.get(
+                        left_slot
+                    ) or _maybe_unique_parent_id(left_outs, match.player_a_id)
+                    right_parent_id = actual_node_id_by_slot.get(
+                        right_slot
+                    ) or _maybe_unique_parent_id(right_outs, match.player_b_id)
 
-                    pre_a = next((o.state for o in left_outs if o.player_id == match.player_a_id), None)
-                    pre_b = next((o.state for o in right_outs if o.player_id == match.player_b_id), None)
+                    pre_a = next(
+                        (o.state for o in left_outs if o.player_id == match.player_a_id), None
+                    )
+                    pre_b = next(
+                        (o.state for o in right_outs if o.player_id == match.player_b_id), None
+                    )
                     pre_a = pre_a or base_states.get(match.player_a_id)
                     pre_b = pre_b or base_states.get(match.player_b_id)
 
@@ -615,6 +677,7 @@ def _materialise_nodes(
 def _make_synthetic_context(edition: TournamentEdition, tournament: Tournament, round_code: str):
     from teelo.elo.constants import get_level_code
     from teelo.features.state import MatchContext
+
     level_code = get_level_code(tournament.level, tournament.tour)
     match_date = edition.start_date
     return MatchContext(
@@ -638,9 +701,12 @@ def _make_synthetic_context(edition: TournamentEdition, tournament: Tournament, 
     )
 
 
-def _make_match_context(edition: TournamentEdition, tournament: Tournament, match: Match, round_code: str):
+def _make_match_context(
+    edition: TournamentEdition, tournament: Tournament, match: Match, round_code: str
+):
     from teelo.elo.constants import get_level_code
     from teelo.features.state import MatchContext
+
     level_code = get_level_code(tournament.level, tournament.tour)
     return MatchContext(
         match_id=match.id,
@@ -698,18 +764,8 @@ def sync_forecast_nodes(session: Session, *, edition_id: int) -> int:
     if not nodes:
         return 0
 
-    # Load all draw matches for this edition.
-    matches = (
-        session.query(Match)
-        .filter(
-            Match.tournament_edition_id == edition_id,
-            Match.draw_position.isnot(None),
-            Match.round.in_(MAIN_DRAW_ROUNDS),
-            Match.player_a_id.isnot(None),
-            Match.player_b_id.isnot(None),
-        )
-        .all()
-    )
+    # Load all active draw matches for this edition.
+    matches = _load_forecast_matches(session, edition_id)
 
     # Index by (round, draw_position, frozenset of player ids) for O(1) lookup.
     match_index: dict[tuple[str, int, frozenset], Match] = {}
@@ -719,7 +775,11 @@ def sync_forecast_nodes(session: Session, *, edition_id: int) -> int:
 
     updated = 0
     for node in nodes:
-        key = (node.round, int(node.draw_position), frozenset([int(node.player_a_id), int(node.player_b_id)]))
+        key = (
+            node.round,
+            int(node.draw_position),
+            frozenset([int(node.player_a_id), int(node.player_b_id)]),
+        )
         match = match_index.get(key)
         if match is None:
             continue
@@ -752,10 +812,11 @@ def compute_probabilities(session: Session, *, edition_id: int) -> dict[str, Any
     if run is None:
         return {"has_forecast": False, "status": "not_built"}
 
-    edition = session.execute(
-        select(TournamentEdition).options(joinedload(TournamentEdition.tournament)).where(TournamentEdition.id == edition_id)
+    session.execute(
+        select(TournamentEdition)
+        .options(joinedload(TournamentEdition.tournament))
+        .where(TournamentEdition.id == edition_id)
     ).scalar_one()
-    tournament = edition.tournament
 
     # Important: only load the lightweight columns needed for probability aggregation.
     # Loading full ORM nodes pulls large JSON state blobs/features for every scenario node,
@@ -778,7 +839,9 @@ def compute_probabilities(session: Session, *, edition_id: int) -> dict[str, Any
     matches_by_id: dict[int, dict[str, Any]] = {}
     if match_ids:
         for m in session.execute(
-            select(Match.id, Match.status, Match.winner_id, Match.prediction_a).where(Match.id.in_(match_ids))
+            select(Match.id, Match.status, Match.winner_id, Match.prediction_a).where(
+                Match.id.in_(match_ids)
+            )
         ):
             matches_by_id[int(m.id)] = {
                 "status": m.status,
@@ -811,16 +874,30 @@ def compute_probabilities(session: Session, *, edition_id: int) -> dict[str, Any
 
             # If there is an actual node, treat matchup as fixed and authoritative.
             actual_node = next(
-                (n for n in slot_nodes if n.node_type == "actual" and n.source_match_id),
+                (
+                    n
+                    for n in slot_nodes
+                    if n.node_type == "actual"
+                    and n.source_match_id
+                    and (
+                        (m := matches_by_id.get(int(n.source_match_id))) is not None
+                        and m["status"] not in FORECAST_EXCLUDED_MATCH_STATUSES
+                    )
+                ),
                 None,
             )
             if actual_node is not None:
                 m = matches_by_id.get(int(actual_node.source_match_id))
-                if m is not None and m["status"] in get_status_group("historical_default") and m["winner_id"]:
+                if (
+                    m is not None
+                    and m["status"] in get_status_group("historical_default")
+                    and m["winner_id"]
+                ):
                     entrant_mass[slot] = {(int(m["winner_id"]), int(actual_node.id)): 1.0}
                 else:
                     pa = float(
-                        m["prediction_a"] if m is not None and m["prediction_a"] is not None
+                        m["prediction_a"]
+                        if m is not None and m["prediction_a"] is not None
                         else actual_node.prediction_a or 0.5
                     )
                     entrant_mass[slot] = {
@@ -894,7 +971,9 @@ def compute_probabilities(session: Session, *, edition_id: int) -> dict[str, Any
     name_by_id = {p.id: p.canonical_name for p in player_rows}
 
     players_payload = []
-    for pid, probs in sorted(reach.items(), key=lambda kv: kv[1].get("win_title", 0.0), reverse=True):
+    for pid, probs in sorted(
+        reach.items(), key=lambda kv: kv[1].get("win_title", 0.0), reverse=True
+    ):
         players_payload.append({"player_id": pid, "name": name_by_id.get(pid, str(pid)), **probs})
 
     return {

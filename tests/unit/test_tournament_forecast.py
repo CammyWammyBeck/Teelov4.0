@@ -438,6 +438,152 @@ def test_compute_probabilities_4_player_draw(db_session):
         assert 0.0 <= p["reach_f"] <= 1.0
 
 
+def test_compute_probabilities_ignores_cancelled_actual_nodes_for_duplicate_slot(db_session):
+    t = Tournament(
+        tournament_code="TESTCANCELLED",
+        name="Test Cancelled",
+        tour="ATP",
+        gender="men",
+        level="ATP 250",
+        surface="Hard",
+    )
+    db_session.add(t)
+    db_session.flush()
+
+    edition = TournamentEdition(tournament_id=t.id, year=2026, draw_size=4)
+    db_session.add(edition)
+    db_session.flush()
+
+    for pid, name in [
+        (1, "Sinner"),
+        (2, "Tabur"),
+        (3, "Djokovic"),
+        (4, "Fritz"),
+        (5, "Old Placeholder"),
+    ]:
+        _make_player(db_session, pid, name)
+    db_session.flush()
+
+    stale_match = Match(
+        source="atp",
+        tournament_edition_id=edition.id,
+        round="SF",
+        draw_position=1,
+        player_a_id=5,
+        player_b_id=2,
+        status="cancelled",
+        prediction_a=0.9,
+        prediction_model_version="v",
+    )
+    active_match = Match(
+        source="atp",
+        tournament_edition_id=edition.id,
+        round="SF",
+        draw_position=1,
+        player_a_id=1,
+        player_b_id=2,
+        status="upcoming",
+        prediction_a=0.8,
+        prediction_model_version="v",
+    )
+    other_match = Match(
+        source="atp",
+        tournament_edition_id=edition.id,
+        round="SF",
+        draw_position=2,
+        player_a_id=3,
+        player_b_id=4,
+        status="upcoming",
+        prediction_a=0.7,
+        prediction_model_version="v",
+    )
+    db_session.add_all([stale_match, active_match, other_match])
+    db_session.flush()
+
+    run = TournamentForecastRun(
+        tournament_edition_id=edition.id,
+        status="ready",
+        build_reason="initial",
+        structure_signature="s",
+        state_signature="st",
+        feature_set_name="fs",
+        model_version="v",
+        is_active=True,
+    )
+    db_session.add(run)
+    db_session.flush()
+
+    stale_node = TournamentForecastNode(
+        forecast_run_id=run.id,
+        round="SF",
+        draw_position=1,
+        player_a_id=5,
+        player_b_id=2,
+        source_match_id=stale_match.id,
+        node_type="actual",
+        generation_depth=0,
+        feature_set_name="fs",
+        prediction_model_version="v",
+        prediction_a=0.9,
+    )
+    active_node = TournamentForecastNode(
+        forecast_run_id=run.id,
+        round="SF",
+        draw_position=1,
+        player_a_id=1,
+        player_b_id=2,
+        source_match_id=active_match.id,
+        node_type="actual",
+        generation_depth=0,
+        feature_set_name="fs",
+        prediction_model_version="v",
+        prediction_a=0.8,
+    )
+    other_node = TournamentForecastNode(
+        forecast_run_id=run.id,
+        round="SF",
+        draw_position=2,
+        player_a_id=3,
+        player_b_id=4,
+        source_match_id=other_match.id,
+        node_type="actual",
+        generation_depth=0,
+        feature_set_name="fs",
+        prediction_model_version="v",
+        prediction_a=0.7,
+    )
+    db_session.add_all([stale_node, active_node, other_node])
+    db_session.flush()
+
+    db_session.add_all(
+        [
+            TournamentForecastNode(
+                forecast_run_id=run.id,
+                round="F",
+                draw_position=1,
+                player_a_id=a,
+                player_b_id=b,
+                source_match_id=None,
+                node_type="scenario",
+                generation_depth=1,
+                feature_set_name="fs",
+                prediction_model_version="v",
+                prediction_a=0.5,
+                left_parent_node_id=active_node.id,
+                right_parent_node_id=other_node.id,
+            )
+            for a in [1, 2]
+            for b in [3, 4]
+        ]
+    )
+    db_session.commit()
+
+    payload = compute_probabilities(db_session, edition_id=edition.id)
+    names = {p["name"] for p in payload["players"]}
+    assert "Sinner" in names
+    assert "Old Placeholder" not in names
+    assert sum(p.get("win_title", 0.0) for p in payload["players"]) == pytest.approx(1.0, abs=1e-6)
+
 
 def test_completed_early_round_collapses_eliminated_mass(db_session):
     """If a real early-round match is completed, eliminated players should carry zero future mass."""

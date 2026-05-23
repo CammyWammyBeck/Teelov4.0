@@ -10,11 +10,16 @@ from teelo.db.models import ROUND_ORDER, Match, Player, Tournament, TournamentEd
 from teelo.db.session import get_db
 from teelo.match_statuses import get_status_group
 from teelo.web.app_context import templates
-from teelo.web.services.match_service import serialize_match, slugify_name, upcoming_sort_expressions
+from teelo.web.services.match_service import (
+    serialize_match,
+    slugify_name,
+    upcoming_sort_expressions,
+)
 
 router = APIRouter()
 
 MAIN_DRAW_ROUNDS: tuple[str, ...] = ("R128", "R64", "R32", "R16", "QF", "SF", "F")
+DRAW_EXCLUDED_STATUSES: tuple[str, ...] = ("cancelled",)
 ROUND_LABELS: dict[str, str] = {
     "R128": "Round of 128",
     "R64": "Round of 64",
@@ -309,9 +314,7 @@ async def api_tournaments(
     today_value = date.today()
     tour_values = _parse_csv_values(tour)
     expanded_tour_values = [
-        resolved
-        for value in tour_values
-        for resolved in _resolve_tour_values(value)
+        resolved for value in tour_values for resolved in _resolve_tour_values(value)
     ]
     gender_values = [value.lower() for value in _parse_csv_values(gender)]
     surface_values = _parse_csv_values(surface)
@@ -323,9 +326,9 @@ async def api_tournaments(
     match_flags = (
         db.query(
             Match.tournament_edition_id.label("edition_id"),
-            func.sum(
-                case((Match.status.in_(completed_statuses), 1), else_=0)
-            ).label("completed_results"),
+            func.sum(case((Match.status.in_(completed_statuses), 1), else_=0)).label(
+                "completed_results"
+            ),
             func.sum(
                 case(
                     (and_(Match.round == "F", Match.winner_id.isnot(None)), 1),
@@ -435,7 +438,8 @@ async def api_tournaments(
             final_count=final_count,
             winner=winners_map.get(edition.id),
             is_forecast_eligible=(
-                status_key in ("current", "upcoming") and is_forecast_eligible_tournament(tournament_row)
+                status_key in ("current", "upcoming")
+                and is_forecast_eligible_tournament(tournament_row)
             ),
         )
         for edition, tournament_row, status_key, completed_results, final_count in rows
@@ -455,6 +459,7 @@ async def api_tournaments(
 @router.get("/api/editions/{edition_id}/favourite")
 def api_edition_favourite(edition_id: int, db: Session = Depends(get_db)):
     from teelo.services.tournament_forecast import get_top_player
+
     top = get_top_player(db, edition_id=edition_id)
     if not top:
         return JSONResponse({})
@@ -507,15 +512,16 @@ async def tournament_detail_page(
     match_stats = (
         db.query(
             func.sum(case((Match.draw_position.isnot(None), 1), else_=0)).label("draw_count"),
-            func.sum(
-                case((Match.status.in_(("upcoming", "scheduled")), 1), else_=0)
-            ).label("upcoming_count"),
+            func.sum(case((Match.status.in_(("upcoming", "scheduled")), 1), else_=0)).label(
+                "upcoming_count"
+            ),
         )
         .filter(Match.tournament_edition_id == edition.id)
+        .filter(Match.status.notin_(DRAW_EXCLUDED_STATUSES))
         .first()
     )
-    has_draw = (match_stats is not None and (match_stats.draw_count or 0) > 0)
-    has_upcoming = (match_stats is not None and (match_stats.upcoming_count or 0) > 0)
+    has_draw = match_stats is not None and (match_stats.draw_count or 0) > 0
+    has_upcoming = match_stats is not None and (match_stats.upcoming_count or 0) > 0
 
     draw_size = edition.draw_size
     if has_draw:
@@ -526,6 +532,7 @@ async def tournament_detail_page(
                 Match.tournament_edition_id == edition.id,
                 Match.draw_position.isnot(None),
                 Match.round.in_(MAIN_DRAW_ROUNDS),
+                Match.status.notin_(DRAW_EXCLUDED_STATUSES),
             )
             .group_by(Match.round)
             .order_by(round_sort.asc())
@@ -585,10 +592,10 @@ async def tournament_detail_page(
 
     years = [edition.year for edition in _filter_editions_with_finals(editions, finals_by_edition)]
 
-    from teelo.services.tournament_forecast import is_forecast_eligible_tournament, get_active_run
+    from teelo.services.tournament_forecast import get_active_run, is_forecast_eligible_tournament
+
     has_forecast = (
-        is_forecast_eligible_tournament(tournament)
-        and get_active_run(db, edition.id) is not None
+        is_forecast_eligible_tournament(tournament) and get_active_run(db, edition.id) is not None
     )
 
     return templates.TemplateResponse(
@@ -599,9 +606,7 @@ async def tournament_detail_page(
             "current_path": request.url.path,
             "tournament": tournament,
             "tour": (
-                tournament.tour.lower()
-                if tournament and tournament.tour
-                else (tour or "").lower()
+                tournament.tour.lower() if tournament and tournament.tour else (tour or "").lower()
             ),
             "edition": edition,
             "edition_number": edition_number,
@@ -661,7 +666,9 @@ async def api_tournament_matches(
                     func.coalesce(Match.match_date, Match.scheduled_date),
                     Match.match_datetime.type,
                 ),
-            ).desc().nullslast(),
+            )
+            .desc()
+            .nullslast(),
             Match.id.desc(),
         )
     else:
@@ -698,18 +705,24 @@ async def api_tournament_draw(
             Match.tournament_edition_id == edition.id,
             Match.draw_position.isnot(None),
             Match.round.in_(MAIN_DRAW_ROUNDS),
+            Match.status.notin_(DRAW_EXCLUDED_STATUSES),
         )
         .options(joinedload(Match.player_a), joinedload(Match.player_b))
-        .order_by(round_sort.asc(), Match.draw_position.asc(), Match.id.asc())
+        .order_by(round_sort.asc(), Match.draw_position.asc(), Match.id.desc())
         .all()
     )
     if not draw_matches:
         return JSONResponse({"has_draw": False, "rounds": []})
 
     grouped: dict[str, list[dict]] = {}
+    seen_slots: set[tuple[str, int]] = set()
     for match in draw_matches:
         if match.round is None or match.draw_position is None:
             continue
+        slot = (match.round, int(match.draw_position))
+        if slot in seen_slots:
+            continue
+        seen_slots.add(slot)
         player_a = {
             "id": match.player_a.id if match.player_a else match.player_a_id,
             "name": match.player_a.canonical_name if match.player_a else "TBD",
@@ -755,15 +768,14 @@ async def api_tournament_forecast(
     db: Session = Depends(get_db),
 ):
     edition = _get_tournament_edition_or_404(db, tour, tournament_code, year)
-    tournament = (
-        db.query(Tournament)
-        .filter(Tournament.id == edition.tournament_id)
-        .first()
-    )
+    tournament = db.query(Tournament).filter(Tournament.id == edition.tournament_id).first()
     if tournament is None:
         raise HTTPException(status_code=404, detail="Tournament not found")
 
-    from teelo.services.tournament_forecast import compute_probabilities, is_forecast_eligible_tournament
+    from teelo.services.tournament_forecast import (
+        compute_probabilities,
+        is_forecast_eligible_tournament,
+    )
 
     if not is_forecast_eligible_tournament(tournament):
         return JSONResponse({"has_forecast": False, "status": "unsupported"})
