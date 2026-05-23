@@ -197,6 +197,21 @@ def is_draw_forecast_ready(session: Session, edition: TournamentEdition) -> bool
     if get_next_round(entry_round) is None:
         return False
 
+    expected_entry_matches = get_expected_matches_in_round(entry_round)
+    if tournament.level == "Grand Slam" and expected_entry_matches is not None:
+        distinct_entry_positions = (
+            session.query(Match.draw_position)
+            .filter(
+                Match.tournament_edition_id == edition.id,
+                Match.round == entry_round,
+                _forecast_match_filter(),
+            )
+            .distinct()
+            .count()
+        )
+        if distinct_entry_positions < expected_entry_matches:
+            return False
+
     entry_match_count = (
         session.query(Match)
         .filter(
@@ -794,7 +809,11 @@ def sync_forecast_nodes(session: Session, *, edition_id: int) -> int:
 
 def get_top_player(session: Session, *, edition_id: int) -> dict[str, Any] | None:
     """Return the favourite player and their win probability, or None if no forecast."""
-    result = compute_probabilities(session, edition_id=edition_id)
+    try:
+        result = compute_probabilities(session, edition_id=edition_id)
+    except ValueError:
+        logger.warning("forecast.top_player_unavailable", edition_id=edition_id)
+        return None
     if not result.get("has_forecast"):
         return None
     players = result.get("players") or []

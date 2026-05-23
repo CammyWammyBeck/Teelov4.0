@@ -782,11 +782,19 @@ async def api_tournament_forecast(
     if not is_forecast_eligible_tournament(tournament):
         return JSONResponse({"has_forecast": False, "status": "unsupported"})
 
-    if is_draw_forecast_ready(db, edition):
-        build_forecast_run(db, edition_id=edition.id, force=False, build_reason="api_refresh")
-        db.commit()
+    if not is_draw_forecast_ready(db, edition):
+        return JSONResponse({"has_forecast": False, "status": "draw_not_ready"})
 
-    payload = compute_probabilities(db, edition_id=edition.id)
+    build_forecast_run(db, edition_id=edition.id, force=False, build_reason="api_refresh")
+    db.commit()
+
+    try:
+        payload = compute_probabilities(db, edition_id=edition.id)
+    except ValueError as exc:
+        return JSONResponse(
+            {"has_forecast": False, "status": "invalid_bracket", "error": str(exc)},
+            status_code=409,
+        )
     return JSONResponse(payload)
 
 
