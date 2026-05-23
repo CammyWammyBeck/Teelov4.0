@@ -70,19 +70,25 @@ def _extract_atp_player(element: Tag) -> Optional[ExtractedPlayer]:
 
     The player ID is in the URL path (D0AG in this example).
     """
-    # Try to find player link
-    link = element.find("a", class_=re.compile(r"player|name", re.I))
-    if not link:
+    # The element may BE the player anchor (schedule passes raw <a> tags).
+    # BeautifulSoup .find() only walks descendants, so handle self first.
+    link = None
+    if getattr(element, "name", None) == "a" and "/players/" in (element.get("href") or ""):
+        link = element
+    if link is None:
+        link = element.find("a", class_=re.compile(r"player|name", re.I))
+    if link is None:
         link = element.find("a", href=re.compile(r"/players/"))
 
     if link:
         name = link.get_text(strip=True)
         href = link.get("href", "")
 
-        # Extract player ID from URL
-        # Format: /en/players/player-name/ABCD/overview
-        id_match = re.search(r"/players/[^/]+/([A-Z0-9]+)", href)
-        external_id = id_match.group(1) if id_match else None
+        # Extract player ID from URL. Format: /en/players/player-name/ABCD/overview.
+        # The site uses both uppercase legacy slugs (D0AG) and lowercase modern
+        # slugs (bm95); normalise to upper so downstream lookups stay stable.
+        id_match = re.search(r"/players/[^/]+/([A-Za-z0-9]+)", href)
+        external_id = id_match.group(1).upper() if id_match else None
 
         # Try to find nationality (often as flag icon)
         flag = element.find("img", class_=re.compile(r"flag|country", re.I))
