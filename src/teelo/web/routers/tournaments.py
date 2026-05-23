@@ -773,8 +773,8 @@ async def api_tournament_forecast(
         raise HTTPException(status_code=404, detail="Tournament not found")
 
     from teelo.services.tournament_forecast import (
-        build_forecast_run,
         compute_probabilities,
+        get_active_run,
         is_draw_forecast_ready,
         is_forecast_eligible_tournament,
     )
@@ -785,8 +785,18 @@ async def api_tournament_forecast(
     if not is_draw_forecast_ready(db, edition):
         return JSONResponse({"has_forecast": False, "status": "draw_not_ready"})
 
-    build_forecast_run(db, edition_id=edition.id, force=False, build_reason="api_refresh")
-    db.commit()
+    # The production web slug intentionally excludes the heavy ML/training modules.
+    # Use existing forecast runs when available, and only attempt lazy building in
+    # fuller local/worker environments where the builder dependencies exist.
+    if get_active_run(db, edition.id) is None:
+        try:
+            from teelo.services.tournament_forecast import build_forecast_run
+
+            build_forecast_run(db, edition_id=edition.id, force=False, build_reason="api_refresh")
+            db.commit()
+        except ModuleNotFoundError:
+            db.rollback()
+            return JSONResponse({"has_forecast": False, "status": "not_built"})
 
     try:
         payload = compute_probabilities(db, edition_id=edition.id)
