@@ -773,12 +773,18 @@ async def api_tournament_forecast(
         raise HTTPException(status_code=404, detail="Tournament not found")
 
     from teelo.services.tournament_forecast import (
+        build_forecast_run,
         compute_probabilities,
+        is_draw_forecast_ready,
         is_forecast_eligible_tournament,
     )
 
     if not is_forecast_eligible_tournament(tournament):
         return JSONResponse({"has_forecast": False, "status": "unsupported"})
+
+    if is_draw_forecast_ready(db, edition):
+        build_forecast_run(db, edition_id=edition.id, force=False, build_reason="api_refresh")
+        db.commit()
 
     payload = compute_probabilities(db, edition_id=edition.id)
     return JSONResponse(payload)
