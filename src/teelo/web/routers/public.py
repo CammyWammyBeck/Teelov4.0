@@ -1,5 +1,4 @@
 import time
-import traceback
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
@@ -708,19 +707,6 @@ async def home(
             "current_path": request.url.path,
         },
     )
-
-
-@router.get("/api/debug-template-render")
-def debug_template_render(request: Request):
-    try:
-        html = templates.get_template("home.html").render(
-            request=request,
-            now=datetime.utcnow(),
-            current_path="/",
-        )
-        return JSONResponse({"ok": True, "prefix": html[:120]})
-    except Exception:
-        return JSONResponse({"ok": False, "traceback": traceback.format_exc()})
 
 
 @router.get("/search", response_class=HTMLResponse)
