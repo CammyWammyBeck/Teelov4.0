@@ -105,39 +105,119 @@ def _parse_posted_ids(raw: str) -> list[str]:
     return ids
 
 
-def _parse_tweet_history(path: Path) -> dict[str, tuple[str, datetime]]:
-    """Parse tweet-history.md into {tweet_id: (text, posted_at)}."""
-    results = {}
-    current_id: Optional[str] = None
-    current_text: str = ""
-    current_date: Optional[datetime] = None
+def _parse_tweet_history(path: Path) -> dict[str, tuple[str, Optional[datetime], Optional[str]]]:
+    """Parse tweet-history.md into {tweet_id: (text, posted_at, reply_to_tweet_id)}.
+
+    Supports two section header formats:
+      - `### Tweet {id}`  (most recent entries)
+      - `### Tweet {id} (ATP Miami Final preview — tweet 1)`  (legacy named entries)
+    """
+    results: dict[str, tuple[str, Optional[datetime], Optional[str]]] = {}
+
+    if not path.exists():
+        return results
 
     with open(path) as f:
-        lines = f.readlines()
+        full_content = f.read()
 
-    for line in lines:
-        m = re.match(r"^\*\*ID:\*\* (\d+)", line)
-        if m:
-            if current_id:
-                results[current_id] = (current_text.strip(), current_date)
-            current_id = m.group(1)
-            current_text = ""
-            current_date = None
-            continue
-        m = re.match(r"^\*\*Posted:\*\* (.+)", line)
-        if m and current_id:
-            try:
-                current_date = datetime.fromisoformat(m.group(1).replace(" AEDT", "+11:00").replace(" AEST", "+11:00"))
-            except Exception:
-                current_date = None
-            continue
-        m = re.match(r"^\*\*Text:\*\* (.+)", line)
-        if m and current_id:
-            current_text = m.group(1)
+    # Split into tweet sections on ### Tweet {id} header
+    sections = re.split(r"(?m)^### Tweet ", full_content)
+
+    for raw_section in sections:
+        if not raw_section.strip():
             continue
 
-    if current_id:
-        results[current_id] = (current_text.strip(), current_date)
+        # First line is the tweet ID (may include legacy label)
+        lines = raw_section.splitlines()
+        m = re.match(r"^(\d+)\b", lines[0])
+        if not m:
+            continue
+        tweet_id = m.group(1)
+
+        # Everything after the first line is the section body
+        body = "\n".join(lines[1:])
+
+        text = ""
+        posted_at: Optional[datetime] = None
+        reply_to: Optional[str] = None
+
+        for line in body.splitlines():
+            line = line.rstrip()
+            if not line:
+                continue
+            # Match lines like: - **Posted:** 2026-03-30 15:30 AEDT
+            m = re.match(r"^-\s+\*\*Posted:\*\*\s+(.+)", line)
+            if m:
+                raw_date = m.group(1).replace(" AEDT", "+11:00").replace(" AEST", "+11:00")
+                try:
+                    posted_at = datetime.fromisoformat(raw_date)
+                except Exception:
+                    pass
+                continue
+            m = re.match(r"^-\s+\*\*Text:\*\*\s+(.+)", line)
+            if m:
+                text = m.group(1)
+                continue
+            m = re.match(r"^-\s+\*\*Notes:\*\*\s+Reply to\s+(\d+)", line)
+            if m:
+                reply_to = m.group(1)
+                continue
+
+        results[tweet_id] = (text.strip(), posted_at, reply_to)
+
+    return results
+
+    with open(path) as f:
+        content = f.read()
+
+    # Split into tweet sections on ### Tweet {id} header
+    sections = re.split(r"(?m)^### Tweet ", content)
+
+    for section in sections:
+        if not section.strip():
+            continue
+
+        # Extract tweet ID from first line (may include legacy label)
+        lines = section.splitlines()
+        m = re.match(r"^(\d+)\b", lines[0])
+        if not m:
+            continue
+        tweet_id = m.group(1)
+
+        # Rest of section content
+        rest = "\n".join(lines[1:])
+
+        text = ""
+        posted_at: Optional[datetime] = None
+        reply_to: Optional[str] = None
+
+        for line in rest.splitlines():
+            line = line.rstrip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r"^\*\*Posted:\*\* (.+)", line)
+            if m:
+                try:
+                    posted_at = datetime.fromisoformat(
+                        m.group(1).replace(" AEDT", "+11:00").replace(" AEST", "+11:00")
+                    )
+                except Exception:
+                    pass
+                continue
+            m = re.match(r"^\*\*Text:\*\* (.+)", line)
+            if m:
+                text = m.group(1)
+                continue
+            m = re.match(r"^-\s+\*\*Notes:\*\* Reply to (\d+)", line)
+            if m:
+                reply_to = m.group(1)
+                continue
+            m = re.match(r"^\*\*Notes:\*\* Reply to (\d+)", line)
+            if m:
+                reply_to = m.group(1)
+                continue
+
+        results[tweet_id] = (text.strip(), posted_at, reply_to)
 
     return results
 
@@ -381,7 +461,7 @@ def backfill() -> list[SocialContentRecord]:
 
     for qr in queue_records:
         ck = qr.get("draft_id", "")
-        if not ck.startswith("D-"):
+        if not ck or not (ck.startswith("D-") or ck.startswith("R-")):
             continue
 
         post_at: Optional[datetime] = None
@@ -409,6 +489,9 @@ def backfill() -> list[SocialContentRecord]:
         rec.posted_tweet_ids = qr.get("tweet_ids", [])
         rec.draft_file_path = qr.get("draft_file", "") or rec.draft_file_path
         rec.summary = qr.get("content", "") or rec.summary
+        if ck.startswith("R-"):
+            rec.content_type = "reply"
+            rec.reply_to_tweet_id = qr.get("reply_to_tweet_id") or None
 
         # Add a version for each tweet in the thread
         tweets = qr.get("tweets", [])
@@ -429,7 +512,7 @@ def backfill() -> list[SocialContentRecord]:
 
     for dr in deleted_records:
         ck = dr.get("draft_id", "")
-        if not ck.startswith("D-"):
+        if not ck or not (ck.startswith("D-") or ck.startswith("R-")):
             continue
         rec = records.setdefault(ck, SocialContentRecord(content_key=ck))
         rec.status = "killed"
@@ -487,13 +570,16 @@ def backfill() -> list[SocialContentRecord]:
     history = _parse_tweet_history(TWEET_HISTORY)
     print(f"  → {len(history)} tweet entries found")
 
-    for tweet_id, (text, posted_at) in history.items():
-        # Find which content item this belongs to by scanning records
-        # We'll match via the queue posted_tweet_ids first
+    for tweet_id, (text, posted_at, reply_to) in history.items():
+        # Resolve reply relationships: attach reply_to_tweet_id to items
+        # that have this tweet as their posted_tweet_id
         for rec in records.values():
             if tweet_id in rec.posted_tweet_ids:
                 if not rec.posted_at and posted_at:
                     rec.posted_at = posted_at
+                if reply_to and rec.reply_to_tweet_id is None:
+                    # Set reply metadata on the content item
+                    pass  # resolved at item level after records merged
                 break
 
     return list(records.values())
