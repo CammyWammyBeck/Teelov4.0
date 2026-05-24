@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 
 from teelo.web.services import main_handlers as handlers
 from teelo.web.services import prediction_handlers as pred
+from teelo.web.services import tweet_activity_handlers as tweet_activity
 
 router = APIRouter()
 router.add_api_route('/admin/login', handlers.admin_login_page, methods=['GET'], response_class=handlers.HTMLResponse)
@@ -27,5 +28,15 @@ router.add_api_route('/admin/api/predictions/charts/accuracy', pred.admin_predic
 router.add_api_route('/admin/api/predictions/charts/calibration', pred.admin_predictions_charts_calibration, methods=['GET'])
 router.add_api_route('/admin/api/predictions/charts/distribution', pred.admin_predictions_charts_distribution, methods=['GET'])
 router.add_api_route('/admin/activity-log', handlers.admin_activity_log, methods=['GET'], response_class=handlers.HTMLResponse)
-router.add_api_route('/admin/tweet-activity', handlers.admin_tweet_activity, methods=['GET'], response_class=handlers.HTMLResponse)
-router.add_api_route('/admin/tweet-activity/{content_key}', handlers.admin_tweet_activity_detail, methods=['GET'], response_class=handlers.HTMLResponse)
+router.add_api_route(
+    '/admin/tweet-activity',
+    tweet_activity.admin_tweet_activity,
+    methods=['GET'],
+    response_class=handlers.HTMLResponse,
+)
+router.add_api_route(
+    '/admin/tweet-activity/{content_key}',
+    tweet_activity.admin_tweet_activity_detail,
+    methods=['GET'],
+    response_class=handlers.HTMLResponse,
+)

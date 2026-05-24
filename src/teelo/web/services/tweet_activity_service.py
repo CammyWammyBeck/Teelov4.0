@@ -3,20 +3,19 @@ Query service for social content / tweet activity.
 
 All read queries for the admin tweet activity dashboard live here.
 """
-from datetime import datetime
-from typing import Optional
 
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 from sqlalchemy.orm import Session, joinedload
 
-from teelo.db.models import SocialContentItem, SocialContentVersion, SocialContentPost
+from teelo.db.models import SocialContentItem, SocialContentPost, SocialContentVersion
 
 
 def list_content_items(
     db: Session,
-    channel: Optional[str] = None,
-    content_type: Optional[str] = None,
-    status: Optional[str] = None,
+    channel: str | None = None,
+    content_type: str | None = None,
+    status: str | None = None,
+    query: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ):
@@ -25,12 +24,13 @@ def list_content_items(
         joinedload(SocialContentItem.versions),
         joinedload(SocialContentItem.posts),
     )
-    if channel:
-        q = q.filter(SocialContentItem.channel == channel)
-    if content_type:
-        q = q.filter(SocialContentItem.content_type == content_type)
-    if status:
-        q = q.filter(SocialContentItem.status == status)
+    q = _apply_content_filters(
+        q,
+        channel=channel,
+        content_type=content_type,
+        status=status,
+        query=query,
+    )
     return (
         q.order_by(desc(SocialContentItem.updated_at))
         .offset(offset)
@@ -39,7 +39,7 @@ def list_content_items(
     )
 
 
-def get_content_item_by_key(db: Session, content_key: str) -> Optional[SocialContentItem]:
+def get_content_item_by_key(db: Session, content_key: str) -> SocialContentItem | None:
     """Fetch a single content item by its stable key (e.g. D-190)."""
     return (
         db.query(SocialContentItem)
@@ -74,16 +74,40 @@ def get_content_item_posts(db: Session, content_item_id: int):
 
 def content_item_count(
     db: Session,
-    channel: Optional[str] = None,
-    content_type: Optional[str] = None,
-    status: Optional[str] = None,
+    channel: str | None = None,
+    content_type: str | None = None,
+    status: str | None = None,
+    query: str | None = None,
 ) -> int:
     """Total count for pagination."""
     q = db.query(SocialContentItem)
+    q = _apply_content_filters(
+        q,
+        channel=channel,
+        content_type=content_type,
+        status=status,
+        query=query,
+    )
+    if query:
+        return q.distinct().count()
+    return q.count()
+
+
+def _apply_content_filters(q, channel=None, content_type=None, status=None, query=None):
     if channel:
         q = q.filter(SocialContentItem.channel == channel)
     if content_type:
         q = q.filter(SocialContentItem.content_type == content_type)
     if status:
         q = q.filter(SocialContentItem.status == status)
-    return q.count()
+    if query:
+        needle = f"%{query.strip()}%"
+        q = q.outerjoin(SocialContentPost).filter(
+            or_(
+                SocialContentItem.content_key.ilike(needle),
+                SocialContentItem.summary.ilike(needle),
+                SocialContentItem.posted_tweet_id.ilike(needle),
+                SocialContentPost.posted_tweet_id.ilike(needle),
+            )
+        )
+    return q
