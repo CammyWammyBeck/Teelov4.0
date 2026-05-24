@@ -26,7 +26,7 @@ from teelo.scrape.utils import TOUR_TYPES
 from teelo.scrape.wta import WTAScraper
 from teelo.services.draw_ingestion import ingest_draw
 from teelo.services.results_ingestion import ResultsIngestionStats, _determine_winner_id, cancel_stale_pending_matches, ingest_results
-from teelo.services.schedule_ingestion import ingest_schedule
+from teelo.services.schedule_ingestion import _make_external_id, ingest_schedule
 from teelo.utils.geo import city_to_country, country_to_ioc
 
 logger = logging.getLogger(__name__)
@@ -198,17 +198,24 @@ async def get_or_create_edition(
         )
         session.add(edition)
 
-    # Set dates from task params if the edition is missing them
-    # (applies to both new and existing editions with missing dates)
-    if not edition.start_date and task_params.start_date:
+    # Set or correct dates from task params.
+    # For current tournaments we may first create an edition with an estimated
+    # end date, then later learn the real end date from upstream metadata.
+    # In that case prefer the explicit scraped value so fast-mode gating doesn't
+    # strand an event in the past.
+    if task_params.start_date:
         try:
-            edition.start_date = datetime.strptime(task_params.start_date, "%Y-%m-%d")
+            parsed_start = datetime.strptime(task_params.start_date, "%Y-%m-%d")
+            if not edition.start_date or parsed_start < edition.start_date:
+                edition.start_date = parsed_start
         except Exception:
             pass
 
-    if not edition.end_date and task_params.end_date:
+    if task_params.end_date:
         try:
-            edition.end_date = datetime.strptime(task_params.end_date, "%Y-%m-%d")
+            parsed_end = datetime.strptime(task_params.end_date, "%Y-%m-%d")
+            if not edition.end_date or parsed_end != edition.end_date:
+                edition.end_date = parsed_end
         except Exception:
             pass
 
@@ -220,6 +227,8 @@ async def get_or_create_edition(
             duration_days = 14
         elif level == "Masters 1000":
             duration_days = 9
+        elif level == "WTA 1000":
+            duration_days = 12
         else:
             duration_days = 7
         edition.end_date = edition.start_date + timedelta(days=duration_days)
@@ -338,6 +347,78 @@ def _should_checkpoint_results(stats: ResultsIngestionStats) -> tuple[bool, str]
             f"results ingest skipped {stats.skipped_no_player_match} matches due to unresolved players"
         )
     return True, ""
+
+
+def _schedule_fixture_has_data(fixture) -> bool:
+    return bool(fixture.scheduled_date or fixture.scheduled_time or fixture.court)
+
+
+def _parse_schedule_datetime(scheduled_date: Optional[str], scheduled_time: Optional[str]) -> Optional[datetime]:
+    if not scheduled_date or not scheduled_time:
+        return None
+    datetime_str = f"{scheduled_date} {scheduled_time}"
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %I:%M %p"):
+        try:
+            return datetime.strptime(datetime_str, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _schedule_needs_ingest_for_missing_db_data(fixtures, edition_matches: list[Match]) -> bool:
+    """Return True when a matching DB row is missing scraped schedule data.
+
+    Fast-mode fingerprints describe the scraped payload, not the database state.
+    If a prior run wrote a schedule checkpoint before rows were updated, blindly
+    skipping on fingerprint equality strands scheduled matches as upcoming.
+    """
+    matches_by_external_id = {
+        match.external_id: match
+        for match in edition_matches
+        if match.external_id
+    }
+
+    for fixture in fixtures:
+        if not _schedule_fixture_has_data(fixture):
+            continue
+
+        external_id = _make_external_id(
+            year=fixture.tournament_year,
+            tournament_id=fixture.tournament_id,
+            round_code=fixture.round,
+            player_a_ext_id=fixture.player_a_external_id,
+            player_b_ext_id=fixture.player_b_external_id,
+        )
+        if not external_id:
+            continue
+
+        match = matches_by_external_id.get(external_id)
+        if match is None:
+            return True
+
+        if fixture.scheduled_date:
+            scheduled_date = _parse_date(fixture.scheduled_date)
+            if scheduled_date and match.scheduled_date != scheduled_date:
+                return True
+
+        scheduled_datetime = _parse_schedule_datetime(
+            fixture.scheduled_date,
+            fixture.scheduled_time,
+        )
+        if scheduled_datetime and match.scheduled_datetime != scheduled_datetime:
+            return True
+
+        if fixture.court and match.court != fixture.court:
+            return True
+
+    return False
+
+
+def _schedule_checkpoint_can_skip(session, edition: TournamentEdition, fixtures) -> bool:
+    edition_matches = session.query(Match).filter(
+        Match.tournament_edition_id == edition.id
+    ).all()
+    return not _schedule_needs_ingest_for_missing_db_data(fixtures, edition_matches)
 
 
 def _should_scrape_schedule(task_params: TaskParams, today: date, fast_mode: bool = False) -> bool:
@@ -552,11 +633,15 @@ async def _execute_current_task(
                 )
                 schedule_key = _phase_checkpoint_key(task_params, "schedule")
                 previous_schedule_fp = _read_checkpoint_fingerprint(session, schedule_key)
-                if fast_mode and previous_schedule_fp == schedule_fp:
+                schedule_unchanged = fast_mode and previous_schedule_fp == schedule_fp
+                if schedule_unchanged and _schedule_checkpoint_can_skip(session, edition, fixtures):
                     report("Skipping Schedule Ingest (unchanged)")
                     results["schedule"] = "Schedule unchanged; ingestion skipped."
                 else:
-                    report("Ingesting Schedule")
+                    if schedule_unchanged:
+                        report("Ingesting Schedule (unchanged checkpoint, missing DB schedule data)")
+                    else:
+                        report("Ingesting Schedule")
                     schedule_ingest_start = perf_counter()
                     stats = ingest_schedule(session, fixtures, edition, identity_service)
                     schedule_ingest_elapsed = perf_counter() - schedule_ingest_start
