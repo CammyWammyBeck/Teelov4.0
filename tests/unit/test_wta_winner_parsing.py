@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 
+from teelo.scrape.base import ScrapedMatch
 from teelo.scrape.wta import WTAScraper
 
 
@@ -260,3 +261,42 @@ def test_parse_draw_entry_marks_explicit_bye_as_bye():
     assert entry.player_a_name == "Player A"
     assert entry.player_b_name is None
     assert entry.is_bye is True
+
+
+def test_normalize_round_code_maps_wta_round_of_130_to_r128():
+    scraper = WTAScraper()
+
+    assert scraper._normalize_round_code("Round of 130") == "R128"
+
+
+def test_infer_grand_slam_qualifying_rounds_splits_ambiguous_wta_qualifying():
+    scraper = WTAScraper()
+    matches = [
+        ScrapedMatch(
+            external_id=f"2026_roland-garros_Q1_a{i}_b{i}",
+            source="wta",
+            tournament_name="Roland Garros",
+            tournament_id="roland-garros",
+            tournament_year=2026,
+            tournament_level="Grand Slam",
+            tournament_surface="Clay",
+            round="Q1",
+            player_a_name=f"Player A {i}",
+            player_a_external_id=f"a{i}",
+            player_b_name=f"Player B {i}",
+            player_b_external_id=f"b{i}",
+        )
+        for i in range(1, 34)
+    ]
+
+    qualifying_seen = scraper._infer_grand_slam_qualifying_rounds(
+        matches,
+        qualifying_seen=63,
+        tournament_id="roland-garros",
+    )
+
+    assert qualifying_seen == 96
+    assert matches[0].round == "Q1"
+    assert matches[1].round == "Q2"
+    assert matches[-1].round == "Q2"
+    assert "_Q2_" in matches[1].external_id

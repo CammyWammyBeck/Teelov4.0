@@ -17,6 +17,7 @@ from teelo.services.tournament_forecast import (
     compute_probabilities,
     is_draw_forecast_ready,
     is_forecast_eligible_tournament,
+    sync_forecast_nodes,
 )
 
 
@@ -1007,6 +1008,81 @@ def test_real_known_matchup_node_overrides_scenario_nodes(db_session):
     payload = compute_probabilities(db_session, edition_id=edition.id)
     p1 = next(p for p in payload["players"] if p["player_id"] == 1)
     assert p1.get("reach_f", 0.0) == pytest.approx(0.8, abs=1e-9)
+
+
+def test_sync_forecast_nodes_promotes_matching_scenario_without_json_load(db_session):
+    t = Tournament(
+        tournament_code="TESTSYNC",
+        name="Test Sync",
+        tour="ATP",
+        gender="men",
+        level="ATP 250",
+        surface="Hard",
+    )
+    db_session.add(t)
+    db_session.flush()
+
+    edition = TournamentEdition(tournament_id=t.id, year=2026, draw_size=4)
+    db_session.add(edition)
+    db_session.flush()
+
+    for pid, name in [(1, "A"), (2, "B")]:
+        _make_player(db_session, pid, name)
+    db_session.flush()
+
+    match = Match(
+        source="atp",
+        tournament_edition_id=edition.id,
+        round="SF",
+        draw_position=1,
+        player_a_id=1,
+        player_b_id=2,
+        status="upcoming",
+        prediction_a=0.7,
+        prediction_model_version="v",
+    )
+    db_session.add(match)
+    db_session.flush()
+
+    run = TournamentForecastRun(
+        tournament_edition_id=edition.id,
+        status="ready",
+        build_reason="initial",
+        structure_signature="s",
+        state_signature="st",
+        feature_set_name="fs",
+        model_version="v",
+        is_active=True,
+    )
+    db_session.add(run)
+    db_session.flush()
+
+    node = TournamentForecastNode(
+        forecast_run_id=run.id,
+        round="SF",
+        draw_position=1,
+        player_a_id=1,
+        player_b_id=2,
+        source_match_id=None,
+        node_type="scenario",
+        generation_depth=1,
+        feature_set_name="fs",
+        prediction_model_version="v",
+        prediction_a=0.4,
+        player_a_state_json={"large": ["payload"]},
+        player_b_state_json={"large": ["payload"]},
+        features_json={"large": ["payload"]},
+    )
+    db_session.add(node)
+    db_session.commit()
+
+    updated = sync_forecast_nodes(db_session, edition_id=edition.id)
+    db_session.commit()
+
+    assert updated == 1
+    db_session.refresh(node)
+    assert node.node_type == "actual"
+    assert node.source_match_id == match.id
 
 
 def test_draw_forecast_ready_prefers_db_rounds_over_draw_size(db_session):
