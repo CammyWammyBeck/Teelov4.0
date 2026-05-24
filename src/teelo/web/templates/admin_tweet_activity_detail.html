@@ -3,15 +3,15 @@
 {% block title %}{{ item.content_key }} | Tweet Activity | Admin | Teelo Ratings{% endblock %}
 
 {% block content %}
-<section class="space-y-6">
+<section class="space-y-5 md:space-y-6">
     {# Header #}
-    <div class="flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-wrap items-center gap-3">
             <a href="/admin/tweet-activity"
                class="rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-content-secondary hover:bg-surface-hover transition">
                 ← All Tweets
             </a>
-            <h1 class="text-3xl font-extrabold tracking-tight text-teelo-dark">
+            <h1 class="text-2xl font-extrabold tracking-tight text-teelo-dark sm:text-3xl">
                 {{ item.content_key }}
             </h1>
             <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-bold
@@ -24,7 +24,7 @@
     </div>
 
     {# Meta row #}
-    <div class="flex flex-wrap gap-4 text-sm">
+    <div class="grid gap-3 text-sm sm:grid-cols-2 lg:flex lg:flex-wrap lg:gap-4">
         <div class="flex items-center gap-2">
             <span class="font-semibold text-content-muted">Status:</span>
             <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
@@ -75,35 +75,65 @@
         {% endif %}
     </div>
 
+    {# Current content #}
+    <div class="bg-surface border border-line rounded-lg p-4">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h2 class="text-lg font-bold text-teelo-dark">Current Tweet Content</h2>
+                {% if display_version %}
+                <p class="text-xs text-content-muted">
+                    {{ display_version.version_key }} · {{ display_version.event | replace('_', ' ') }}
+                    {% if display_version.char_count %} · {{ display_version.char_count }} chars{% endif %}
+                </p>
+                {% endif %}
+            </div>
+            {% if item.posted_tweet_id %}
+            <a href="https://x.com/i/web/status/{{ item.posted_tweet_id }}"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="rounded-lg border border-line-strong px-3 py-1.5 text-sm font-semibold text-content-secondary hover:bg-surface-hover">
+                Open on X
+            </a>
+            {% endif %}
+        </div>
+        {% if display_version and display_version.content_text %}
+        <div class="rounded-lg border border-line bg-white p-3">
+            <p class="whitespace-pre-wrap break-words text-sm leading-6 text-teelo-dark">{{ display_version.content_text }}</p>
+        </div>
+        {% else %}
+        <p class="text-sm text-content-muted">No tweet text was captured for this item.</p>
+        {% endif %}
+    </div>
+
     {# Summary #}
     {% if item.summary %}
-    <div class="bg-surface border border-line rounded-xl p-4">
+    <div class="bg-surface border border-line rounded-lg p-4">
         <p class="text-sm font-semibold text-content-muted mb-1">Summary</p>
         <p class="text-teelo-dark">{{ item.summary }}</p>
     </div>
     {% endif %}
 
     {# Scheduling / timing #}
-    <div class="grid grid-cols-2 gap-4 text-sm">
-        <div class="bg-surface border border-line rounded-xl p-4">
+    <div class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 sm:gap-4">
+        <div class="bg-surface border border-line rounded-lg p-4">
             <p class="font-semibold text-content-muted mb-1">Post At</p>
-            <p class="text-teelo-dark font-mono">
+            <p class="break-words font-mono text-teelo-dark">
                 {% if item.post_at %}{{ item.post_at.strftime('%d %b %Y, %H:%M %Z') }}{% else %}Not scheduled{% endif %}
             </p>
         </div>
-        <div class="bg-surface border border-line rounded-xl p-4">
+        <div class="bg-surface border border-line rounded-lg p-4">
             <p class="font-semibold text-content-muted mb-1">Posted At</p>
-            <p class="text-teelo-dark font-mono">
+            <p class="break-words font-mono text-teelo-dark">
                 {% if item.posted_at %}{{ item.posted_at.strftime('%d %b %Y, %H:%M %Z') }}{% else %}Not posted yet{% endif %}
             </p>
         </div>
-        <div class="bg-surface border border-line rounded-xl p-4">
+        <div class="bg-surface border border-line rounded-lg p-4">
             <p class="font-semibold text-content-muted mb-1">Created</p>
-            <p class="text-teelo-dark font-mono">{{ item.created_at.strftime('%d %b %Y, %H:%M %Z') }}</p>
+            <p class="break-words font-mono text-teelo-dark">{{ item.created_at.strftime('%d %b %Y, %H:%M %Z') }}</p>
         </div>
-        <div class="bg-surface border border-line rounded-xl p-4">
+        <div class="bg-surface border border-line rounded-lg p-4">
             <p class="font-semibold text-content-muted mb-1">Last Updated</p>
-            <p class="text-teelo-dark font-mono">{{ item.updated_at.strftime('%d %b %Y, %H:%M %Z') }}</p>
+            <p class="break-words font-mono text-teelo-dark">{{ item.updated_at.strftime('%d %b %Y, %H:%M %Z') }}</p>
         </div>
     </div>
 
@@ -113,9 +143,9 @@
         {% if item.versions %}
         <div class="space-y-3">
             {% for version in item.versions %}
-            <div class="bg-surface border {% if version.version_key == item.current_version_key %}border-teelo-dark ring-2 ring-teelo-dark{% else %}border-line{% endif %} rounded-xl overflow-hidden">
+            <div class="bg-surface border {% if version.version_key == item.current_version_key %}border-teelo-dark ring-2 ring-teelo-dark{% else %}border-line{% endif %} rounded-lg overflow-hidden">
                 <div class="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-line">
-                    <div class="flex items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
                         <span class="font-mono font-bold text-sm
                             {% if version.version_key == item.current_version_key %}text-teelo-dark{% else %}text-content-muted{% endif %}">
                             {{ version.version_key }}
@@ -144,7 +174,7 @@
                 </div>
                 {% if version.content_text %}
                 <div class="px-4 py-3">
-                    <p class="text-sm text-teelo-dark whitespace-pre-wrap">{{ version.content_text }}</p>
+                    <p class="text-sm text-teelo-dark whitespace-pre-wrap break-words">{{ version.content_text }}</p>
                 </div>
                 {% endif %}
                 {% if version.note %}
@@ -156,7 +186,7 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="bg-surface border border-line rounded-xl p-8 text-center">
+        <div class="bg-surface border border-line rounded-lg p-8 text-center">
             <p class="text-content-muted">No version history yet.</p>
         </div>
         {% endif %}
@@ -166,7 +196,38 @@
     {% if item.posts %}
     <div>
         <h2 class="text-xl font-bold text-teelo-dark mb-3">Post Attempts</h2>
-        <div class="bg-surface border border-line rounded-xl overflow-hidden">
+        <div class="space-y-3 md:hidden">
+            {% for post in item.posts %}
+            <div class="rounded-lg border border-line bg-surface p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="font-mono text-sm text-content-muted">{{ post.posted_at.strftime('%d %b %Y, %H:%M') }}</p>
+                    <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold
+                        {% if post.status == 'success' %}bg-green-100 text-green-800
+                        {% elif post.status == 'failure' %}bg-red-100 text-red-800
+                        {% else %}bg-gray-100 text-gray-800
+                        {% endif %}">
+                        {{ post.status }}
+                    </span>
+                </div>
+                <div class="mt-3">
+                    {% if post.posted_tweet_id %}
+                    <a href="https://x.com/i/web/status/{{ post.posted_tweet_id }}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="break-all font-mono text-sm font-semibold text-teelo-dark hover:underline">
+                        {{ post.posted_tweet_id }}
+                    </a>
+                    {% else %}
+                    <span class="text-sm text-content-muted">No tweet ID</span>
+                    {% endif %}
+                </div>
+                {% if post.error_message %}
+                <p class="mt-2 text-xs text-content-muted">{{ post.error_message }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="hidden bg-surface border border-line rounded-lg overflow-hidden md:block">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-line bg-gray-50">

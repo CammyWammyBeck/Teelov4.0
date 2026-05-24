@@ -52,6 +52,33 @@ def get_content_item_by_key(db: Session, content_key: str) -> SocialContentItem 
     )
 
 
+def display_content_version(item: SocialContentItem) -> SocialContentVersion | None:
+    """Pick the version text that should be shown as the primary content."""
+    non_empty_versions = [version for version in item.versions if version.content_text]
+    if not non_empty_versions:
+        return None
+
+    preferred_by_status = {
+        "posted": ("posted", "approved", "queued", "submitted"),
+        "queued": ("queued", "approved", "submitted"),
+        "approved": ("approved", "queued", "submitted"),
+        "killed": ("killed", "approved", "queued", "submitted"),
+        "blocked": ("blocked", "approved", "queued", "submitted"),
+        "failed": ("failed", "approved", "queued", "submitted"),
+        "failed_review": ("failed_review", "approved", "queued", "submitted"),
+    }
+    for preferred_key in preferred_by_status.get(item.status, ()):
+        for version in reversed(non_empty_versions):
+            if version.version_key == preferred_key:
+                return version
+
+    for version in non_empty_versions:
+        if version.version_key == item.current_version_key:
+            return version
+
+    return non_empty_versions[-1]
+
+
 def get_content_item_versions(db: Session, content_item_id: int):
     """Return all versions for a content item, oldest first."""
     return (

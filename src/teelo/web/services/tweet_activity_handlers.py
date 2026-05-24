@@ -11,6 +11,7 @@ from teelo.web.app_context import templates
 from teelo.web.services.main_handlers import _current_admin_user, _require_admin
 from teelo.web.services.tweet_activity_service import (
     content_item_count,
+    display_content_version,
     get_content_item_by_key,
     list_content_items,
 )
@@ -93,6 +94,7 @@ async def admin_tweet_activity_detail(
             "request": request,
             "admin": admin,
             "item": item,
+            "display_version": display_content_version(item),
             "current_path": request.url.path,
         },
     )

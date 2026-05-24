@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from teelo.db.models import SocialContentItem, SocialContentPost
+from teelo.db.models import SocialContentItem, SocialContentPost, SocialContentVersion
 from teelo.services.social_content_writer import (
     record_blocked_or_failed,
     record_killed,
@@ -16,7 +16,11 @@ from teelo.services.social_content_writer import (
     record_version,
     upsert_item,
 )
-from teelo.web.services.tweet_activity_service import content_item_count, list_content_items
+from teelo.web.services.tweet_activity_service import (
+    content_item_count,
+    display_content_version,
+    list_content_items,
+)
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "backfill_tweet_activity.py"
 EVENT_SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "social_content_event.py"
@@ -164,6 +168,36 @@ def test_tweet_activity_search_matches_child_post_ids(db_session):
 
     assert [result.content_key for result in results] == ["D-999"]
     assert content_item_count(db_session, query="205841980") == 1
+
+
+def test_display_content_version_prefers_status_snapshot_then_current():
+    item = SocialContentItem(
+        content_key="D-998",
+        content_type="broadcast",
+        status="posted",
+        channel="x_twitter",
+        current_version_key="v2",
+        versions=[
+            SocialContentVersion(version_key="v1", event="draft_created", content_text="first"),
+            SocialContentVersion(version_key="approved", event="approved", content_text="approved"),
+            SocialContentVersion(version_key="v2", event="draft_created", content_text="current"),
+        ],
+    )
+    fallback = SocialContentItem(
+        content_key="D-997",
+        content_type="broadcast",
+        status="draft",
+        channel="x_twitter",
+        current_version_key="v2",
+        versions=[
+            SocialContentVersion(version_key="v1", event="draft_created", content_text="first"),
+            SocialContentVersion(version_key="approved", event="approved", content_text="approved"),
+            SocialContentVersion(version_key="v2", event="draft_created", content_text="current"),
+        ],
+    )
+
+    assert display_content_version(item).content_text == "approved"
+    assert display_content_version(fallback).content_text == "current"
 
 
 def test_social_content_writer_is_idempotent(db_session):
