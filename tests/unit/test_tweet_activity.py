@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import subprocess
 import sys
 from pathlib import Path
+
+from starlette.requests import Request
 
 from teelo.db.models import SocialContentItem, SocialContentPost, SocialContentVersion
 from teelo.services.social_content_writer import (
@@ -198,6 +201,61 @@ def test_display_content_version_prefers_status_snapshot_then_current():
 
     assert display_content_version(item).content_text == "approved"
     assert display_content_version(fallback).content_text == "current"
+
+
+def test_tweet_activity_detail_supplies_base_template_context(db_session, monkeypatch):
+    from teelo.web.services import tweet_activity_handlers
+
+    item = SocialContentItem(
+        content_key="D-404",
+        content_type="broadcast",
+        status="draft",
+        channel="x_twitter",
+        current_version_key="v1",
+    )
+    db_session.add(item)
+    db_session.flush()
+    db_session.add(
+        SocialContentVersion(
+            content_item_id=item.id,
+            version_key="v1",
+            event="draft_created",
+            content_text="Detail route smoke test",
+        )
+    )
+    db_session.commit()
+
+    class CapturingTemplates:
+        def TemplateResponse(self, template_name, context):  # noqa: N802
+            return {"template_name": template_name, "context": context}
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/admin/tweet-activity/D-404",
+            "headers": [],
+            "query_string": b"",
+            "server": ("testserver", 80),
+            "scheme": "http",
+        }
+    )
+    monkeypatch.setattr(tweet_activity_handlers, "_require_admin", lambda request, db: None)
+    monkeypatch.setattr(tweet_activity_handlers, "_current_admin_user", lambda request, db: None)
+    monkeypatch.setattr(tweet_activity_handlers, "templates", CapturingTemplates())
+
+    response = asyncio.run(
+        tweet_activity_handlers.admin_tweet_activity_detail(
+            request,
+            "D-404",
+            db=db_session,
+        )
+    )
+
+    assert response["template_name"] == "admin_tweet_activity_detail.html"
+    assert response["context"]["now"].year >= 2026
+    assert response["context"]["current_path"] == "/admin/tweet-activity/D-404"
+    assert response["context"]["display_version"].content_text == "Detail route smoke test"
 
 
 def test_social_content_writer_is_idempotent(db_session):

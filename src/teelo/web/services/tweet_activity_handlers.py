@@ -95,6 +95,7 @@ async def admin_tweet_activity_detail(
             "admin": admin,
             "item": item,
             "display_version": display_content_version(item),
+            "now": datetime.utcnow(),
             "current_path": request.url.path,
         },
     )
