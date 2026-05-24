@@ -22,6 +22,7 @@ Match data structure:
 """
 
 import asyncio
+import json
 import os
 import re
 from datetime import datetime, timedelta
@@ -101,6 +102,13 @@ class WTAScraper(BaseScraper):
         "q3": "Q3",
     }
 
+    GRAND_SLAM_SLUGS = {
+        "australian-open",
+        "roland-garros",
+        "wimbledon",
+        "us-open",
+    }
+
     def _generate_external_id(
         self,
         year: int,
@@ -118,6 +126,65 @@ class WTAScraper(BaseScraper):
         sorted_ids = sorted([str(id_a), str(id_b)])
         return f"{year}_{tournament_id}_{round_code}_{sorted_ids[0]}_{sorted_ids[1]}"
 
+    def _normalize_round_code(self, round_text: str) -> str:
+        """Normalize WTA round labels, including site-specific anomalies."""
+        text = " ".join((round_text or "").strip().lower().split())
+        if not text:
+            return ""
+
+        mapped = self.ROUND_MAP.get(text)
+        if mapped:
+            return mapped
+
+        round_of_match = re.search(r"\bround\s+of\s+(\d+)\b", text)
+        if round_of_match:
+            size = int(round_of_match.group(1))
+            # WTA currently labels the Roland Garros first round "Round of 130"
+            # even though the bracket math is still handled as an R128 draw.
+            if 126 <= size <= 130:
+                return "R128"
+            if 63 <= size <= 65:
+                return "R64"
+            if 31 <= size <= 33:
+                return "R32"
+            if 15 <= size <= 17:
+                return "R16"
+
+        return text.upper()
+
+    def _infer_grand_slam_qualifying_rounds(
+        self,
+        matches: list[ScrapedMatch],
+        qualifying_seen: int,
+        tournament_id: str,
+    ) -> int:
+        """Split WTA Grand Slam qualifying results into Q1/Q2/Q3."""
+        if tournament_id not in self.GRAND_SLAM_SLUGS:
+            return qualifying_seen
+
+        for match in matches:
+            if match.round not in {"Q1", "QUALIFYING"}:
+                continue
+            qualifying_seen += 1
+            if qualifying_seen <= 64:
+                match.round = "Q1"
+            elif qualifying_seen <= 96:
+                match.round = "Q2"
+            else:
+                match.round = "Q3"
+
+            id_a = match.player_a_external_id or match.player_a_name.lower().replace(" ", "-")
+            id_b = match.player_b_external_id or match.player_b_name.lower().replace(" ", "-")
+            match.external_id = self._generate_external_id(
+                match.tournament_year,
+                match.tournament_id,
+                match.round,
+                id_a,
+                id_b,
+            )
+
+        return qualifying_seen
+
     async def get_tournament_list(self, year: int, tour_type: str = "main") -> list[dict]:
         """
         Scrape the WTA tournament calendar for a given year.
@@ -133,7 +200,7 @@ class WTAScraper(BaseScraper):
 
         Returns:
             List of tournament dicts with keys:
-            id, number, name, slug, level, surface, location, start_date, year
+            id, number, name, slug, level, surface, location, start_date, end_date, year
         """
         page = await self.new_page()
         tournaments = []
@@ -166,6 +233,7 @@ class WTAScraper(BaseScraper):
 
                 html = await page.content()
                 soup = BeautifulSoup(html, "lxml")
+                event_dates = self._extract_calendar_event_dates(soup, year)
 
                 # Each tournament is a list item in the calendar
                 cards = soup.select("li.tournament-list__item")
@@ -175,6 +243,20 @@ class WTAScraper(BaseScraper):
                     try:
                         tournament = self._parse_tournament_card(card, year)
                         if tournament:
+                            event_meta = event_dates.get(
+                                (tournament["name"], tournament["start_date"])
+                            ) or event_dates.get((tournament["name"], None))
+                            if event_meta:
+                                tournament["start_date"] = tournament.get(
+                                    "start_date"
+                                ) or event_meta.get("start_date")
+                                event_end_date = event_meta.get("end_date")
+                                if event_end_date and (
+                                    not tournament.get("end_date")
+                                    or tournament.get("end_date")
+                                    == tournament.get("start_date")
+                                ):
+                                    tournament["end_date"] = event_end_date
                             key = f"{tournament['number']}_{tournament['year']}"
                             if key not in seen_keys:
                                 seen_keys.add(key)
@@ -258,11 +340,15 @@ class WTAScraper(BaseScraper):
         if location_elem:
             location = location_elem.get_text(separator=", ", strip=True)
 
-        # Start date from first <time> element
+        # Dates from <time> elements when available.
+        # Some cards only expose the start date visually, but others include both.
         start_date = None
-        time_elem = card.select_one("time[date-time]")
-        if time_elem:
-            start_date = time_elem.get("date-time", "")
+        end_date = None
+        time_elems = card.select("time[date-time]")
+        if time_elems:
+            start_date = time_elems[0].get("date-time", "") or None
+            if len(time_elems) > 1:
+                end_date = time_elems[-1].get("date-time", "") or None
 
         return {
             "id": slug,
@@ -273,8 +359,48 @@ class WTAScraper(BaseScraper):
             "surface": surface,
             "location": location,
             "start_date": start_date,
+            "end_date": end_date,
             "year": link_year,
         }
+
+    def _extract_calendar_event_dates(
+        self, soup: BeautifulSoup, calendar_year: int
+    ) -> dict[tuple[str, Optional[str]], dict]:
+        """Extract start/end dates from calendar JSON-LD SportsEvent entries."""
+        event_dates: dict[tuple[str, Optional[str]], dict] = {}
+
+        def visit(node):
+            if isinstance(node, dict):
+                if node.get("@type") == "SportsEvent":
+                    name = node.get("name")
+                    start_date = node.get("startDate")
+                    end_date = node.get("endDate")
+                    if name and start_date:
+                        try:
+                            event_year = int(str(start_date)[:4])
+                        except Exception:
+                            event_year = None
+                        if event_year == calendar_year:
+                            meta = {"start_date": start_date, "end_date": end_date}
+                            event_dates[(name, start_date)] = meta
+                            event_dates.setdefault((name, None), meta)
+                for value in node.values():
+                    visit(value)
+            elif isinstance(node, list):
+                for value in node:
+                    visit(value)
+
+        for script in soup.select('script[type="application/ld+json"]'):
+            raw = script.string or script.get_text() or ""
+            if not raw.strip():
+                continue
+            try:
+                payload = json.loads(raw)
+            except Exception:
+                continue
+            visit(payload)
+
+        return event_dates
 
     async def scrape_tournament_results(
         self,
@@ -356,6 +482,7 @@ class WTAScraper(BaseScraper):
 
             match_number = 0
             seen_external_ids = set()
+            qualifying_seen = 0
 
             # Click the Singles tab once before iterating days.
             # The scores page has a Singles/Doubles filter
@@ -449,6 +576,11 @@ class WTAScraper(BaseScraper):
                 day_matches = self._parse_scores_day(
                     visible_html, tournament_id, tournament_number, year, date_str, match_number
                 )
+                qualifying_seen = self._infer_grand_slam_qualifying_rounds(
+                    day_matches,
+                    qualifying_seen,
+                    tournament_id,
+                )
 
                 day_count = 0
                 for scraped in day_matches:
@@ -536,7 +668,7 @@ class WTAScraper(BaseScraper):
                     continue
                 
                 text = header.get_text(strip=True).lower()
-                round_code = self.ROUND_MAP.get(text, text.upper())
+                round_code = self._normalize_round_code(text)
                 
                 # Find tables in this container
                 tables = container.select("table.match-table")
@@ -691,7 +823,7 @@ class WTAScraper(BaseScraper):
             round_code = ""
             if round_elem:
                 round_text = round_elem.get_text(strip=True).lower()
-                round_code = self.ROUND_MAP.get(round_text, round_text.upper())
+                round_code = self._normalize_round_code(round_text)
 
             # Find the match-table inside this container
             table = match_div.select_one("table.match-table")
@@ -771,7 +903,7 @@ class WTAScraper(BaseScraper):
                 continue # Skip if no header (or handle flat list if needed)
                 
             text = header.get_text(strip=True).lower()
-            round_code = self.ROUND_MAP.get(text, text.upper())
+            round_code = self._normalize_round_code(text)
             
             # Find tables
             tables = container.select("table.match-table")
@@ -1324,7 +1456,7 @@ class WTAScraper(BaseScraper):
         round_code = "R32" # Default
         if round_elem:
             text = round_elem.get_text(strip=True).lower()
-            round_code = self.ROUND_MAP.get(text, text.upper())
+            round_code = self._normalize_round_code(text)
 
         # Players (from match table inside)
         table = div.select_one("table.match-table")
