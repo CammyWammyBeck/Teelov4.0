@@ -19,10 +19,20 @@ from teelo.services.social_content_writer import (
 from teelo.web.services.tweet_activity_service import content_item_count, list_content_items
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "backfill_tweet_activity.py"
+EVENT_SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "social_content_event.py"
 
 
 def _load_backfill_module():
     spec = importlib.util.spec_from_file_location("backfill_tweet_activity", SCRIPT_PATH)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_event_module():
+    spec = importlib.util.spec_from_file_location("social_content_event", EVENT_SCRIPT_PATH)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     sys.modules[spec.name] = module
@@ -198,3 +208,58 @@ def test_social_content_writer_records_queue_post_and_kill(db_session):
     blocked = db_session.query(SocialContentItem).filter_by(content_key="D-203").one()
     assert killed.status == "killed"
     assert blocked.status == "blocked"
+
+
+def test_social_content_event_dispatches_queue_post_block_and_kill(db_session):
+    events = _load_event_module()
+    entry = {
+        "draft_id": "R-300",
+        "content": "Reply test",
+        "draft_file": "drafts/active/reply.md",
+        "queued_by": "test-agent",
+        "post_at": "2026-05-24 20:30",
+        "reply_to_tweet_id": "2057555862944624774",
+        "tweets": [{"text": "Reply text"}],
+    }
+
+    events.apply_event(db_session, {"event": "queued", "entry": entry})
+    events.apply_event(
+        db_session,
+        {
+            "event": "posted",
+            "entry": {
+                **entry,
+                "posted_at": "2026-05-24T20:35:00+10:00",
+                "tweet_ids": ["2059000000000000001"],
+            },
+        },
+    )
+    events.apply_event(
+        db_session,
+        {
+            "event": "blocked",
+            "entry": {**entry, "draft_id": "D-301"},
+            "reason": "constraint",
+        },
+    )
+    events.apply_event(
+        db_session,
+        {
+            "event": "killed",
+            "draft_id": "D-302",
+            "row": {"content": "Kill test", "draft_file": "drafts/archive/kill.md"},
+            "reason": "Killed by Cam",
+        },
+    )
+    db_session.commit()
+
+    reply = db_session.query(SocialContentItem).filter_by(content_key="R-300").one()
+    blocked = db_session.query(SocialContentItem).filter_by(content_key="D-301").one()
+    killed = db_session.query(SocialContentItem).filter_by(content_key="D-302").one()
+
+    assert reply.content_type == "reply"
+    assert reply.status == "posted"
+    assert reply.reply_to_tweet_id == "2057555862944624774"
+    assert reply.posted_tweet_id == "2059000000000000001"
+    assert blocked.status == "blocked"
+    assert killed.status == "killed"
