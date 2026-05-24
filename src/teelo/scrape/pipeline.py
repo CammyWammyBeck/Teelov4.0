@@ -354,10 +354,20 @@ def _should_scrape_schedule(task_params: TaskParams, today: date, fast_mode: boo
 def _should_scrape_results(
     task_params: TaskParams, today: date, fast_mode: bool = False, force: bool = False
 ) -> tuple[bool, str]:
-    """Return (should_scrape, skip_reason).  skip_reason is empty when should_scrape is True."""
+    """Return (should_scrape, skip_reason).  skip_reason is empty when should_scrape is True.
+
+    Important: current-tournament tasks can have qualifying results before the
+    edition start_date (which is often the main-draw start). Once a tournament
+    has entered the broader current-task check window, we should still inspect
+    results rather than hard-skipping on start_date alone.
+    """
     start_date = _parse_date(task_params.start_date)
-    if start_date and start_date > (today + timedelta(days=1)):
-        return False, "Skipping Results (tournament has not started yet)"
+    if start_date:
+        level = (task_params.tournament_level or "").lower()
+        lead_days = 7 if "grand slam" in level else 3
+        check_from = start_date - timedelta(days=lead_days)
+        if today < check_from:
+            return False, "Skipping Results (tournament has not entered results check window yet)"
     if fast_mode and not force:
         end_date = _parse_date(task_params.end_date)
         if end_date and end_date < (today - timedelta(days=1)):
