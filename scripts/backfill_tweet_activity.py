@@ -236,6 +236,8 @@ def _parse_content_plan(path: Path) -> list[dict]:
             continue
         if in_table and re.match(r"\|\s*[-–]+\s*\|", line):
             continue
+        if in_table and not line.strip():
+            continue
         # End of table
         if in_table and not line.startswith("|"):
             break
@@ -243,8 +245,8 @@ def _parse_content_plan(path: Path) -> list[dict]:
         if not in_table:
             continue
 
-        # Split by pipe, strip non-whitespace
-        cols = [c.strip() for c in line.split("|")]
+        # Split on markdown table pipes, but keep escaped constraint pipes together.
+        cols = [c.strip().replace(r"\|", "|") for c in re.split(r"(?<!\\)\|", line)]
         cols = [c for c in cols if c]
 
         if not cols or not (cols[0].startswith("D-") or cols[0].startswith("R-")):
@@ -272,6 +274,16 @@ def _parse_content_plan(path: Path) -> list[dict]:
         entries.append(record)
 
     return entries
+
+
+def _parse_draft_file_id(path: Path) -> str | None:
+    """Extract stable D-XXX/R-XXX ID embedded in a draft file."""
+    if not path.exists():
+        return None
+    with open(path) as f:
+        head = "".join(f.readline() for _ in range(20))
+    match = re.search(r"\*\*ID:\*\*\s+([DR]-\d+)", head)
+    return match.group(1) if match else None
 
 
 def _parse_draft_file(path: Path) -> tuple[str | None, list[DraftVersion]]:
@@ -411,6 +423,12 @@ def backfill() -> list[SocialContentRecord]:
             post_at=post_at,
         ))
         rec.status = status
+        if ck.startswith("R-"):
+            rec.content_type = "reply"
+            constraint = entry.get("constraints", "")
+            reply_to_m = re.search(r"reply_to_tweet:(\d+)", constraint)
+            if reply_to_m:
+                rec.reply_to_tweet_id = reply_to_m.group(1)
         if posted_ids:
             rec.posted_tweet_ids = posted_ids
 
@@ -498,11 +516,14 @@ def backfill() -> list[SocialContentRecord]:
                     break
 
         if ck is None:
-            # Last resort: skip (orphan file)
-            print(f"  ⚠ Could not resolve content_key for {fp.name}")
-            continue
+            ck = _parse_draft_file_id(fp)
+            if ck is None:
+                print(f"  ⚠ Could not resolve content_key for {fp.name}")
+                continue
 
         rec = records.setdefault(ck, SocialContentRecord(content_key=ck))
+        if ck.startswith("R-"):
+            rec.content_type = "reply"
         if summary:
             rec.summary = summary
         if fp.name.startswith("drafts/active"):

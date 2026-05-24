@@ -31,8 +31,12 @@ def test_content_plan_parser_accepts_broadcasts_and_replies(tmp_path):
                 "| ID | Content | Status | Post At (AEDT) | Constraints | Draft File |",
                 "|----|---------|--------|----------------|-------------|------------|",
                 "| D-190 | RG board | ✅ Posted (2058419801584992695) | "
-                "Sun 24 May 15:30 AEST | — | drafts/active/d.md |",
-                "| R-002 | Reply to mention | ✅ Approved / queued | — | — | drafts/active/r.md |",
+                "Sun 24 May 15:30 AEST | "
+                r"dont_post_if:match_started:1 \| dont_post_if:match_complete:1"
+                " | drafts/active/d.md |",
+                "",
+                "| R-002 | Reply to mention | ⏳ Pending | ASAP | "
+                "reply_to_tweet:2057555862944624774 | drafts/active/r.md |",
                 "",
             ]
         )
@@ -42,6 +46,18 @@ def test_content_plan_parser_accepts_broadcasts_and_replies(tmp_path):
 
     assert [entry["draft_id"] for entry in entries] == ["D-190", "R-002"]
     assert entries[0]["posted_tweet_ids"] == ["2058419801584992695"]
+    assert entries[0]["constraints"] == (
+        "dont_post_if:match_started:1 | dont_post_if:match_complete:1"
+    )
+    assert entries[0]["draft_file"] == "drafts/active/d.md"
+
+
+def test_draft_file_id_parser_reads_embedded_workflow_id(tmp_path):
+    backfill = _load_backfill_module()
+    draft = tmp_path / "orphan.md"
+    draft.write_text("# Draft\n\n**ID:** R-002\n**Created:** 2026-05-22 12:12 AEST\n")
+
+    assert backfill._parse_draft_file_id(draft) == "R-002"
 
 
 def test_parse_datetime_handles_aest_and_aedt_offsets():
