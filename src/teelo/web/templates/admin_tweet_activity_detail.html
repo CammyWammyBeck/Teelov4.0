@@ -54,18 +54,20 @@
         {% if item.reply_to_tweet_id %}
         <div class="flex items-center gap-2">
             <span class="font-semibold text-content-muted">In Reply To:</span>
-            <a href="https://x.com/{{ item.reply_to_handle }}/status/{{ item.reply_to_tweet_id }}"
+            <a href="{% if item.reply_to_handle %}https://x.com/{{ item.reply_to_handle }}/status/{{ item.reply_to_tweet_id }}{% else %}https://x.com/i/web/status/{{ item.reply_to_tweet_id }}{% endif %}"
                target="_blank"
+               rel="noopener noreferrer"
                class="text-teelo-dark hover:underline text-sm font-mono">
-                {{ item.reply_to_handle }}/{{ item.reply_to_tweet_id[:16] }}…
+                {% if item.reply_to_handle %}{{ item.reply_to_handle }}/{% endif %}{{ item.reply_to_tweet_id[:16] }}…
             </a>
         </div>
         {% endif %}
         {% if item.posted_tweet_id %}
         <div class="flex items-center gap-2">
             <span class="font-semibold text-content-muted">Posted Tweet:</span>
-            <a href="https://x.com/i/status/{{ item.posted_tweet_id }}"
+            <a href="https://x.com/i/web/status/{{ item.posted_tweet_id }}"
                target="_blank"
+               rel="noopener noreferrer"
                class="text-teelo-dark hover:underline text-sm font-mono">
                 {{ item.posted_tweet_id }}
             </a>
@@ -182,8 +184,10 @@
                         </td>
                         <td class="px-4 py-3 font-mono text-sm">
                             {% if post.posted_tweet_id %}
-                            <a href="https://x.com/i/status/{{ post.posted_tweet_id }}"
-                               target="_blank" class="text-teelo-dark hover:underline">
+                            <a href="https://x.com/i/web/status/{{ post.posted_tweet_id }}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               class="text-teelo-dark hover:underline">
                                 {{ post.posted_tweet_id }}
                             </a>
                             {% else %}—{% endif %}
