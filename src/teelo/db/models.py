@@ -1328,3 +1328,138 @@ class PipelineStageRun(Base):
             f"<PipelineStageRun(run_id='{self.run_id}', "
             f"stage='{self.stage_name}', status='{self.status}')>"
         )
+
+
+# =============================================================================
+# Social Content / Tweet Activity
+# =============================================================================
+
+class SocialContentItem(Base):
+    """
+    A social media post (tweet/broadcast or reply), tracked end-to-end.
+
+    This is the source of truth for all tweet activity, replacing the
+    file-based drafts/queue/history workflow.
+    """
+    __tablename__ = "social_content_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Stable operational ID e.g. D-190, R-002
+    content_key: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    # broadcast | reply
+    content_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    # draft | review_pending | approved | queued | posted | killed | failed_review
+    status: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    # x_twitter | bluesky | ... (loose for future channels)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False, default="x_twitter")
+    # The version key that is current/live e.g. v3, approved
+    current_version_key: Mapped[str] = mapped_column(String(30), nullable=False)
+    # Source player/tweet ID for replies
+    reply_to_tweet_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    reply_to_handle: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # Scheduling / posting
+    post_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    posted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Twitter snowflake or equivalent for the posted tweet
+    posted_tweet_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    # Contextual references
+    draft_file_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Human-readable label derived from content or context
+    summary: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    versions: Mapped[list["SocialContentVersion"]] = relationship(
+        back_populates="content_item",
+        cascade="all, delete-orphan",
+        order_by="SocialContentVersion.created_at",
+    )
+    posts: Mapped[list["SocialContentPost"]] = relationship(
+        back_populates="content_item",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("idx_social_content_key_type", "content_key", "content_type", unique=True),
+        Index("idx_social_content_status_post_at", "status", "post_at"),
+        Index("idx_social_content_channel_status", "channel", "status"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<SocialContentItem({self.content_key}, {self.status})>"
+
+
+class SocialContentVersion(Base):
+    """
+    A single version/snapshot of a social content item.
+
+    Every significant state change (draft created, submitted for review,
+    reviewer revision, approved, queued, posted, kill) gets its own row
+    so the full history is auditable androllable.
+    """
+    __tablename__ = "social_content_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    content_item_id: Mapped[int] = mapped_column(
+        ForeignKey("social_content_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Stable version label e.g. v1, v2, review-rejected-1, approved, posted
+    version_key: Mapped[str] = mapped_column(String(30), nullable=False)
+    # The full text at this version (may be empty for non-text events)
+    content_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # What triggered this version
+    event: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Human-readable note from the agent/reviewer
+    note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Reviewer assessment (for review event types)
+    review_result: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Character count at this version
+    char_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+
+    content_item: Mapped["SocialContentItem"] = relationship(back_populates="versions")
+
+    __table_args__ = (
+        Index("idx_social_version_item_event", "content_item_id", "event"),
+        UniqueConstraint("content_item_id", "version_key"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<SocialContentVersion({self.content_item_id}, {self.version_key})>"
+
+
+class SocialContentPost(Base):
+    """
+    Record of each publish attempt for a social content item.
+
+    A single content_item may be attempted multiple times (network retry,
+    user-initiated repost). This table captures that history and the
+    resulting tweet ID per attempt.
+    """
+    __tablename__ = "social_content_posts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    content_item_id: Mapped[int] = mapped_column(
+        ForeignKey("social_content_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Twitter snowflake or equivalent
+    posted_tweet_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    posted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    # success | failure | cancelled
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    content_item: Mapped["SocialContentItem"] = relationship(back_populates="posts")
+
+    __table_args__ = (
+        Index("idx_social_post_item_status", "content_item_id", "status"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<SocialContentPost(item={self.content_item_id}, tweet={self.posted_tweet_id})>"
