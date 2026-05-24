@@ -75,8 +75,25 @@
         {% endif %}
     </div>
 
+    <nav class="grid grid-cols-2 gap-2 text-sm sm:flex sm:flex-wrap">
+        <a href="#current-content"
+           class="rounded-lg border border-line bg-surface px-3 py-2 text-center font-semibold text-content-secondary hover:bg-surface-hover">
+            Tweet Text
+        </a>
+        <a href="#versions"
+           class="rounded-lg border border-line bg-surface px-3 py-2 text-center font-semibold text-content-secondary hover:bg-surface-hover">
+            Drafts & Versions ({{ item.versions | length }})
+        </a>
+        {% if item.posts %}
+        <a href="#post-attempts"
+           class="rounded-lg border border-line bg-surface px-3 py-2 text-center font-semibold text-content-secondary hover:bg-surface-hover">
+            Post Attempts ({{ item.posts | length }})
+        </a>
+        {% endif %}
+    </nav>
+
     {# Current content #}
-    <div class="bg-surface border border-line rounded-lg p-4">
+    <div id="current-content" class="scroll-mt-24 bg-surface border border-line rounded-lg p-4">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
                 <h2 class="text-lg font-bold text-teelo-dark">Current Tweet Content</h2>
@@ -102,6 +119,70 @@
         </div>
         {% else %}
         <p class="text-sm text-content-muted">No tweet text was captured for this item.</p>
+        {% endif %}
+    </div>
+
+    {# Version history #}
+    <div id="versions" class="scroll-mt-24">
+        <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+                <h2 class="text-xl font-bold text-teelo-dark">Drafts & Versions</h2>
+                <p class="text-sm text-content-muted">{{ item.versions | length }} saved snapshots</p>
+            </div>
+            <a href="#current-content" class="text-sm font-semibold text-content-secondary hover:underline">Back to tweet text</a>
+        </div>
+        {% if item.versions %}
+        <div class="space-y-3">
+            {% for version in item.versions %}
+            <details class="bg-surface border {% if version.version_key == item.current_version_key %}border-teelo-dark ring-2 ring-teelo-dark{% else %}border-line{% endif %} rounded-lg overflow-hidden" {% if display_version and version.id == display_version.id %}open{% endif %}>
+                <summary class="cursor-pointer list-none px-4 py-3 bg-gray-50 border-b border-line">
+                    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <span class="font-mono font-bold text-sm
+                            {% if version.version_key == item.current_version_key %}text-teelo-dark{% else %}text-content-muted{% endif %}">
+                            {{ version.version_key }}
+                        </span>
+                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+                            {% if version.event == 'posted' %}bg-green-100 text-green-800
+                            {% elif version.event == 'approved' %}bg-emerald-100 text-emerald-800
+                            {% elif version.event == 'killed' %}bg-red-100 text-red-800
+                            {% elif 'review' in version.event %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-gray-100 text-gray-800
+                            {% endif %}">
+                            {{ version.event | replace('_', ' ') }}
+                        </span>
+                        {% if version.review_result %}
+                        <span class="text-xs text-content-muted">
+                            → {{ version.review_result }}
+                        </span>
+                        {% endif %}
+                        <span class="text-xs text-content-muted">
+                            {{ version.created_at.strftime('%d %b %Y, %H:%M') }}
+                        </span>
+                        {% if version.char_count %}
+                        <span class="text-xs text-content-muted">{{ version.char_count }} chars</span>
+                        {% endif %}
+                        {% if display_version and version.id == display_version.id %}
+                        <span class="rounded-full bg-teelo-lime px-2 py-0.5 text-xs font-bold text-teelo-ink">shown above</span>
+                        {% endif %}
+                    </div>
+                </summary>
+                {% if version.content_text %}
+                <div class="px-4 py-3">
+                    <p class="text-sm text-teelo-dark whitespace-pre-wrap break-words">{{ version.content_text }}</p>
+                </div>
+                {% endif %}
+                {% if version.note %}
+                <div class="px-4 py-2 border-t border-line">
+                    <p class="text-xs text-content-muted italic">{{ version.note }}</p>
+                </div>
+                {% endif %}
+            </details>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-surface border border-line rounded-lg p-8 text-center">
+            <p class="text-content-muted">No version history yet.</p>
+        </div>
         {% endif %}
     </div>
 
@@ -137,64 +218,9 @@
         </div>
     </div>
 
-    {# Version history #}
-    <div>
-        <h2 class="text-xl font-bold text-teelo-dark mb-3">Version History</h2>
-        {% if item.versions %}
-        <div class="space-y-3">
-            {% for version in item.versions %}
-            <div class="bg-surface border {% if version.version_key == item.current_version_key %}border-teelo-dark ring-2 ring-teelo-dark{% else %}border-line{% endif %} rounded-lg overflow-hidden">
-                <div class="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-line">
-                    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-                        <span class="font-mono font-bold text-sm
-                            {% if version.version_key == item.current_version_key %}text-teelo-dark{% else %}text-content-muted{% endif %}">
-                            {{ version.version_key }}
-                        </span>
-                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
-                            {% if version.event == 'posted' %}bg-green-100 text-green-800
-                            {% elif version.event == 'approved' %}bg-emerald-100 text-emerald-800
-                            {% elif version.event == 'killed' %}bg-red-100 text-red-800
-                            {% elif 'review' in version.event %}bg-yellow-100 text-yellow-800
-                            {% else %}bg-gray-100 text-gray-800
-                            {% endif %}">
-                            {{ version.event | replace('_', ' ') }}
-                        </span>
-                        {% if version.review_result %}
-                        <span class="text-xs text-content-muted">
-                            → {{ version.review_result }}
-                        </span>
-                        {% endif %}
-                        <span class="text-xs text-content-muted">
-                            {{ version.created_at.strftime('%d %b %Y, %H:%M') }}
-                        </span>
-                        {% if version.char_count %}
-                        <span class="text-xs text-content-muted">{{ version.char_count }} chars</span>
-                        {% endif %}
-                    </div>
-                </div>
-                {% if version.content_text %}
-                <div class="px-4 py-3">
-                    <p class="text-sm text-teelo-dark whitespace-pre-wrap break-words">{{ version.content_text }}</p>
-                </div>
-                {% endif %}
-                {% if version.note %}
-                <div class="px-4 py-2 border-t border-line">
-                    <p class="text-xs text-content-muted italic">{{ version.note }}</p>
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="bg-surface border border-line rounded-lg p-8 text-center">
-            <p class="text-content-muted">No version history yet.</p>
-        </div>
-        {% endif %}
-    </div>
-
     {# Post history #}
     {% if item.posts %}
-    <div>
+    <div id="post-attempts" class="scroll-mt-24">
         <h2 class="text-xl font-bold text-teelo-dark mb-3">Post Attempts</h2>
         <div class="space-y-3 md:hidden">
             {% for post in item.posts %}
