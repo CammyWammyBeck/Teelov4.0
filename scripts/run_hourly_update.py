@@ -8,7 +8,7 @@ import json
 import subprocess
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -243,39 +243,84 @@ def _run_predictions_stage(ctx: StageContext) -> StageResult:
 def _run_forecast_node_sync_stage(ctx: StageContext) -> StageResult:
     """Promote scenario forecast nodes to actual nodes when real matches are now known."""
     started_at = _utc_now()
+    lookback_days = int(ctx.options.get("forecast_sync_lookback_days", 21))
+    lookahead_days = int(ctx.options.get("forecast_sync_lookahead_days", 14))
+    statement_timeout_ms = int(ctx.options.get("forecast_sync_statement_timeout_ms", 120_000))
+
     try:
         from teelo.db import get_session
-        from teelo.db.models import TournamentForecastRun
-        from teelo.services.tournament_forecast import sync_forecast_nodes
+        from teelo.db.models import Tournament, TournamentEdition, TournamentForecastRun
+        from teelo.services.tournament_forecast import is_forecast_eligible_tournament, sync_forecast_nodes
+        from sqlalchemy import text
 
-        total_updated = 0
+        today = date.today()
+        window_start = today - timedelta(days=lookback_days)
+        window_end = today + timedelta(days=lookahead_days)
+        candidates: list[tuple[int, int, str]] = []
+
         with get_session() as session:
-            active_runs = (
-                session.query(TournamentForecastRun)
+            rows = (
+                session.query(TournamentForecastRun, TournamentEdition, Tournament)
+                .join(TournamentEdition, TournamentEdition.id == TournamentForecastRun.tournament_edition_id)
+                .join(Tournament, Tournament.id == TournamentEdition.tournament_id)
                 .filter(
                     TournamentForecastRun.is_active.is_(True),
                     TournamentForecastRun.status == "ready",
+                    TournamentEdition.start_date <= window_end,
+                    TournamentEdition.end_date >= window_start,
                 )
                 .all()
             )
-            for run in active_runs:
-                updated = sync_forecast_nodes(session, edition_id=run.tournament_edition_id)
+            for run, edition, tournament in rows:
+                if not is_forecast_eligible_tournament(tournament):
+                    continue
+                label = f"{tournament.tour} {tournament.name} {edition.year}"
+                candidates.append((int(run.id), int(edition.id), label))
+
+        failures: list[dict[str, Any]] = []
+        total_updated = 0
+        for _run_id, edition_id, label in candidates:
+            try:
+                with get_session() as session:
+                    session.execute(text("SET LOCAL statement_timeout = :timeout_ms"), {"timeout_ms": statement_timeout_ms})
+                    updated = sync_forecast_nodes(session, edition_id=edition_id)
                 total_updated += updated
                 if updated:
-                    logger.info("forecast_node_sync.updated", edition_id=run.tournament_edition_id, updated=updated)
-            session.commit()
+                    logger.info("forecast_node_sync.updated", edition_id=edition_id, label=label, updated=updated)
+            except Exception as exc:
+                logger.warning("forecast_node_sync.edition_failed", edition_id=edition_id, label=label, error=str(exc))
+                failures.append({"edition_id": edition_id, "label": label, "error": str(exc)[:500]})
 
-        logger.info("stage.forecast_node_sync_done", total_updated=total_updated)
+        logger.info(
+            "stage.forecast_node_sync_done",
+            candidates=len(candidates),
+            total_updated=total_updated,
+            failures=len(failures),
+        )
+        status = "partial" if failures else "success"
         return StageResult(
-            stage_name=ctx.stage_name, status="success",
-            started_at=started_at, ended_at=_utc_now(),
-            metrics={"nodes_promoted": total_updated},
+            stage_name=ctx.stage_name,
+            status=status,  # type: ignore[arg-type]
+            started_at=started_at,
+            ended_at=_utc_now(),
+            metrics={
+                "candidate_count": len(candidates),
+                "nodes_promoted": total_updated,
+                "failures": failures,
+                "window_start": window_start.isoformat(),
+                "window_end": window_end.isoformat(),
+            },
+            error=f"{len(failures)} forecast edition sync failure(s)" if failures else None,
         )
     except Exception as exc:
         logger.error("stage.forecast_node_sync_failed", error=str(exc))
         return StageResult(
-            stage_name=ctx.stage_name, status="failed",
-            started_at=started_at, ended_at=_utc_now(), error=str(exc),
+            stage_name=ctx.stage_name,
+            status="partial",
+            started_at=started_at,
+            ended_at=_utc_now(),
+            metrics={"nodes_promoted": 0, "failures": [{"error": str(exc)[:500]}]},
+            error=str(exc),
         )
 
 
