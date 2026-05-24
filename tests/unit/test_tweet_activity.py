@@ -102,6 +102,37 @@ def test_backfill_write_mode_requires_explicit_confirmation():
     assert "Refusing to write without --confirm-db-write" in result.stdout
 
 
+def test_backfill_dry_run_summary_counts_versions_and_gaps():
+    backfill = _load_backfill_module()
+    records = [
+        backfill.SocialContentRecord(
+            content_key="D-001",
+            status="posted",
+            content_type="broadcast",
+            posted_tweet_ids=["2058419801584992695"],
+            versions=[backfill.DraftVersion(version_key="approved")],
+        ),
+        backfill.SocialContentRecord(
+            content_key="R-002",
+            status="queued",
+            content_type="reply",
+            versions=[],
+        ),
+    ]
+
+    summary = backfill.build_dry_run_summary(records)
+
+    assert summary["records"] == 2
+    assert summary["status_counts"] == {"posted": 1, "queued": 1}
+    assert summary["type_counts"] == {"broadcast": 1, "reply": 1}
+    assert summary["version_count"] == 1
+    assert summary["post_count"] == 1
+    assert summary["records_with_versions"] == 1
+    assert summary["records_without_versions"] == 1
+    assert summary["records_without_versions_keys"] == ["R-002"]
+    assert summary["posted_missing_posted_at"] == ["D-001"]
+
+
 def test_tweet_activity_search_matches_child_post_ids(db_session):
     item = SocialContentItem(
         content_key="D-999",

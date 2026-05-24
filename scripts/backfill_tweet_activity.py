@@ -18,6 +18,7 @@ import argparse
 import json
 import re
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -674,6 +675,54 @@ def print_dry_run(records: list[SocialContentRecord]):
         print()
 
 
+def build_dry_run_summary(records: list[SocialContentRecord]) -> dict[str, Any]:
+    """Build concise import review stats without touching the database."""
+    status_counts = Counter(rec.status for rec in records)
+    type_counts = Counter(rec.content_type for rec in records)
+    no_version_keys = sorted(rec.content_key for rec in records if not rec.versions)
+    posted_missing_posted_at = sorted(
+        rec.content_key
+        for rec in records
+        if rec.status == "posted" and rec.posted_tweet_ids and rec.posted_at is None
+    )
+    return {
+        "records": len(records),
+        "status_counts": dict(sorted(status_counts.items())),
+        "type_counts": dict(sorted(type_counts.items())),
+        "version_count": sum(len(rec.versions) for rec in records),
+        "post_count": sum(len(rec.posted_tweet_ids) for rec in records),
+        "records_with_versions": sum(1 for rec in records if rec.versions),
+        "records_without_versions": len(no_version_keys),
+        "records_without_versions_keys": no_version_keys,
+        "posted_missing_posted_at": posted_missing_posted_at,
+    }
+
+
+def print_summary(records: list[SocialContentRecord]) -> None:
+    summary = build_dry_run_summary(records)
+    print("\n" + "=" * 80)
+    print("DRY RUN SUMMARY")
+    print(f"  Records: {summary['records']}")
+    print(f"  Statuses: {_format_counts(summary['status_counts'])}")
+    print(f"  Types: {_format_counts(summary['type_counts'])}")
+    print(f"  Versions: {summary['version_count']}")
+    print(f"  Posted tweet IDs: {summary['post_count']}")
+    print(
+        "  Version coverage: "
+        f"{summary['records_with_versions']} with, "
+        f"{summary['records_without_versions']} without"
+    )
+    if summary["posted_missing_posted_at"]:
+        keys = ", ".join(summary["posted_missing_posted_at"][:20])
+        extra = len(summary["posted_missing_posted_at"]) - 20
+        suffix = f", +{extra} more" if extra > 0 else ""
+        print(f"  Posted rows missing posted_at: {keys}{suffix}")
+
+
+def _format_counts(counts: dict[str, int]) -> str:
+    return ", ".join(f"{key}={value}" for key, value in counts.items()) or "(none)"
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="write records to the configured DB")
@@ -681,6 +730,11 @@ if __name__ == "__main__":
         "--confirm-db-write",
         action="store_true",
         help="required with --write to guard against accidental live DB backfills",
+    )
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="print only aggregate dry-run stats instead of every candidate record",
     )
     args = parser.parse_args()
 
@@ -692,7 +746,9 @@ if __name__ == "__main__":
     records = backfill()
 
     if not args.write:
-        print_dry_run(records)
+        print_summary(records)
+        if not args.summary:
+            print_dry_run(records)
         print("\nTo write to the configured database, rerun with --write --confirm-db-write.")
     else:
         print(f"Writing {len(records)} records to database...")
