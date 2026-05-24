@@ -8,6 +8,14 @@ import sys
 from pathlib import Path
 
 from teelo.db.models import SocialContentItem, SocialContentPost
+from teelo.services.social_content_writer import (
+    record_blocked_or_failed,
+    record_killed,
+    record_posted,
+    record_queue_state,
+    record_version,
+    upsert_item,
+)
 from teelo.web.services.tweet_activity_service import content_item_count, list_content_items
 
 SCRIPT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "backfill_tweet_activity.py"
@@ -115,3 +123,78 @@ def test_tweet_activity_search_matches_child_post_ids(db_session):
 
     assert [result.content_key for result in results] == ["D-999"]
     assert content_item_count(db_session, query="205841980") == 1
+
+
+def test_social_content_writer_is_idempotent(db_session):
+    upsert_item(db_session, "D-200", summary="Original", status="draft")
+    upsert_item(db_session, "D-200", summary="Updated", status="approved")
+    record_version(
+        db_session,
+        "D-200",
+        "v1",
+        event="draft_created",
+        content_text="first text",
+        set_current=True,
+    )
+    record_version(
+        db_session,
+        "D-200",
+        "v1",
+        event="draft_created",
+        content_text="revised text",
+        set_current=True,
+    )
+    db_session.commit()
+
+    item = db_session.query(SocialContentItem).filter_by(content_key="D-200").one()
+
+    assert item.summary == "Updated"
+    assert item.status == "approved"
+    assert item.current_version_key == "v1"
+    assert len(item.versions) == 1
+    assert item.versions[0].content_text == "revised text"
+
+
+def test_social_content_writer_records_queue_post_and_kill(db_session):
+    tweets = [{"text": "Tweet one"}, {"text": "Tweet two"}]
+
+    queued = record_queue_state(
+        db_session,
+        "D-201",
+        post_at=None,
+        tweets=tweets,
+        queued_by="test-agent",
+        item_defaults={"summary": "Queue test"},
+    )
+    posted = record_posted(
+        db_session,
+        "D-201",
+        external_post_ids=["2058419801584992695", "2058419803275321352"],
+        posted_at=queued.created_at,
+        tweets=tweets,
+        item_defaults={"summary": "Queue test"},
+    )
+    record_posted(
+        db_session,
+        "D-201",
+        external_post_ids=["2058419801584992695", "2058419803275321352"],
+        posted_at=queued.created_at,
+        tweets=tweets,
+        item_defaults={"summary": "Queue test"},
+    )
+    record_killed(db_session, "D-202", reason="bad data")
+    record_blocked_or_failed(db_session, "D-203", status="blocked", reason="constraint")
+    db_session.commit()
+
+    assert posted.status == "posted"
+    assert posted.posted_tweet_id == "2058419801584992695"
+    assert len(posted.posts) == 2
+    assert {post.posted_tweet_id for post in posted.posts} == {
+        "2058419801584992695",
+        "2058419803275321352",
+    }
+    assert db_session.query(SocialContentPost).count() == 2
+    killed = db_session.query(SocialContentItem).filter_by(content_key="D-202").one()
+    blocked = db_session.query(SocialContentItem).filter_by(content_key="D-203").one()
+    assert killed.status == "killed"
+    assert blocked.status == "blocked"
