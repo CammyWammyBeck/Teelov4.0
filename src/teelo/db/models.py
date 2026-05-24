@@ -120,13 +120,19 @@ def estimate_match_date_from_round(
 
     progress = ROUND_PROGRESS.get(round_code, 0.5)  # Default to mid-tournament
 
-    # Handle date vs datetime
-    if hasattr(tournament_start, 'date'):
-        start = tournament_start if isinstance(tournament_start, datetime) else datetime.combine(tournament_start, datetime.min.time())
-        end = tournament_end if isinstance(tournament_end, datetime) else datetime.combine(tournament_end, datetime.min.time())
-    else:
-        start = tournament_start
-        end = tournament_end
+    # Handle date vs datetime independently. During ingestion, freshly parsed
+    # task params may be ``datetime`` objects while persisted Date columns come
+    # back as ``date`` objects in the same session, so mixed types are expected.
+    start = (
+        tournament_start
+        if isinstance(tournament_start, datetime)
+        else datetime.combine(tournament_start, datetime.min.time())
+    )
+    end = (
+        tournament_end
+        if isinstance(tournament_end, datetime)
+        else datetime.combine(tournament_end, datetime.min.time())
+    )
 
     # Calculate estimated date
     duration = (end - start).days

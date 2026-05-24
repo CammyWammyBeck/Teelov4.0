@@ -7,7 +7,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 import structlog
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from teelo.db.models import (
@@ -766,45 +766,70 @@ def sync_forecast_nodes(session: Session, *, edition_id: int) -> int:
     if run is None:
         return 0
 
-    # Only unlinked scenario nodes need processing.
-    nodes = (
-        session.query(TournamentForecastNode)
-        .filter(
+    # Only load the lightweight columns needed to match scenario nodes to real matches.
+    # Scenario nodes can carry large JSON state/features, and loading those blobs for
+    # every active forecast made the hourly sync stage slow enough to block the pipeline.
+    node_rows = session.execute(
+        select(
+            TournamentForecastNode.id,
+            TournamentForecastNode.round,
+            TournamentForecastNode.draw_position,
+            TournamentForecastNode.player_a_id,
+            TournamentForecastNode.player_b_id,
+        ).where(
             TournamentForecastNode.forecast_run_id == run.id,
             TournamentForecastNode.node_type == "scenario",
             TournamentForecastNode.source_match_id.is_(None),
         )
-        .all()
-    )
-    if not nodes:
+    ).all()
+    if not node_rows:
         return 0
 
-    # Load all active draw matches for this edition.
-    matches = _load_forecast_matches(session, edition_id)
-
-    # Index by (round, draw_position, frozenset of player ids) for O(1) lookup.
-    match_index: dict[tuple[str, int, frozenset], Match] = {}
-    for m in matches:
-        key = (m.round, int(m.draw_position), frozenset([int(m.player_a_id), int(m.player_b_id)]))
-        match_index[key] = m
-
-    updated = 0
-    for node in nodes:
-        key = (
-            node.round,
-            int(node.draw_position),
-            frozenset([int(node.player_a_id), int(node.player_b_id)]),
+    match_rows = session.execute(
+        select(
+            Match.id,
+            Match.round,
+            Match.draw_position,
+            Match.player_a_id,
+            Match.player_b_id,
+        ).where(
+            Match.tournament_edition_id == edition_id,
+            _forecast_match_filter(),
         )
-        match = match_index.get(key)
-        if match is None:
+    ).all()
+
+    # Index by (round, draw_position, unordered player ids) for O(1) lookup.
+    match_index: dict[tuple[str, int, frozenset[int]], int] = {}
+    for row in match_rows:
+        match_index[
+            (
+                str(row.round),
+                int(row.draw_position),
+                frozenset([int(row.player_a_id), int(row.player_b_id)]),
+            )
+        ] = int(row.id)
+
+    updates: list[dict[str, int | str]] = []
+    for row in node_rows:
+        match_id = match_index.get(
+            (
+                str(row.round),
+                int(row.draw_position),
+                frozenset([int(row.player_a_id), int(row.player_b_id)]),
+            )
+        )
+        if match_id is None:
             continue
+        updates.append({"id": int(row.id), "source_match_id": match_id, "node_type": "actual"})
 
-        node.source_match_id = match.id
-        node.node_type = "actual"
-        session.add(node)
-        updated += 1
+    if not updates:
+        return 0
 
-    return updated
+    session.execute(
+        update(TournamentForecastNode),
+        updates,
+    )
+    return len(updates)
 
 
 def get_top_player(session: Session, *, edition_id: int) -> dict[str, Any] | None:
