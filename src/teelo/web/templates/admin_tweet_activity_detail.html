@@ -34,20 +34,20 @@
                 {% elif item.status == 'killed' %}bg-red-100 text-red-800 border border-red-200
                 {% elif item.status == 'failed_review' %}bg-red-100 text-red-800 border border-red-200
                 {% elif item.status == 'review_pending' %}bg-yellow-100 text-yellow-800 border border-yellow-200
-                {% else %}bg-gray-100 text-gray-800 border border-gray-200
+                {% else %}bg-surface-muted text-content-secondary border border-line
                 {% endif %}">
                 {{ item.status | replace('_', ' ') | upper }}
             </span>
         </div>
         <div class="flex items-center gap-2">
             <span class="font-semibold text-content-muted">Channel:</span>
-            <span class="bg-gray-100 text-gray-800 border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold">
+            <span class="bg-surface-muted text-content-secondary border border-line rounded-full px-3 py-1 text-xs font-semibold">
                 {{ item.channel | upper }}
             </span>
         </div>
         <div class="flex items-center gap-2">
             <span class="font-semibold text-content-muted">Current Version:</span>
-            <span class="bg-gray-100 text-gray-800 border border-gray-200 rounded-full px-3 py-1 text-xs font-mono font-semibold">
+            <span class="bg-surface-muted text-content-secondary border border-line rounded-full px-3 py-1 text-xs font-mono font-semibold">
                 {{ item.current_version_key }}
             </span>
         </div>
@@ -114,8 +114,8 @@
             {% endif %}
         </div>
         {% if display_version and display_version.content_text %}
-        <div class="rounded-lg border border-line bg-white p-3">
-            <p class="whitespace-pre-wrap break-words text-sm leading-6 text-teelo-dark">{{ display_version.content_text }}</p>
+        <div class="rounded-lg border border-line bg-surface-alt p-3">
+            <p class="whitespace-pre-wrap break-words text-sm leading-6 text-content">{{ display_version.content_text }}</p>
         </div>
         {% else %}
         <p class="text-sm text-content-muted">No tweet text was captured for this item.</p>
@@ -135,7 +135,7 @@
         <div class="space-y-3">
             {% for version in item.versions %}
             <details class="bg-surface border {% if version.version_key == item.current_version_key %}border-teelo-dark ring-2 ring-teelo-dark{% else %}border-line{% endif %} rounded-lg overflow-hidden" {% if display_version and version.id == display_version.id %}open{% endif %}>
-                <summary class="cursor-pointer list-none px-4 py-3 bg-gray-50 border-b border-line">
+                <summary class="cursor-pointer list-none px-4 py-3 bg-surface-alt border-b border-line">
                     <div class="flex flex-wrap items-center gap-2 sm:gap-3">
                         <span class="font-mono font-bold text-sm
                             {% if version.version_key == item.current_version_key %}text-teelo-dark{% else %}text-content-muted{% endif %}">
@@ -146,7 +146,7 @@
                             {% elif version.event == 'approved' %}bg-emerald-100 text-emerald-800
                             {% elif version.event == 'killed' %}bg-red-100 text-red-800
                             {% elif 'review' in version.event %}bg-yellow-100 text-yellow-800
-                            {% else %}bg-gray-100 text-gray-800
+                            {% else %}bg-surface-muted text-content-secondary
                             {% endif %}">
                             {{ version.event | replace('_', ' ') }}
                         </span>
@@ -168,7 +168,7 @@
                 </summary>
                 {% if version.content_text %}
                 <div class="px-4 py-3">
-                    <p class="text-sm text-teelo-dark whitespace-pre-wrap break-words">{{ version.content_text }}</p>
+                    <p class="text-sm text-content whitespace-pre-wrap break-words">{{ version.content_text }}</p>
                 </div>
                 {% endif %}
                 {% if version.note %}
@@ -230,7 +230,7 @@
                     <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold
                         {% if post.status == 'success' %}bg-green-100 text-green-800
                         {% elif post.status == 'failure' %}bg-red-100 text-red-800
-                        {% else %}bg-gray-100 text-gray-800
+                        {% else %}bg-surface-muted text-content-secondary
                         {% endif %}">
                         {{ post.status }}
                     </span>
@@ -256,7 +256,7 @@
         <div class="hidden bg-surface border border-line rounded-lg overflow-hidden md:block">
             <table class="w-full text-sm">
                 <thead>
-                    <tr class="border-b border-line bg-gray-50">
+                    <tr class="border-b border-line bg-surface-alt">
                         <th class="px-4 py-3 text-left font-semibold text-content-muted">When</th>
                         <th class="px-4 py-3 text-left font-semibold text-content-muted">Tweet ID</th>
                         <th class="px-4 py-3 text-left font-semibold text-content-muted">Status</th>
@@ -283,7 +283,7 @@
                             <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
                                 {% if post.status == 'success' %}bg-green-100 text-green-800
                                 {% elif post.status == 'failure' %}bg-red-100 text-red-800
-                                {% else %}bg-gray-100 text-gray-800
+                                {% else %}bg-surface-muted text-content-secondary
                                 {% endif %}">
                                 {{ post.status }}
                             </span>

@@ -95,7 +95,7 @@
                     {% elif item.status == 'killed' %}bg-red-100 text-red-800 border border-red-200
                     {% elif item.status == 'failed_review' %}bg-red-100 text-red-800 border border-red-200
                     {% elif item.status == 'review_pending' %}bg-yellow-100 text-yellow-800 border border-yellow-200
-                    {% else %}bg-gray-100 text-gray-800 border border-gray-200
+                    {% else %}bg-surface-muted text-content-secondary border border-line
                     {% endif %}">
                     {{ item.status | replace('_', ' ') | upper }}
                 </span>
@@ -111,7 +111,7 @@
     <div class="hidden bg-surface border border-line rounded-xl overflow-hidden md:block">
         <table class="w-full text-sm">
             <thead>
-                <tr class="border-b border-line bg-gray-50">
+                <tr class="border-b border-line bg-surface-alt">
                     <th class="px-4 py-3 text-left font-semibold text-content-muted">Key</th>
                     <th class="px-4 py-3 text-left font-semibold text-content-muted">Type</th>
                     <th class="px-4 py-3 text-left font-semibold text-content-muted">Status</th>
@@ -123,7 +123,7 @@
             </thead>
             <tbody class="divide-y divide-line">
                 {% for item in items %}
-                <tr class="hover:bg-gray-50 transition">
+                <tr class="hover:bg-surface-hover transition">
                     <td class="px-4 py-3">
                         <a href="/admin/tweet-activity/{{ item.content_key }}"
                            class="font-mono font-semibold text-teelo-dark hover:underline">
@@ -146,7 +146,7 @@
                             {% elif item.status == 'killed' %}bg-red-100 text-red-800 border border-red-200
                             {% elif item.status == 'failed_review' %}bg-red-100 text-red-800 border border-red-200
                             {% elif item.status == 'review_pending' %}bg-yellow-100 text-yellow-800 border border-yellow-200
-                            {% else %}bg-gray-100 text-gray-800 border border-gray-200
+                            {% else %}bg-surface-muted text-content-secondary border border-line
                             {% endif %}">
                             {{ item.status | replace('_', ' ') | upper }}
                         </span>
