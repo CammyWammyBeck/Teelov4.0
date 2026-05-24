@@ -11,21 +11,23 @@ ROTATE_DIR="$TEELO_DIR/logs/rotated"
 
 mkdir -p "$ROTATE_DIR"
 
-# --- Rotate cron_hourly.log if older than 7 days ---
+# --- Rotate cron_hourly.log if older than 7 days or too large ---
 if [ -f "$LOG_FILE" ]; then
     MTIME=$(stat -c %Y "$LOG_FILE" 2>/dev/null || stat -f %m "$LOG_FILE" 2>/dev/null)
     NOW=$(date +%s)
     AGE_DAYS=$(( (NOW - MTIME) / 86400 ))
+    SIZE_BYTES=$(stat -c %s "$LOG_FILE" 2>/dev/null || stat -f %z "$LOG_FILE" 2>/dev/null)
+    MAX_BYTES=$((50 * 1024 * 1024))
 
-    if [ "$AGE_DAYS" -ge 7 ]; then
-        STAMP=$(date +%Y%m%d)
+    if [ "$AGE_DAYS" -ge 7 ] || [ "$SIZE_BYTES" -ge "$MAX_BYTES" ]; then
+        STAMP=$(date +%Y%m%d-%H%M%S)
         ROTATED="$ROTATE_DIR/cron_hourly.$STAMP.log"
         cp "$LOG_FILE" "$ROTATED"
         gzip -f "$ROTATED"
         truncate -s 0 "$LOG_FILE"
         echo "[rotate_logs] Rotated cron_hourly.log → rotated/cron_hourly.$STAMP.log.gz"
     else
-        echo "[rotate_logs] cron_hourly.log is ${AGE_DAYS}d old — no rotation needed"
+        echo "[rotate_logs] cron_hourly.log is ${AGE_DAYS}d old and ${SIZE_BYTES} bytes — no rotation needed"
     fi
 fi
 
